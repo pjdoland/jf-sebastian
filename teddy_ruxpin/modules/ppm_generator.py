@@ -267,7 +267,7 @@ class PPMGenerator:
             amplitude = 0.7 * peak + 0.3 * rms
 
             # Apply gain for mouth movement (scaled for visibility)
-            mouth_opening = np.clip(amplitude * 7.0, 0, 1)
+            mouth_opening = np.clip(amplitude * 12.0, 0, 1)
 
             # Create envelope: closed → open → closed
             envelope_values.extend([

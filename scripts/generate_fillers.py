@@ -6,6 +6,7 @@ Run this script to create all filler audio files with PPM control tracks.
 
 import sys
 import logging
+import argparse
 from pathlib import Path
 
 # Add parent directory to path
@@ -77,6 +78,19 @@ def generate_filler_files(personality, output_dir: Path):
 
 def main():
     """Main entry point."""
+    # Parse command-line arguments
+    parser = argparse.ArgumentParser(
+        description="Generate filler phrase audio files for a personality"
+    )
+    parser.add_argument(
+        "--personality",
+        type=str,
+        default=settings.PERSONALITY,
+        choices=["johnny", "rich"],
+        help="Personality to generate fillers for (default: from .env)"
+    )
+    args = parser.parse_args()
+
     logger.info("=" * 80)
     logger.info("Filler Phrase Generator")
     logger.info("=" * 80)
@@ -89,9 +103,9 @@ def main():
             logger.error(f"  - {error}")
         sys.exit(1)
 
-    # Load personality
+    # Load personality from command-line argument
     try:
-        personality = get_personality(settings.PERSONALITY)
+        personality = get_personality(args.personality)
         logger.info(f"Personality: {personality.name}")
         logger.info(f"TTS Voice: {personality.tts_voice}")
         logger.info(f"Filler count: {len(personality.filler_phrases)}")
