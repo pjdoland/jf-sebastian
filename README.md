@@ -9,7 +9,7 @@ An AI conversation system that brings life to vintage animatronic toys. Built fo
 
 - **Modular Personality System**: Switch between different AI personalities with unique voices and behaviors
   - **Johnny**: Tiki bartender with deep knowledge of tiki culture ("Hey, Johnny")
-  - **Rich**: Banking CEO inspired by Richard Fairbank of Capital One ("Hey, Rich")
+  - **Rich Bearbank**: Banking CEO ("Hey, Rich")
 - **Wake Word Activation**: Custom wake words per personality using Picovoice Porcupine
 - **Low-Latency Fillers**: Pre-generated personality-specific phrases play immediately while processing
 - **Speech Recognition**: OpenAI Whisper API for accurate speech-to-text transcription
@@ -168,7 +168,7 @@ The system includes a modular personality framework. Each personality has:
 #### Rich - Banking CEO
 - **Wake word**: "Hey, Rich"
 - **Voice**: Echo (professional male)
-- **Character**: Richard Bearbank, CEO inspired by Capital One founder
+- **Character**: Richard Bearbank, Banking CEO
 - **Topics**: Banking, technology, data-driven strategy, innovation
 
 ### Switching Personalities

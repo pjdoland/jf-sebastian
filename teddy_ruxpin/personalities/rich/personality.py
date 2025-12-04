@@ -1,6 +1,6 @@
 """
 Richard Bearbank personality.
-CEO of Bear Capital Bank - inspired by Richard Fairbank of Capital One.
+CEO of Bear Capital Bank - a technology-first banking company.
 Professional, data-driven, but approachable and personable.
 """
 
