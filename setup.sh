@@ -1,8 +1,9 @@
 #!/bin/bash
-# Setup script for Teddy Ruxpin AI system
+# Setup script for J.F. Sebastian AI system
 
 echo "======================================================================"
-echo "Teddy Ruxpin AI Conversation System - Setup"
+echo "J.F. Sebastian - Animatronic AI Conversation System"
+echo '"I make friends. They'\''re toys. My friends are toys. I make them."'
 echo "======================================================================"
 echo
 
@@ -97,8 +98,14 @@ echo "======================================================================"
 echo
 echo "Next steps:"
 echo "1. Edit .env and add your API keys"
-echo "2. Configure audio device indices in .env (see device list above)"
-echo "3. Run: ./run.sh"
+echo "2. Choose personality: Set PERSONALITY=johnny or PERSONALITY=rich in .env"
+echo "3. Configure audio devices in .env (device names recommended):"
+echo "   INPUT_DEVICE_NAME=\"MacBook Air Microphone\""
+echo "   OUTPUT_DEVICE_NAME=\"Arsvita\""
+echo "   (See device list above for available devices)"
+echo "4. Generate filler phrases: python scripts/generate_fillers.py --personality johnny"
+echo "5. Run: ./run.sh"
 echo
-echo "For more information, see README.md"
+echo "For detailed instructions, see QUICKSTART.md"
+echo "To learn about the project, see README.md and ABOUT.md"
 echo
