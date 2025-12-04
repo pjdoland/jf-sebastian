@@ -55,3 +55,6 @@ Thumbs.db
 .pytest_cache/
 .coverage
 htmlcov/
+
+# Reference Materials (excluded from repository)
+reference/

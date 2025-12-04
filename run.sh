@@ -1,5 +1,5 @@
 #!/bin/bash
-# Convenience script to run Teddy Ruxpin AI system
+# Convenience script to run J.F. Sebastian AI system
 
 # Activate virtual environment if it exists
 if [ -d "venv" ]; then

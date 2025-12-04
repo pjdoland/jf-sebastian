@@ -273,7 +273,16 @@ class TeddyRuxpinApp:
             logger.info("Step 2/4: Generating response...")
             if filler_context:
                 # Add filler context as a system message for smooth transition
-                context_prompt = f"[You just said to the customer: \"{filler_context}\"] Now continue naturally into your response to their question."
+                context_prompt = f"""[IMPORTANT CONTEXT: You just said this to the customer while thinking: "{filler_context}"]
+
+Your response must create a seamless, natural continuation. Follow these guidelines:
+1. Pick up grammatically and syntactically where the filler left off
+2. If the filler ended with "Now..." or "So..." or "Alright..." - continue directly without repeating these words
+3. Match the tone and energy of how you ended the filler phrase
+4. Don't acknowledge or reference that you were doing something else - stay in character
+5. Make it sound like one continuous thought, not two separate statements
+
+Now respond to their question naturally, as if your filler phrase was the beginning of this same thought."""
                 response_text = self.conversation_engine.generate_response_with_retry(
                     transcript,
                     additional_context=context_prompt
@@ -319,8 +328,7 @@ class TeddyRuxpinApp:
                 logger.info("Waiting for filler to complete...")
                 while self._filler_playing and self.audio_player.is_playing:
                     time.sleep(0.05)  # Poll every 50ms
-                # Small pause between filler and real response
-                time.sleep(0.1)
+                # No pause - immediate seamless transition to real response
 
             # Transition to SPEAKING state
             self.state_machine.transition_to(ConversationState.SPEAKING, trigger="response_ready")
