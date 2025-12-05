@@ -61,7 +61,7 @@ This application enables real-time voice conversations with ChatGPT through a 19
 ```
 ┌──────┐     wake word      ┌───────────┐
 │ IDLE ├──────────────────► │ LISTENING │
-└──┬───┘                     └─────┬─────┘
+└──┬───┘                    └──────┬────┘
    ▲                               │
    │                               │ silence timeout (10s)
    │                               │ OR speech ended
