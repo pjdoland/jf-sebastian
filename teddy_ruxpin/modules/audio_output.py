@@ -83,7 +83,7 @@ class AudioPlayer:
         stream = None
 
         try:
-            # Get output device - prioritize name over index
+            # Get output device by name (None = system default)
             device_index = None
 
             if settings.OUTPUT_DEVICE_NAME:
@@ -95,9 +95,6 @@ class AudioPlayer:
                 )
                 if device_index is None:
                     logger.warning(f"Could not find output device '{settings.OUTPUT_DEVICE_NAME}', using default")
-            elif settings.OUTPUT_DEVICE_INDEX != -1:
-                # Use device index (legacy)
-                device_index = settings.OUTPUT_DEVICE_INDEX
 
             # Get device info
             if device_index is not None and device_index >= 0:

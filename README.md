@@ -20,22 +20,38 @@ An AI conversation system that brings life to vintage animatronic toys. Built fo
 
 ## System Requirements
 
+### Software
 - Python 3.10 or higher
 - macOS (currently configured for Mac audio devices)
-- Microphone for voice input
-- Audio output device (Bluetooth cassette adapter for Teddy Ruxpin)
 - Internet connection for OpenAI APIs
+
+### Hardware
+- **1985 Teddy Ruxpin doll** (cassette-based model)
+- **Bluetooth cassette adapter** (recommended: [Arsvita Car Audio Bluetooth Wireless Cassette Receiver](https://www.amazon.com/dp/B085C7GTBD))
+- Microphone for voice input
 
 ## Hardware Setup
 
 ### Teddy Ruxpin Connection
 
-1. **Bluetooth Cassette Adapter**: Insert into Teddy's cassette deck
+This system is designed to work with an original **1985 cassette-based Teddy Ruxpin doll**. The cassette mechanism provides both audio playback and motor control through a stereo audio signal.
+
+#### Recommended Bluetooth Adapter
+
+**[Arsvita Car Audio Bluetooth Wireless Cassette Receiver](https://www.amazon.com/dp/B085C7GTBD)**
+- Designed for car cassette players but works perfectly with Teddy Ruxpin
+- Reliable Bluetooth 5.0 connection
+- Good audio quality for both voice and control signals
+- Rechargeable battery (charges via USB-C)
+
+#### Setup Steps
+
+1. **Insert Bluetooth Cassette Adapter**: Place the adapter into Teddy's cassette deck
 2. **Audio Routing**:
    - LEFT channel → Teddy's speaker (voice)
    - RIGHT channel → Control track (mouth/eye motors)
 3. **Pairing**: Pair the Bluetooth adapter with your Mac
-4. **Device Selection**: Note the device index (see Configuration section)
+4. **Device Selection**: Note the device name (see Configuration section)
 
 ## Installation
 
@@ -90,9 +106,9 @@ PERSONALITY=johnny  # Options: 'johnny' or 'rich'
 OPENAI_API_KEY=sk-your-openai-api-key
 PICOVOICE_ACCESS_KEY=your-picovoice-access-key
 
-# Audio device indices (see "Finding Audio Devices" below)
-INPUT_DEVICE_INDEX=-1  # -1 for default, or specific device index
-OUTPUT_DEVICE_INDEX=-1  # -1 for default, or specific device index
+# Audio device names (see "Finding Audio Devices" below)
+INPUT_DEVICE_NAME=MacBook Air Microphone
+OUTPUT_DEVICE_NAME=Arsvita
 ```
 
 ### 6. Get API Keys
@@ -137,15 +153,10 @@ Available Audio Devices:
     Sample Rate: 44100.0 Hz
 ```
 
-Update `.env` with the appropriate device names (recommended) or indices:
+Update `.env` with the appropriate device names:
 ```bash
-# Recommended: Use device names (more reliable)
 INPUT_DEVICE_NAME=MacBook Air Microphone
 OUTPUT_DEVICE_NAME=Arsvita
-
-# Alternative: Use device indices (legacy)
-# INPUT_DEVICE_INDEX=0
-# OUTPUT_DEVICE_INDEX=2
 ```
 
 ## Personalities
@@ -268,8 +279,8 @@ Rich: "Give me a second, reviewing our innovation pipeline... We're a technology
 | `PERSONALITY` | Active personality ('johnny' or 'rich') | johnny |
 | `OPENAI_API_KEY` | OpenAI API key (required) | - |
 | `PICOVOICE_ACCESS_KEY` | Picovoice access key (required) | - |
-| `INPUT_DEVICE_INDEX` | Microphone device index | -1 (default) |
-| `OUTPUT_DEVICE_INDEX` | Speaker device index | -1 (default) |
+| `INPUT_DEVICE_NAME` | Microphone device name | - |
+| `OUTPUT_DEVICE_NAME` | Speaker device name | - |
 | `SAMPLE_RATE` | Audio sample rate (Hz) | 16000 |
 | `VAD_AGGRESSIVENESS` | Voice activity detection (0-3) | 3 |
 | `SILENCE_TIMEOUT` | Max silence before timeout (seconds) | 10.0 |
@@ -312,8 +323,6 @@ class YourPersonality(Personality):
 ## Architecture
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed system design, component descriptions, and technical specifications.
-
-See [ABOUT.md](ABOUT.md) for more about the project name and Blade Runner inspiration.
 
 ### Key Components
 

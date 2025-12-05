@@ -68,7 +68,7 @@ class AudioRecorder:
             # Initialize VAD
             self._vad = webrtcvad.Vad(settings.VAD_AGGRESSIVENESS)
 
-            # Get input device - prioritize name over index
+            # Get input device by name (None = system default)
             device_index = None
 
             if settings.INPUT_DEVICE_NAME:
@@ -80,9 +80,6 @@ class AudioRecorder:
                 )
                 if device_index is None:
                     logger.warning(f"Could not find input device '{settings.INPUT_DEVICE_NAME}', using default")
-            elif settings.INPUT_DEVICE_INDEX != -1:
-                # Use device index (legacy)
-                device_index = settings.INPUT_DEVICE_INDEX
 
             # Open audio stream with retry logic for macOS CoreAudio issues
             max_retries = 3
