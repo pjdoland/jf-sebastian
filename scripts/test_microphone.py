@@ -1,28 +1,52 @@
 #!/usr/bin/env python3
 """
 Simple microphone test to verify audio input is working.
+Uses device name from settings or defaults to system default.
 """
 
 import pyaudio
 import numpy as np
 import time
+import os
+from pathlib import Path
+from dotenv import load_dotenv
+
+# Load .env file
+env_path = Path(__file__).parent.parent / ".env"
+load_dotenv(env_path)
 
 # Audio settings
 SAMPLE_RATE = 16000
 CHUNK_SIZE = 512
-INPUT_DEVICE_INDEX = 2  # MacBook Air Microphone
+INPUT_DEVICE_NAME = os.getenv("INPUT_DEVICE_NAME")
 
 print("=" * 80)
 print("Microphone Test")
 print("=" * 80)
-print(f"Using device index: {INPUT_DEVICE_INDEX}")
+
+p = pyaudio.PyAudio()
+
+# Find device by name if specified
+device_index = None
+if INPUT_DEVICE_NAME:
+    print(f"Looking for device: '{INPUT_DEVICE_NAME}'")
+    for i in range(p.get_device_count()):
+        info = p.get_device_info_by_index(i)
+        if info['maxInputChannels'] > 0 and INPUT_DEVICE_NAME.lower() in info['name'].lower():
+            device_index = i
+            print(f"Found device: {info['name']} (index {i})")
+            break
+
+    if device_index is None:
+        print(f"Warning: Could not find '{INPUT_DEVICE_NAME}', using default device")
+else:
+    print("Using default input device")
+
 print("Speak into your microphone...")
 print("You should see volume levels appear below.")
 print("Press Ctrl+C to stop.")
 print("=" * 80)
 print()
-
-p = pyaudio.PyAudio()
 
 try:
     # Open microphone stream
@@ -32,7 +56,7 @@ try:
         rate=SAMPLE_RATE,
         input=True,
         frames_per_buffer=CHUNK_SIZE,
-        input_device_index=INPUT_DEVICE_INDEX,
+        input_device_index=device_index,
     )
 
     print("✓ Microphone opened successfully!")

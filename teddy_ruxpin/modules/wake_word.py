@@ -69,7 +69,7 @@ class WakeWordDetector:
             # Initialize PyAudio
             self._pyaudio = pyaudio.PyAudio()
 
-            # Get input device - prioritize name over index
+            # Get input device by name (None = system default)
             device_index = None
 
             if settings.INPUT_DEVICE_NAME:
@@ -81,9 +81,6 @@ class WakeWordDetector:
                 )
                 if device_index is None:
                     logger.warning(f"Could not find input device '{settings.INPUT_DEVICE_NAME}', using default")
-            elif settings.INPUT_DEVICE_INDEX != -1:
-                # Use device index (legacy)
-                device_index = settings.INPUT_DEVICE_INDEX
 
             # Get device info to check supported channels
             if device_index is None:

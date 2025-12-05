@@ -26,11 +26,8 @@ class Settings:
     OPENWAKEWORD_MODEL_PATH: Optional[str] = os.getenv("OPENWAKEWORD_MODEL_PATH")
 
     # Audio Configuration
-    # Support both device name (preferred) and device index (legacy)
     INPUT_DEVICE_NAME: Optional[str] = os.getenv("INPUT_DEVICE_NAME")
-    INPUT_DEVICE_INDEX: int = int(os.getenv("INPUT_DEVICE_INDEX", "-1"))
     OUTPUT_DEVICE_NAME: Optional[str] = os.getenv("OUTPUT_DEVICE_NAME")
-    OUTPUT_DEVICE_INDEX: int = int(os.getenv("OUTPUT_DEVICE_INDEX", "-1"))
     SAMPLE_RATE: int = int(os.getenv("SAMPLE_RATE", "44100"))
     CHUNK_SIZE: int = int(os.getenv("CHUNK_SIZE", "1024"))
 

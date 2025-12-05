@@ -145,9 +145,7 @@ def mock_settings(monkeypatch):
         PICOVOICE_ACCESS_KEY = "test-pv-key"
         PERSONALITY = "johnny"
         INPUT_DEVICE_NAME = "MacBook Air Microphone"
-        INPUT_DEVICE_INDEX = -1
         OUTPUT_DEVICE_NAME = "Arsvita"
-        OUTPUT_DEVICE_INDEX = -1
         SAMPLE_RATE = 16000
         CHUNK_SIZE = 512
         CHANNELS = 2

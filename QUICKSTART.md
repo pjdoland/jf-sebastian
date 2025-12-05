@@ -46,20 +46,11 @@ Each personality has:
 
 ## 4. Configure Audio Devices
 
-**Option A: By Device Name (Recommended)**
-
 From the device list shown during setup, find your device names and update `.env`:
 
 ```bash
 INPUT_DEVICE_NAME=MacBook Air Microphone
 OUTPUT_DEVICE_NAME=Arsvita
-```
-
-**Option B: By Device Index (Legacy)**
-
-```bash
-INPUT_DEVICE_INDEX=0   # Your microphone
-OUTPUT_DEVICE_INDEX=2  # Your Bluetooth cassette adapter
 ```
 
 **Test Your Microphone:**
@@ -117,8 +108,8 @@ Press Ctrl+C to exit.
 
 ### No audio output?
 - Verify Bluetooth connection (if using wireless adapter)
-- Check device name/index in `.env`
-- Try `OUTPUT_DEVICE_INDEX=-1` for default device
+- Check device name in `.env`
+- Try leaving `OUTPUT_DEVICE_NAME` empty to use system default device
 - Run setup again to re-list devices: `./setup.sh`
 
 ### No filler phrases playing?
@@ -162,7 +153,6 @@ Recorded audio will be saved to `./debug_audio/`
 ## Next Steps
 
 - Read [README.md](README.md) for full documentation
-- Learn about the project's inspiration in [ABOUT.md](ABOUT.md)
 - Review [ARCHITECTURE.md](ARCHITECTURE.md) for technical details
 - Create custom personalities (see README.md "Adding New Personalities")
 - Experiment with different GPT models in `.env`
