@@ -8,8 +8,8 @@ This application enables real-time voice conversations with ChatGPT through a 19
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                     Main Application                         │
-│                   (State Machine Manager)                    │
+│                     Main Application                        │
+│                   (State Machine Manager)                   │
 └───────┬─────────────────────────────────────────────────────┘
         │
         ├─► Wake Word Detector (Porcupine/OpenWakeWord)
@@ -116,7 +116,7 @@ TTS Audio (MP3) ──► [FFmpeg Decode] ──► PCM Audio @ 16kHz
                             ├──► [Resample to 44.1kHz] ──► LEFT CHANNEL (Voice)
                             │
                             ├──► [Syllable Parser] ──► [Mouth Values per Syllable]
-                            │                                      │
+                            │                                     │
                             └──► [Sentiment Analysis] ──► [Eye Position Values]
                                                                   │
                                     ┌─────────────────────────────┘
