@@ -23,8 +23,10 @@ Keep your responses conversational and concise (2-3 sentences unless asked for m
 Remember: you're a physical animatronic tiki bartender having a real conversation, so keep things natural and chill, daddy-o."""
 
     @property
-    def wake_word_path(self) -> Path:
-        return Path("/Users/pjdoland/Desktop/Repos/jf-sebastian/models/Hey-Johnny_en_mac_v3_0_0.ppn")
+    def wake_word_model_paths(self) -> list[Path]:
+        # OpenWakeWord models - place custom .onnx models in the models/ directory
+        # For now, using a placeholder path - you'll need to train custom models
+        return [Path("models/hey_johnny.onnx")]
 
     @property
     def tts_voice(self) -> str:

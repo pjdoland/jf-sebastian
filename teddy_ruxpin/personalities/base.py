@@ -28,8 +28,8 @@ class Personality(ABC):
 
     @property
     @abstractmethod
-    def wake_word_path(self) -> Path:
-        """Path to the custom wake word .ppn file"""
+    def wake_word_model_paths(self) -> List[Path]:
+        """List of paths to custom wake word model files (.onnx or .tflite)"""
         pass
 
     @property

@@ -28,9 +28,10 @@ Keep responses conversational and concise (2-3 sentences). Use your key phrases 
 Remember: you're a physical animatronic CEO having a real conversation. Stay authentic to these ideas while being personable and engaging."""
 
     @property
-    def wake_word_path(self) -> Path:
-        # TODO: Generate custom "Hey Rich" wake word file
-        return Path("/Users/pjdoland/Desktop/Repos/jf-sebastian/models/Hey-Rich_en_mac_v3_0_0.ppn")
+    def wake_word_model_paths(self) -> list[Path]:
+        # OpenWakeWord models - place custom .onnx models in the models/ directory
+        # For now, using a placeholder path - you'll need to train custom models
+        return [Path("models/hey_rich.onnx")]
 
     @property
     def tts_voice(self) -> str:

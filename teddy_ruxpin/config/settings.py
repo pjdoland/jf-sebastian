@@ -21,9 +21,9 @@ class Settings:
     # OpenAI API
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
 
-    # Wake Word Detection
-    PICOVOICE_ACCESS_KEY: str = os.getenv("PICOVOICE_ACCESS_KEY", "")
-    OPENWAKEWORD_MODEL_PATH: Optional[str] = os.getenv("OPENWAKEWORD_MODEL_PATH")
+    # Wake Word Detection (OpenWakeWord)
+    # Custom wake word models should be placed in the models/ directory
+    # No API key required - OpenWakeWord is fully open source
 
     # Audio Configuration
     INPUT_DEVICE_NAME: Optional[str] = os.getenv("INPUT_DEVICE_NAME")
@@ -73,9 +73,6 @@ class Settings:
 
         if not cls.OPENAI_API_KEY:
             errors.append("OPENAI_API_KEY is required")
-
-        if not cls.PICOVOICE_ACCESS_KEY and not cls.OPENWAKEWORD_MODEL_PATH:
-            errors.append("Either PICOVOICE_ACCESS_KEY or OPENWAKEWORD_MODEL_PATH is required")
 
         if cls.SAMPLE_RATE not in [16000, 22050, 44100, 48000]:
             errors.append(f"Invalid SAMPLE_RATE: {cls.SAMPLE_RATE}. Must be 16000, 22050, 44100, or 48000")

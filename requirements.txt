@@ -9,13 +9,13 @@ sounddevice>=0.4.6
 webrtcvad>=2.0.10
 pydub>=0.25.1
 
-# Wake Word Detection (choose one)
-# Option 1: Picovoice Porcupine (recommended for custom wake words)
-pvporcupine>=3.0.0
+# Wake Word Detection
+# OpenWakeWord (open source, flexible, easy custom wake word creation)
+openwakeword>=0.5.0
+onnxruntime>=1.16.0
 
-# Option 2: OpenWakeWord (alternative, fully open source)
-# openwakeword>=0.5.0
-# onnxruntime>=1.16.0
+# Picovoice Porcupine (optional alternative, requires API key)
+# pvporcupine>=3.0.0
 
 # Sentiment Analysis
 vaderSentiment>=3.3.2
