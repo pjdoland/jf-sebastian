@@ -10,7 +10,7 @@ An AI conversation system that brings life to vintage animatronic toys. Built fo
 - **Modular Personality System**: Switch between different AI personalities with unique voices and behaviors
   - **Johnny**: Tiki bartender with deep knowledge of tiki culture ("Hey, Johnny")
   - **Rich Bearbank**: Banking CEO ("Hey, Rich")
-- **Wake Word Activation**: Custom wake words per personality using Picovoice Porcupine
+- **Wake Word Activation**: Custom wake words per personality using OpenWakeWord (free & open source)
 - **Low-Latency Fillers**: Pre-generated personality-specific phrases play immediately while processing
 - **Speech Recognition**: OpenAI Whisper API for accurate speech-to-text transcription
 - **AI Conversation**: GPT-4o-mini powers personality-driven responses with conversation context
@@ -104,7 +104,6 @@ PERSONALITY=johnny  # Options: 'johnny' or 'rich'
 
 # Required API Keys
 OPENAI_API_KEY=sk-your-openai-api-key
-PICOVOICE_ACCESS_KEY=your-picovoice-access-key
 
 # Audio device names (see "Finding Audio Devices" below)
 INPUT_DEVICE_NAME=MacBook Air Microphone
@@ -118,12 +117,18 @@ OUTPUT_DEVICE_NAME=Arsvita
 2. Create a new API key
 3. Add to `.env` as `OPENAI_API_KEY`
 
-#### Picovoice Access Key
-1. Sign up at https://console.picovoice.ai/
-2. Create a new access key (free tier available)
-3. Add to `.env` as `PICOVOICE_ACCESS_KEY`
+#### Wake Word Models (OpenWakeWord)
 
-**Optional**: Train custom wake words at https://console.picovoice.ai/ for new personalities.
+No API key required! OpenWakeWord is completely free and open source.
+
+To use custom wake words:
+1. Follow the guide in `docs/TRAIN_WAKE_WORDS.md`
+2. Train models for your desired wake phrases
+3. Place `.onnx` model files in the `models/` directory
+
+The personalities are pre-configured to look for:
+- `models/hey_johnny.onnx` (for Johnny)
+- `models/hey_rich.onnx` (for Rich)
 
 ### 7. Finding Audio Devices
 
@@ -278,7 +283,6 @@ Rich: "Give me a second, reviewing our innovation pipeline... We're a technology
 |---------|-------------|---------|
 | `PERSONALITY` | Active personality ('johnny' or 'rich') | johnny |
 | `OPENAI_API_KEY` | OpenAI API key (required) | - |
-| `PICOVOICE_ACCESS_KEY` | Picovoice access key (required) | - |
 | `INPUT_DEVICE_NAME` | Microphone device name | - |
 | `OUTPUT_DEVICE_NAME` | Speaker device name | - |
 | `SAMPLE_RATE` | Audio sample rate (Hz) | 16000 |
@@ -344,9 +348,8 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed system design, component des
 - **Solutions**:
   - Check microphone is working and selected correctly
   - Speak clearly and slightly louder
-  - Verify `PICOVOICE_ACCESS_KEY` is correct
-  - Check wake word file exists in `models/` directory
-  - Train a custom wake word at console.picovoice.ai
+  - Ensure wake word model files exist in `models/` directory
+  - See `docs/TRAIN_WAKE_WORDS.md` for training custom wake words
 
 ### Audio Device Issues
 
@@ -512,7 +515,7 @@ This project is for educational and personal use. Teddy Ruxpin is a trademark of
 ## Credits
 
 - Named after J.F. Sebastian from Blade Runner (1982)
-- Built with Python, OpenAI APIs, and Picovoice Porcupine
+- Built with Python, OpenAI APIs, and OpenWakeWord
 - Inspired by the classic 1985 Teddy Ruxpin animatronic
 - Uses VADER sentiment analysis, syllable-based lip sync, and WebRTC VAD
 - PPM format based on analysis of Svengali and original Teddy Ruxpin tapes

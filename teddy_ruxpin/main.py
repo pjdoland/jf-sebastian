@@ -78,7 +78,7 @@ class TeddyRuxpinApp:
 
         self.wake_word_detector = WakeWordDetector(
             on_wake_word=self._on_wake_word,
-            wake_word_path=self.personality.wake_word_path
+            wake_word_model_paths=self.personality.wake_word_model_paths
         )
         self.audio_recorder = AudioRecorder(on_speech_end=self._on_speech_end)
         self.speech_to_text = SpeechToText()
