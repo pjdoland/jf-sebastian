@@ -132,6 +132,22 @@ def test_audio_to_channel_values_eye_control(sample_audio):
     assert np.all(eyes <= 255)
 
 
+def test_audio_to_channel_values_eye_starts_open(sample_audio):
+    """Eyes should start each interaction at the base open position."""
+    audio, sample_rate = sample_audio
+    gen = PPMGenerator(sample_rate=sample_rate)
+
+    channel_values = gen.audio_to_channel_values(
+        audio, sample_rate, "Kick things off", eyes_base=0.9
+    )
+
+    eyes = channel_values[:, 1]
+    expected_base = int((1.0 - 0.9) * 255)  # Inverted eye polarity
+    # First and last few frames should hold the base to reset drift between interactions
+    assert np.all(eyes[:3] == expected_base)
+    assert np.all(eyes[-3:] == expected_base)
+
+
 def test_audio_to_channel_values_sentiment_effect(sample_audio):
     """Test that sentiment affects eye position."""
     audio, sample_rate = sample_audio

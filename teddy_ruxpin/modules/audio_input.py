@@ -52,7 +52,9 @@ class AudioRecorder:
         # Speech detection state
         self._speech_active = False
         self._silence_start_time: Optional[float] = None
-        self._silence_threshold = 0.8  # seconds of silence to consider speech ended
+        # Allow configurable silence duration and a minimum listen window to avoid early cutoff
+        self._silence_threshold = settings.SPEECH_END_SILENCE_SECONDS
+        self._min_listen_seconds = settings.MIN_LISTEN_SECONDS
 
         logger.info("Audio recorder initialized")
 
@@ -181,7 +183,10 @@ class AudioRecorder:
                     if self._speech_active:
                         if self._silence_start_time is None:
                             self._silence_start_time = time.time()
-                        elif time.time() - self._silence_start_time >= self._silence_threshold:
+                        elif (
+                            time.time() - self._silence_start_time >= self._silence_threshold
+                            and time.time() - start_time >= self._min_listen_seconds
+                        ):
                             logger.info("Speech ended (silence detected)")
                             self._handle_speech_end()
                             break

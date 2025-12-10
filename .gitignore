@@ -41,15 +41,22 @@ teddy_ruxpin.log
 
 # Debug Audio
 debug_audio/
+# Ignore audio files except personality filler audio
 *.wav
+!teddy_ruxpin/personalities/*/filler_audio/*.wav
 *.mp3
 
 # OS
 .DS_Store
 Thumbs.db
 
-# Picovoice
+# Old Picovoice wake word files (no longer used)
 *.ppn
+
+# Wake word models (stored in personality directories)
+# Keep these in version control by default so personalities work out of the box
+# Uncomment if you want to exclude custom wake word models:
+# teddy_ruxpin/personalities/*/*.onnx
 
 # Testing
 .pytest_cache/
@@ -58,3 +65,6 @@ htmlcov/
 
 # Reference Materials (excluded from repository)
 reference/
+
+# Private Personalities (not distributed)
+teddy_ruxpin/personalities/rich/

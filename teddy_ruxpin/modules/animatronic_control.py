@@ -64,6 +64,7 @@ class AnimatronicControlGenerator:
 
             # Analyze sentiment for eye control
             sentiment = self._analyze_sentiment(response_text)
+            logger.info(f"Eye sentiment driver: compound={sentiment:+.2f}")
 
             # Resample voice audio to match PPM sample rate
             # (Resample voice, NOT PPM, to preserve precise pulse timing)
@@ -76,7 +77,7 @@ class AnimatronicControlGenerator:
                 voice_audio,
                 settings.SAMPLE_RATE,
                 text=response_text,
-                eyes_base=0.5,
+                eyes_base=0.9,
                 sentiment=sentiment
             )
 
@@ -89,8 +90,8 @@ class AnimatronicControlGenerator:
             ppm_signal = ppm_signal[:min_length]
 
             # Apply channel-specific gains to balance audio vs control
-            # Voice: boost by 25% for louder audio
-            voice_gain = 0.7 * 1.25  # 87.5%
+            # Voice: boost a bit more for clearer playback
+            voice_gain = 0.7 * 1.5  # 105%
             voice_audio_resampled = voice_audio_resampled * voice_gain
 
             # Control: reduce by 25% to minimize bleedover

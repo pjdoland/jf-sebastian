@@ -19,14 +19,11 @@ This will:
 
 ## 2. Configure API Keys
 
-Edit `.env` and add your keys:
+Edit `.env` and add your OpenAI API key:
 
 ```bash
 # Get from https://platform.openai.com/api-keys
 OPENAI_API_KEY=sk-your-key-here
-
-# Get from https://console.picovoice.ai/
-PICOVOICE_ACCESS_KEY=your-key-here
 ```
 
 ## 3. Choose Your Personality
@@ -34,7 +31,7 @@ PICOVOICE_ACCESS_KEY=your-key-here
 Set which personality you want to use in `.env`:
 
 ```bash
-# Options: 'johnny' (tiki bartender) or 'rich' (banking CEO)
+# Options: 'johnny' (tiki bartender), 'mr_lincoln' (Abraham Lincoln), 'leopold' (conspiracy theorist)
 PERSONALITY=johnny
 ```
 
@@ -92,10 +89,16 @@ Press Ctrl+C to exit.
 3. Wait for Johnny to respond
 4. Continue the conversation!
 
-**For Rich (Banking CEO):**
-1. Say: **"Hey, Rich"**
+**For Mr. Lincoln (Abraham Lincoln):**
+1. Say: **"Hey, Mr. Lincoln"**
 2. Speak your message
-3. Wait for Rich to respond
+3. Wait for Mr. Lincoln to respond
+4. Continue the conversation!
+
+**For Leopold (Conspiracy Theorist):**
+1. Say: **"Hey, Leopold"**
+2. Speak your message
+3. Wait for Leopold to respond
 4. Continue the conversation!
 
 ## Troubleshooting
@@ -114,14 +117,13 @@ Press Ctrl+C to exit.
 
 ### No filler phrases playing?
 - Run: `python scripts/generate_fillers.py --personality johnny`
-- Check that `audio/fillers/johnny/` directory exists and contains .wav files
+- Check that `teddy_ruxpin/personalities/johnny/filler_audio/` directory exists and contains .wav files
 - Enable debug logging: `LOG_LEVEL=DEBUG` in `.env`
 
 ### API errors?
 - Check internet connection
-- Verify API keys are correct
+- Verify API key is correct
 - Ensure OpenAI account has credits
-- Check Picovoice account is active
 
 ### Audio device errors (OSError -9986)?
 - Restart the application

@@ -27,6 +27,7 @@ pyphen>=0.17.2
 
 # Configuration Management
 python-dotenv>=1.0.0
+pyyaml>=6.0.0
 
 # Utilities
 python-dateutil>=2.8.2

@@ -56,23 +56,33 @@ python train.py \
   --output models/hey_johnny.onnx
 ```
 
-### 5. Place Model in Project
+### 5. Place Model in Personality Directory
 
-Move your trained `.onnx` file to the `models/` directory:
+Move your trained `.onnx` file directly into the personality's directory:
 
 ```bash
-mv hey_johnny.onnx /path/to/jf-sebastian/models/
-mv hey_rich.onnx /path/to/jf-sebastian/models/
+# For Johnny personality
+mv hey_johnny.onnx /path/to/jf-sebastian/teddy_ruxpin/personalities/johnny/
+
+# For Rich personality
+mv hey_rich.onnx /path/to/jf-sebastian/teddy_ruxpin/personalities/rich/
+
+# For a new custom personality
+mv hey_yourname.onnx /path/to/jf-sebastian/teddy_ruxpin/personalities/yourname/
 ```
 
-### 6. Update Personality Configuration
+### 6. Verify Configuration
 
-The personality files already reference the model paths:
+Each personality automatically references its wake word model from its own directory using:
 
-- Johnny: `models/hey_johnny.onnx`
-- Rich: `models/hey_rich.onnx`
+```python
+@property
+def wake_word_model_paths(self) -> list[Path]:
+    personality_dir = Path(__file__).parent
+    return [personality_dir / "hey_yourname.onnx"]
+```
 
-No code changes needed - just place your models in the right location!
+No additional configuration needed - the model is automatically discovered!
 
 ## Using Pre-trained Models
 

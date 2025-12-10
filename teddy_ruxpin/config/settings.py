@@ -34,6 +34,8 @@ class Settings:
     # Voice Activity Detection
     VAD_AGGRESSIVENESS: int = int(os.getenv("VAD_AGGRESSIVENESS", "3"))
     SILENCE_TIMEOUT: float = float(os.getenv("SILENCE_TIMEOUT", "10.0"))
+    SPEECH_END_SILENCE_SECONDS: float = float(os.getenv("SPEECH_END_SILENCE_SECONDS", "1.5"))
+    MIN_LISTEN_SECONDS: float = float(os.getenv("MIN_LISTEN_SECONDS", "1.0"))
 
     # Conversation Settings
     CONVERSATION_TIMEOUT: float = float(os.getenv("CONVERSATION_TIMEOUT", "120.0"))
@@ -60,6 +62,7 @@ class Settings:
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
     SAVE_DEBUG_AUDIO: bool = os.getenv("SAVE_DEBUG_AUDIO", "false").lower() == "true"
     DEBUG_AUDIO_PATH: Path = Path(os.getenv("DEBUG_AUDIO_PATH", "./debug_audio/"))
+    PLAYBACK_PREROLL_MS: int = int(os.getenv("PLAYBACK_PREROLL_MS", "240"))
 
     # Note: System prompt is now defined per-personality
 

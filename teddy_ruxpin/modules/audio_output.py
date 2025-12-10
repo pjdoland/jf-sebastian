@@ -41,7 +41,8 @@ class AudioPlayer:
         self,
         stereo_audio: np.ndarray,
         sample_rate: int,
-        blocking: bool = True
+        blocking: bool = True,
+        preroll_ms: Optional[int] = None
     ) -> bool:
         """
         Play stereo audio.
@@ -50,6 +51,8 @@ class AudioPlayer:
             stereo_audio: Stereo audio array (num_samples, 2)
             sample_rate: Sample rate in Hz
             blocking: If True, wait for playback to complete. If False, play in background.
+            preroll_ms: Optional preroll of silence in milliseconds to avoid clipped starts.
+                Defaults to settings.PLAYBACK_PREROLL_MS when None.
 
         Returns:
             True if playback started successfully
@@ -59,6 +62,15 @@ class AudioPlayer:
             return False
 
         try:
+            # Add a short preroll of silence so devices have time to spin up before audio begins
+            if preroll_ms is None:
+                preroll_ms = settings.PLAYBACK_PREROLL_MS
+            if preroll_ms and preroll_ms > 0:
+                preroll_samples = int(sample_rate * (preroll_ms / 1000.0))
+                if preroll_samples > 0:
+                    silence = np.zeros((preroll_samples, 2), dtype=stereo_audio.dtype)
+                    stereo_audio = np.vstack((silence, stereo_audio))
+
             logger.info(f"Starting audio playback ({stereo_audio.shape[0]} samples at {sample_rate}Hz)")
 
             if blocking:

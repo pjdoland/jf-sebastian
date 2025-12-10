@@ -5,11 +5,14 @@
 
 An AI conversation system that brings life to vintage animatronic toys. Built for the 1985 Teddy Ruxpin, this system enables real-time voice conversations with ChatGPT, featuring a modular personality system with unique wake words, voices, and conversational styles.
 
+Includes three distinct personalities: a tiki bartender, Abraham Lincoln (a homage to Disney's pioneering animatronics), and an eccentric conspiracy theorist. Add your own personalities using simple YAML files - no programming required!
+
 ## Features
 
 - **Modular Personality System**: Switch between different AI personalities with unique voices and behaviors
   - **Johnny**: Tiki bartender with deep knowledge of tiki culture ("Hey, Johnny")
-  - **Rich Bearbank**: Banking CEO ("Hey, Rich")
+  - **Mr. Lincoln**: Abraham Lincoln, 16th President - homage to Disney's animatronics ("Hey, Mr. Lincoln")
+  - **Leopold**: Eccentric conspiracy theorist with a wild backstory ("Hey, Leopold")
 - **Wake Word Activation**: Custom wake words per personality using OpenWakeWord (free & open source)
 - **Low-Latency Fillers**: Pre-generated personality-specific phrases play immediately while processing
 - **Speech Recognition**: OpenAI Whisper API for accurate speech-to-text transcription
@@ -75,7 +78,17 @@ source venv/bin/activate  # On macOS/Linux
 pip install -r requirements.txt
 ```
 
-### 4. Install System Dependencies
+### 4. Download OpenWakeWord Preprocessing Models
+
+OpenWakeWord requires preprocessing models that must be downloaded separately:
+
+```bash
+python3 -c "from openwakeword import utils; utils.download_models(['alexa'])"
+```
+
+This downloads the required `melspectrogram.onnx` and `embedding_model.onnx` files to the openwakeword package directory.
+
+### 5. Install System Dependencies
 
 For audio processing, you may need additional system libraries:
 
@@ -88,7 +101,7 @@ brew install portaudio ffmpeg
 # - FFmpeg (for MP3 to PCM conversion)
 ```
 
-### 5. Configuration
+### 6. Configuration
 
 Create a `.env` file from the example:
 
@@ -110,7 +123,7 @@ INPUT_DEVICE_NAME=MacBook Air Microphone
 OUTPUT_DEVICE_NAME=Arsvita
 ```
 
-### 6. Get API Keys
+### 7. Get API Keys
 
 #### OpenAI API Key
 1. Go to https://platform.openai.com/api-keys
@@ -121,16 +134,17 @@ OUTPUT_DEVICE_NAME=Arsvita
 
 No API key required! OpenWakeWord is completely free and open source.
 
-To use custom wake words:
+Each personality includes its own wake word model file:
+- Johnny: `teddy_ruxpin/personalities/johnny/hey_johnny.onnx`
+- Mr. Lincoln: `teddy_ruxpin/personalities/mr_lincoln/hey_mr_lincoln.onnx`
+- Leopold: `teddy_ruxpin/personalities/leopold/hey_leopold.onnx`
+
+To create a custom wake word for a new personality:
 1. Follow the guide in `docs/TRAIN_WAKE_WORDS.md`
-2. Train models for your desired wake phrases
-3. Place `.onnx` model files in the `models/` directory
+2. Train a model for your desired wake phrase
+3. Place the `.onnx` model file in your personality's directory
 
-The personalities are pre-configured to look for:
-- `models/hey_johnny.onnx` (for Johnny)
-- `models/hey_rich.onnx` (for Rich)
-
-### 7. Finding Audio Devices
+### 8. Finding Audio Devices
 
 Run the audio output utility to list all devices:
 
@@ -167,9 +181,9 @@ OUTPUT_DEVICE_NAME=Arsvita
 ## Personalities
 
 The system includes a modular personality framework. Each personality has:
-- Unique **wake word** ("Hey, Johnny" or "Hey, Rich")
+- Unique **wake word** for activation
 - Custom **system prompt** defining character and knowledge
-- Specific **TTS voice** (onyx for Johnny, echo for Rich)
+- Specific **TTS voice** from OpenAI
 - **Filler phrases** that play immediately for low-latency feel
 - Pre-generated **filler audio** files with motor control signals
 
@@ -181,11 +195,17 @@ The system includes a modular personality framework. Each personality has:
 - **Character**: Laid-back bartender with deep tiki culture knowledge
 - **Topics**: Cocktails, surf music, Polynesian pop, tiki history
 
-#### Rich - Banking CEO
-- **Wake word**: "Hey, Rich"
-- **Voice**: Echo (professional male)
-- **Character**: Richard Bearbank, Banking CEO
-- **Topics**: Banking, technology, data-driven strategy, innovation
+#### Mr. Lincoln - Abraham Lincoln
+- **Wake word**: "Hey, Mr. Lincoln"
+- **Voice**: Echo (dignified male)
+- **Character**: 16th President of the United States - a homage to Disney's Great Moments with Mr. Lincoln
+- **Topics**: Liberty, equality, union, Constitution, leadership, moral conviction
+
+#### Leopold - Conspiracy Theorist
+- **Wake word**: "Hey, Leopold"
+- **Voice**: Onyx (conspiratorial)
+- **Character**: Eccentric truth-seeker with an insane backstory (Turkish prison, UFO abductions, intelligence work)
+- **Topics**: Conspiracies, surveillance, government secrets, paranoid theories
 
 ### Switching Personalities
 
@@ -195,11 +215,16 @@ Edit `.env` to change personalities:
 # Switch to Johnny
 PERSONALITY=johnny
 
-# Switch to Rich
-PERSONALITY=rich
+# Switch to Mr. Lincoln
+PERSONALITY=mr_lincoln
+
+# Switch to Leopold
+PERSONALITY=leopold
 ```
 
-Then restart the application. See `teddy_ruxpin/personalities/README.md` for how to create new personalities.
+Then restart the application. See `teddy_ruxpin/personalities/README.md` for detailed instructions on creating new personalities.
+
+Personalities are simple YAML files - no coding required! Just copy an existing personality folder and modify the `personality.yaml` file.
 
 ### Generating Filler Audio
 
@@ -263,16 +288,28 @@ You: "Tell me about tiki culture"
 Johnny: "Just grabbing some fresh mint... So tiki culture started in the 1930s with Don the Beachcomber and Trader Vic. They created this whole Polynesian fantasy..."
 ```
 
-**With Rich (Banking CEO):**
+**With Mr. Lincoln (Abraham Lincoln):**
 ```
-You: "Hey, Rich"
-Rich: [Acknowledges]
+You: "Hey, Mr. Lincoln"
+Mr. Lincoln: [Acknowledges]
 
-You: "What's your business philosophy?"
-Rich: "Let me check our real-time intelligence feed... Now, the most dangerous thing in business is what you know that just ain't so. You have to challenge those assumptions constantly."
+You: "What does freedom mean to you?"
+Mr. Lincoln: "Let me consult my notes on this... Freedom is not the liberty to do as you please, but the opportunity to do what is right. True liberty requires both law and moral conviction."
 
-You: "How do you drive innovation?"
-Rich: "Give me a second, reviewing our innovation pipeline... We're a technology company first, not a bank that uses technology. That mindset changes everything..."
+You: "How did you handle the pressure of the Civil War?"
+Mr. Lincoln: "Reviewing my correspondence from that time... The burden was immense, but I was guided by one principle - preserving the Union and ending slavery. When the cause is just, you endure."
+```
+
+**With Leopold (Conspiracy Theorist):**
+```
+You: "Hey, Leopold"
+Leopold: [Acknowledges]
+
+You: "What do you think about surveillance?"
+Leopold: "Hold on, checking my bug detector... Okay, we're clean. Listen, they're watching everything. I've found three devices in my apartment last month. The surveillance is real, and it's everywhere."
+
+You: "Have you really been abducted by aliens?"
+Leopold: "Just reviewing my notes from the second abduction... Twice, actually. 1997. The first time was definitely more invasive. After they installed the implant, communication improved. You probably think I'm crazy, but the evidence is all there."
 ```
 
 ## Configuration Options
@@ -299,30 +336,25 @@ Rich: "Give me a second, reviewing our innovation pipeline... We're a technology
 
 ### Creating Custom Personalities
 
-See `teddy_ruxpin/personalities/README.md` for detailed instructions on creating new personalities. Each personality defines:
+Creating a new personality is easy - just create a folder and a YAML file! See `teddy_ruxpin/personalities/README.md` for detailed instructions.
 
-```python
-class YourPersonality(Personality):
-    @property
-    def name(self) -> str:
-        return "YourName"
+Each personality is defined in a simple `personality.yaml` file:
 
-    @property
-    def system_prompt(self) -> str:
-        return """Your character description..."""
+```yaml
+name: YourName
+tts_voice: onyx  # or echo, fable, nova, shimmer, alloy
+wake_word_model: hey_yourname.onnx
 
-    @property
-    def wake_word_path(self) -> Path:
-        return Path("./models/hey_yourname.ppn")
+system_prompt: |
+  You are YourName, a character description...
+  Keep responses conversational and concise.
 
-    @property
-    def tts_voice(self) -> str:
-        return "onyx"  # or "echo", "fable", "nova", "shimmer", "alloy"
-
-    @property
-    def filler_phrases(self) -> list[str]:
-        return ["Your filler phrases..."]
+filler_phrases:
+  - "Your filler phrase 1..."
+  - "Your filler phrase 2..."
 ```
+
+No programming required - just copy an existing personality folder and edit the YAML file!
 
 ## Architecture
 
@@ -426,20 +458,22 @@ jf-sebastian/
 │   ├── personalities/       # Modular personality system
 │   │   ├── __init__.py
 │   │   ├── README.md        # Personality creation guide
-│   │   ├── base.py          # Personality base class
-│   │   ├── johnny/          # Johnny personality
-│   │   │   ├── __init__.py
-│   │   │   ├── personality.py
+│   │   ├── base.py          # Personality loader (reads YAML)
+│   │   ├── johnny/          # Johnny personality (drop-in folder)
+│   │   │   ├── personality.yaml   # Personality definition
+│   │   │   ├── hey_johnny.onnx    # Wake word model
 │   │   │   └── filler_audio/
 │   │   │       ├── filler_01.wav
 │   │   │       ├── filler_02.wav
 │   │   │       └── ...
-│   │   └── rich/            # Rich personality
-│   │       ├── __init__.py
-│   │       ├── personality.py
+│   │   ├── mr_lincoln/      # Mr. Lincoln personality (drop-in folder)
+│   │   │   ├── personality.yaml   # Personality definition
+│   │   │   ├── hey_mr_lincoln.onnx # Wake word model
+│   │   │   └── filler_audio/
+│   │   └── leopold/         # Leopold personality (drop-in folder)
+│   │       ├── personality.yaml   # Personality definition
+│   │       ├── hey_leopold.onnx   # Wake word model
 │   │       └── filler_audio/
-│   │           ├── filler_01.wav
-│   │           └── ...
 │   └── modules/
 │       ├── __init__.py
 │       ├── state_machine.py           # State management
@@ -454,9 +488,6 @@ jf-sebastian/
 │       └── audio_output.py            # Stereo playback
 ├── scripts/
 │   └── generate_fillers.py  # Generate personality filler audio
-├── models/                   # Wake word files (.ppn)
-│   ├── Hey-Johnny_en_mac_v3_0_0.ppn
-│   └── Hey-Rich_en_mac_v3_0_0.ppn
 ├── requirements.txt
 ├── .env.example
 ├── README.md
@@ -478,7 +509,7 @@ pytest tests/
 The modular architecture makes it easy to extend:
 
 - **New personalities**: Create a new directory in `teddy_ruxpin/personalities/` (see personalities README)
-- **Custom wake words**: Train at console.picovoice.ai and add `.ppn` file to `models/`
+- **Custom wake words**: Train using OpenWakeWord and add `.onnx` file to your personality's directory (see `docs/TRAIN_WAKE_WORDS.md`)
 - **Different filler phrases**: Edit personality's `filler_phrases` property
 - **Improved lip sync**: Adjust syllable detection in `ppm_generator.py`
 - **Alternative PPM timing**: Modify timing parameters in `PPMGenerator.__init__()`

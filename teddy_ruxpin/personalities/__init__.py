@@ -1,52 +1,70 @@
 """
 Personality system for animatronic characters.
-Each personality has its own wake word, system prompt, filler phrases, and voice.
+
+Personalities are automatically discovered from subdirectories containing personality.yaml files.
+Just drop a new personality folder into teddy_ruxpin/personalities/ and it will be available!
 """
 
-from .base import Personality
-from .johnny import JohnnyPersonality
-from .rich import RichPersonality
+from pathlib import Path
+from .base import Personality, load_personality_from_yaml, discover_personalities
 
 
-# Registry of available personalities
-PERSONALITIES = {
-    "johnny": JohnnyPersonality,
-    "rich": RichPersonality,
-}
+# Auto-discover all personalities in this directory
+_PERSONALITIES_ROOT = Path(__file__).parent
+_PERSONALITY_CACHE = {}  # Cache loaded personalities
 
 
 def get_personality(name: str) -> Personality:
     """
     Get a personality instance by name.
 
+    Personalities are automatically discovered from subdirectories containing personality.yaml.
+
     Args:
-        name: Personality name (e.g., 'johnny', 'rich')
+        name: Personality name (e.g., 'johnny', 'rich') - matches folder name
 
     Returns:
-        Personality instance
+        Personality instance loaded from personality.yaml
 
     Raises:
-        ValueError: If personality name is not found
+        ValueError: If personality name is not found or YAML is invalid
     """
     name_lower = name.lower()
-    if name_lower not in PERSONALITIES:
-        available = ", ".join(PERSONALITIES.keys())
+
+    # Check cache first
+    if name_lower in _PERSONALITY_CACHE:
+        return _PERSONALITY_CACHE[name_lower]
+
+    # Discover available personalities
+    available_personalities = discover_personalities(_PERSONALITIES_ROOT)
+
+    if name_lower not in available_personalities:
+        available = ", ".join(available_personalities.keys())
         raise ValueError(f"Unknown personality '{name}'. Available: {available}")
 
-    personality_class = PERSONALITIES[name_lower]
-    return personality_class()
+    # Load personality from YAML
+    personality_dir = available_personalities[name_lower]
+    try:
+        personality = load_personality_from_yaml(personality_dir)
+        _PERSONALITY_CACHE[name_lower] = personality
+        return personality
+    except Exception as e:
+        raise ValueError(f"Failed to load personality '{name}': {e}")
 
 
 def list_personalities() -> list[str]:
-    """Get list of available personality names"""
-    return list(PERSONALITIES.keys())
+    """
+    Get list of available personality names.
+
+    Returns:
+        List of personality folder names (lowercase)
+    """
+    available_personalities = discover_personalities(_PERSONALITIES_ROOT)
+    return sorted(available_personalities.keys())
 
 
 __all__ = [
     'Personality',
-    'JohnnyPersonality',
-    'RichPersonality',
     'get_personality',
     'list_personalities',
-    'PERSONALITIES',
 ]

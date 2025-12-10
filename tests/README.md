@@ -140,7 +140,7 @@ Common fixtures are defined in `conftest.py`:
 - `sample_audio`: Generate test audio waveforms
 - `mock_pyaudio`: Mock PyAudio instance with device info
 - `mock_openai_client`: Mock OpenAI API client
-- `mock_porcupine`: Mock Porcupine wake word detector
+- `mock_openwakeword`: Mock OpenWakeWord detector
 - `temp_audio_dir`: Temporary directory for test files
 - `sample_ppm_channel_values`: Sample PPM channel data
 - `mock_personality`: Mock personality instance
@@ -192,7 +192,7 @@ def test_with_fixture(sample_audio, mock_pyaudio):
 These tests are designed to run in CI/CD pipelines without requiring:
 - Physical audio hardware
 - OpenAI API keys (mocked)
-- Picovoice API keys (mocked)
+- OpenWakeWord models (mocked)
 - Network connectivity
 
 All external dependencies are mocked for fast, reliable testing.

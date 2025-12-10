@@ -1,6 +1,8 @@
 # Animatronic Personalities
 
-This directory contains modular personality definitions for the animatronic bear system. Each personality has its own wake word, system prompt, filler phrases, and voice.
+This directory contains drop-in personality folders for the animatronic system. Each personality is completely self-contained - just add or remove folders to manage personalities!
+
+Personalities are defined using simple YAML files - **no programming required**.
 
 ## Available Personalities
 
@@ -10,11 +12,17 @@ This directory contains modular personality definitions for the animatronic bear
 - **Character**: Laid-back tiki bartender with deep knowledge of tiki culture, surf music, and tropical drinks
 - **Filler phrases**: Bar activities like making orgeat, grabbing mint, checking rum barrels, etc.
 
-### Rich (Banking CEO)
-- **Wake word**: "Hey, Rich" (requires wake word file generation)
-- **Voice**: Echo (male, professional)
-- **Character**: Richard Bearbank, CEO of Bear Capital Bank - data-driven, strategic, approachable banking expert
-- **Filler phrases**: Business activities like checking market data, reviewing portfolios, analyzing metrics, etc.
+### Mr. Lincoln (Abraham Lincoln)
+- **Wake word**: "Hey, Mr. Lincoln"
+- **Voice**: Echo (male, dignified)
+- **Character**: 16th President of the United States - a homage to Disney's Great Moments with Mr. Lincoln
+- **Filler phrases**: Consulting documents, reviewing correspondence, reflecting on the Constitution, etc.
+
+### Leopold (Conspiracy Theorist)
+- **Wake word**: "Hey, Leopold"
+- **Voice**: Onyx (male, conspiratorial)
+- **Character**: Eccentric truth-seeker with an insane backstory (Turkish prison, UFO abductions, intelligence contractor)
+- **Filler phrases**: Checking bug detectors, scanning perimeter, reviewing surveillance footage, etc.
 
 ## Switching Personalities
 
@@ -24,90 +32,95 @@ To switch personalities, update the `PERSONALITY` setting in your `.env` file:
 # Use Johnny the Tiki Bartender
 PERSONALITY=johnny
 
-# Use Rich the Banking CEO
-PERSONALITY=rich
+# Use Mr. Lincoln
+PERSONALITY=mr_lincoln
+
+# Use Leopold the Conspiracy Theorist
+PERSONALITY=leopold
 ```
 
 ## Creating a New Personality
 
-1. **Create personality directory**:
-   ```bash
-   mkdir -p teddy_ruxpin/personalities/yourname
-   ```
+Creating a personality is simple - just create a folder and a YAML file!
 
-2. **Create personality module** (`yourname/personality.py`):
-   ```python
-   from pathlib import Path
-   from teddy_ruxpin.personalities.base import Personality
+### Step 1: Copy an Existing Personality
 
-   class YourNamePersonality(Personality):
-       @property
-       def name(self) -> str:
-           return "YourName"
+```bash
+# Copy an existing personality as a template
+cp -r teddy_ruxpin/personalities/johnny teddy_ruxpin/personalities/yourname
+```
 
-       @property
-       def system_prompt(self) -> str:
-           return """Your personality description here..."""
+### Step 2: Edit personality.yaml
 
-       @property
-       def wake_word_path(self) -> Path:
-           return Path("/path/to/your/wake_word.ppn")
+Open `teddy_ruxpin/personalities/yourname/personality.yaml` and customize:
 
-       @property
-       def tts_voice(self) -> str:
-           return "onyx"  # or "echo", "fable", "nova", "shimmer", "alloy"
+```yaml
+# Your personality name
+name: YourName
 
-       @property
-       def filler_phrases(self) -> list[str]:
-           return [
-               "Your filler phrase 1...",
-               "Your filler phrase 2...",
-               # ... 30 total phrases recommended
-           ]
-   ```
+# OpenAI TTS voice (onyx, echo, fable, nova, shimmer, or alloy)
+tts_voice: onyx
 
-3. **Create package init** (`yourname/__init__.py`):
-   ```python
-   from .personality import YourNamePersonality
-   __all__ = ['YourNamePersonality']
-   ```
+# Wake word model filename (in this same directory)
+wake_word_model: hey_yourname.onnx
 
-4. **Register in personality system** (`teddy_ruxpin/personalities/__init__.py`):
-   ```python
-   from .yourname import YourNamePersonality
+# System prompt defining the character
+system_prompt: |
+  You are YourName, describe the character here...
 
-   PERSONALITIES = {
-       "johnny": JohnnyPersonality,
-       "rich": RichPersonality,
-       "yourname": YourNamePersonality,  # Add this line
-   }
-   ```
+  Keep responses conversational and concise (2-3 sentences).
 
-5. **Generate custom wake word**:
-   - Go to [Picovoice Console](https://console.picovoice.ai/)
-   - Create a new wake word (e.g., "Hey YourName")
-   - Download the `.ppn` file
-   - Place in `models/` directory
-   - Update `wake_word_path` in your personality
+  Remember: you're a physical animatronic having a real conversation.
 
-6. **Generate filler audio**:
-   ```bash
-   # Update scripts/generate_fillers.py to use your personality
-   python scripts/generate_fillers.py
-   ```
+# Filler phrases (8-10 seconds each, 30 recommended)
+filler_phrases:
+  - "Your first filler phrase ending with a transition word... Now..."
+  - "Your second filler phrase... So..."
+  - "Your third filler phrase... Alright..."
+  # Add 27 more for variety!
+```
 
-## Personality Structure
+### Step 3: Train Custom Wake Word
+- Follow the guide in `docs/TRAIN_WAKE_WORDS.md`
+- Train an OpenWakeWord model for your wake phrase (e.g., "Hey YourName")
+- Save the `.onnx` model file as `hey_yourname.onnx`
+- Place it in your personality's directory: `teddy_ruxpin/personalities/yourname/hey_yourname.onnx`
 
-Each personality directory contains:
+### Step 4: Generate Filler Audio
+
+```bash
+python scripts/generate_fillers.py --personality yourname
+```
+
+### Step 5: Activate Your Personality
+
+Edit `.env`:
+```bash
+PERSONALITY=yourname
+```
+
+**That's it!** Your personality is automatically discovered and ready to use. No registration or code changes needed!
+
+## Personality Directory Structure
+
+Each personality is fully self-contained in its own directory:
 ```
 yourname/
-├── __init__.py                    # Package init
-├── personality.py                  # Personality definition
+├── personality.yaml               # Personality definition (YAML - easy to edit!)
+├── hey_yourname.onnx              # Wake word model
 └── filler_audio/                  # Pre-generated filler audio
     ├── filler_01.wav
     ├── filler_02.wav
     └── ...
 ```
+
+**Everything for a personality stays in its folder:**
+- ✅ **Add a personality**: Just drop in a new folder
+- ✅ **Remove a personality**: Just delete the folder
+- ✅ **Share a personality**: Zip the folder and send it
+- ✅ **No code changes**: Personalities are auto-discovered
+
+The only external configuration needed is setting `PERSONALITY=yourname` in `.env`.
 
 ## Available TTS Voices
 
@@ -127,13 +140,26 @@ Filler phrases play immediately after speech detection while the real response i
 - Reflect the character's activities and personality
 - Give enough time for API processing (Whisper + GPT + TTS)
 
-## Architecture
+## Technical Details
 
-The personality system uses an abstract base class (`Personality`) that defines the interface all personalities must implement:
+### YAML Format
 
-- `name`: Character name
-- `system_prompt`: LLM personality definition
-- `wake_word_path`: Path to custom wake word file
-- `tts_voice`: OpenAI TTS voice ID
-- `filler_phrases`: List of filler phrases
-- `filler_audio_dir`: Directory for pre-generated audio (auto-generated)
+Personalities are defined in `personality.yaml` files with these fields:
+
+- **`name`** (required): Character name shown to users
+- **`tts_voice`** (required): OpenAI TTS voice ID
+- **`wake_word_model`** (required): Filename of the .onnx wake word model
+- **`system_prompt`** (required): Multi-line text defining the character's personality
+- **`filler_phrases`** (required): List of 8-10 second phrases for low-latency response
+
+### Auto-Discovery
+
+The system automatically scans `teddy_ruxpin/personalities/` for subdirectories containing `personality.yaml` files. No manual registration needed!
+
+### Validation
+
+When a personality loads, the system validates:
+- All required fields are present
+- `filler_phrases` is a list
+- Wake word model file exists
+- YAML syntax is correct

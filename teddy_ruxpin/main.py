@@ -11,6 +11,7 @@ import time
 import signal
 from pathlib import Path
 from typing import Optional
+import numpy as np
 
 from teddy_ruxpin.config import settings
 from teddy_ruxpin.personalities import get_personality
@@ -104,6 +105,7 @@ class TeddyRuxpinApp:
         self._running = False
         self._filler_playing = False
         self._selected_filler = None  # Store pre-selected filler for playback
+        self._wake_paused_for_playback = False
 
         logger.info("Application initialized successfully")
 
@@ -187,6 +189,9 @@ class TeddyRuxpinApp:
         """Handle entering LISTENING state."""
         logger.info("Entering LISTENING state - recording audio...")
 
+        # Pause wake word detector while listening to user
+        self.wake_word_detector.pause()
+
         # Start recording
         self.audio_recorder.start_recording()
 
@@ -209,6 +214,9 @@ class TeddyRuxpinApp:
     def _on_enter_idle(self):
         """Handle entering IDLE state."""
         logger.info("Entering IDLE state - waiting for wake word...")
+
+        # Resume wake word detector
+        self._resume_wake_after_playback()
 
         # Check if conversation should be cleared
         if self.conversation_engine.time_since_last_interaction > settings.CONVERSATION_TIMEOUT:
@@ -335,6 +343,7 @@ Now respond to their question naturally, as if your filler phrase was the beginn
 
             # Play stereo audio
             logger.info("Playing response audio...")
+            self._pause_wake_for_playback()
             self.audio_player.play_stereo(stereo_audio, sample_rate, blocking=True)
 
         except Exception as e:
@@ -357,6 +366,7 @@ Now respond to their question naturally, as if your filler phrase was the beginn
 
             logger.info("Playing filler phrase (non-blocking)...")
             self._filler_playing = True
+            self._pause_wake_for_playback()
             # Play in non-blocking mode so processing can continue
             self.audio_player.play_stereo(stereo_audio, sample_rate, blocking=False)
 
@@ -375,8 +385,29 @@ Now respond to their question naturally, as if your filler phrase was the beginn
             # Don't transition to IDLE yet - real response may be coming
             return
 
+        # Resume wake word detector after all playback finishes
+        self._resume_wake_after_playback()
+
         # Return to IDLE state (after real response)
         self.state_machine.transition_to(ConversationState.IDLE, trigger="playback_complete")
+
+    def _pause_wake_for_playback(self):
+        """Pause wake-word detection while audio is playing to avoid self-trigger."""
+        if not self._wake_paused_for_playback:
+            try:
+                self.wake_word_detector.pause()
+            except Exception as e:
+                logger.error(f"Error pausing wake word detector: {e}")
+            self._wake_paused_for_playback = True
+
+    def _resume_wake_after_playback(self):
+        """Resume wake-word detection after playback completes."""
+        if self._wake_paused_for_playback:
+            try:
+                self.wake_word_detector.resume()
+            except Exception as e:
+                logger.error(f"Error resuming wake word detector: {e}")
+            self._wake_paused_for_playback = False
 
 
 def main():

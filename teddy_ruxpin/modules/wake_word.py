@@ -6,8 +6,10 @@ Supports custom wake phrases with always-on listening.
 import logging
 import threading
 import struct
+import time
 from typing import Optional, Callable
 from pathlib import Path
+from collections import deque
 import pyaudio
 import numpy as np
 
@@ -41,10 +43,19 @@ class WakeWordDetector:
         self.on_wake_word = on_wake_word
         self.wake_word_model_paths = wake_word_model_paths
         self._running = False
+        self._paused = False  # Flag to pause detection without stopping the thread
         self._thread: Optional[threading.Thread] = None
         self._model: Optional[Model] = None
         self._audio_stream: Optional[pyaudio.Stream] = None
         self._pyaudio: Optional[pyaudio.PyAudio] = None
+
+        # Audio buffer for rolling window detection (2 seconds = 32000 samples at 16kHz)
+        self._audio_buffer: Optional[deque] = None
+
+        # Debouncing to prevent multiple rapid detections
+        self._last_detection_time: float = 0.0
+        self._debounce_seconds: float = 2.0  # Minimum time between detections
+        self._detection_threshold: float = 0.99
 
         if not OPENWAKEWORD_AVAILABLE:
             raise RuntimeError("openwakeword library not installed")
@@ -71,6 +82,10 @@ class WakeWordDetector:
             # Get required sample rate and chunk size from model
             self._sample_rate = 16000  # OpenWakeWord requires 16kHz
             self._chunk_size = 1280     # OpenWakeWord default chunk size (80ms at 16kHz)
+
+            # Initialize audio buffer (2 seconds for proper model inference)
+            buffer_samples = 32000  # 2 seconds at 16kHz
+            self._audio_buffer = deque(maxlen=buffer_samples)
 
             # Initialize PyAudio
             self._pyaudio = pyaudio.PyAudio()
@@ -137,7 +152,7 @@ class WakeWordDetector:
 
             logger.info(
                 f"Wake word detector started (sample_rate={self._sample_rate}Hz, "
-                f"chunk_size={self._chunk_size})"
+                f"chunk_size={self._chunk_size}, threshold={self._detection_threshold})"
             )
 
         except Exception as e:
@@ -159,12 +174,53 @@ class WakeWordDetector:
         self._cleanup()
         logger.info("Wake word detector stopped")
 
+    def pause(self):
+        """Pause wake word detection (keeps running but skips processing)."""
+        if not self._running:
+            logger.warning("Cannot pause - detector not running")
+            return
+
+        if self._paused:
+            logger.debug("Wake word detector already paused")
+            return
+
+        logger.debug("Pausing wake word detector")
+        self._paused = True
+
+    def resume(self):
+        """Resume wake word detection after pausing."""
+        if not self._running:
+            logger.warning("Cannot resume - detector not running")
+            return
+
+        if not self._paused:
+            logger.debug("Wake word detector not paused")
+            return
+
+        logger.debug("Resuming wake word detector")
+        self._paused = False
+        # Clear buffer when resuming to avoid detecting old audio
+        if self._audio_buffer:
+            self._audio_buffer.clear()
+        if self._model:
+            self._model.reset()
+
     def _detection_loop(self):
         """Main detection loop running in background thread."""
         logger.info("Wake word detection loop started")
 
         try:
             while self._running:
+                # Skip processing if paused (but keep reading to prevent buffer overflow)
+                if self._paused:
+                    # Still read audio to prevent stream buffer overflow
+                    self._audio_stream.read(
+                        self._chunk_size,
+                        exception_on_overflow=False
+                    )
+                    time.sleep(0.01)  # Small sleep to reduce CPU usage
+                    continue
+
                 # Read audio chunk
                 pcm = self._audio_stream.read(
                     self._chunk_size,
@@ -180,24 +236,50 @@ class WakeWordDetector:
                     stereo_data = np.frombuffer(pcm, dtype=np.int16)
                     audio_data = stereo_data[::2]  # Take every other sample (left channel)
 
-                # OpenWakeWord expects float32 normalized to [-1, 1]
-                audio_float = audio_data.astype(np.float32) / 32768.0
+                # Add to rolling buffer
+                self._audio_buffer.extend(audio_data)
 
-                # Process audio with model
-                predictions = self._model.predict(audio_float)
+                # Only process when buffer is full (have enough context)
+                if len(self._audio_buffer) < self._audio_buffer.maxlen:
+                    continue
 
-                # Check if any wake word was detected
-                for model_name, score in predictions.items():
-                    if score >= 0.5:  # Default threshold
-                        logger.info(f"Wake word detected: {model_name} (score: {score:.3f})")
-                        try:
-                            self.on_wake_word()
-                        except Exception as e:
-                            logger.error(f"Error in wake word callback: {e}", exc_info=True)
+                # Get buffered audio window
+                audio_window = np.array(list(self._audio_buffer))
 
-                        # Reset the model after detection to avoid multiple triggers
-                        self._model.reset()
-                        break
+                # Use predict_clip for custom models (like easy-oww does)
+                # This gives better results than streaming predict()
+                predictions = self._model.predict_clip(audio_window, padding=1, chunk_size=1280)
+
+                # Extract max score from all frames
+                model_name = list(self._model.models.keys())[0]
+                scores = [pred[model_name] for pred in predictions if model_name in pred]
+
+                if scores:
+                    max_score = max(scores)
+
+                    # Check if wake word was detected
+                    if max_score >= self._detection_threshold:
+                        current_time = time.time()
+
+                        # Debouncing: only trigger if enough time has passed since last detection
+                        if current_time - self._last_detection_time >= self._debounce_seconds:
+                            logger.info(
+                                f"Wake word detected: {model_name} (score: {max_score:.3f} "
+                                f">= threshold {self._detection_threshold:.2f})"
+                            )
+                            self._last_detection_time = current_time
+
+                            try:
+                                self.on_wake_word()
+                            except Exception as e:
+                                logger.error(f"Error in wake word callback: {e}", exc_info=True)
+
+                            # Reset the model and clear buffer after detection to avoid multiple triggers
+                            self._model.reset()
+                            self._audio_buffer.clear()
+                        else:
+                            # Detection within debounce period - ignore it
+                            logger.debug(f"Ignoring detection (debounce): score {max_score:.3f}")
 
         except Exception as e:
             logger.error(f"Error in wake word detection loop: {e}", exc_info=True)

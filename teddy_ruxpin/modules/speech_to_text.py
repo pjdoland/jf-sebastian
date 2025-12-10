@@ -26,7 +26,11 @@ class SpeechToText:
         if not settings.OPENAI_API_KEY:
             raise ValueError("OPENAI_API_KEY not set in configuration")
 
-        self.client = OpenAI(api_key=settings.OPENAI_API_KEY)
+        # Initialize with reasonable timeout (30 seconds for API calls)
+        self.client = OpenAI(
+            api_key=settings.OPENAI_API_KEY,
+            timeout=30.0
+        )
         logger.info(f"Speech-to-text initialized (model={settings.WHISPER_MODEL})")
 
     def transcribe(self, audio_data: bytes, language: str = "en") -> Optional[str]:

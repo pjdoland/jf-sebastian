@@ -115,7 +115,7 @@ class PPMGenerator:
         audio: np.ndarray,
         sample_rate: int,
         text: str = "",
-        eyes_base: float = 0.5,
+        eyes_base: float = 0.9,
         sentiment: float = 0.0
     ) -> np.ndarray:
         """
@@ -125,7 +125,7 @@ class PPMGenerator:
             audio: Audio waveform (mono, normalized -1 to 1)
             sample_rate: Audio sample rate
             text: Text being spoken (for syllable detection)
-            eyes_base: Base eye position (0-1)
+            eyes_base: Base eye position (0-1, default 0.9 to start interactions open)
             sentiment: Sentiment score (-1 to 1) for eye modulation
 
         Returns:
@@ -137,9 +137,20 @@ class PPMGenerator:
 
         # Initialize channel values (all zeros)
         channel_values = np.zeros((num_frames, self.NUM_CHANNELS), dtype=np.uint8)
+        frames_generated = 0
+        blink_count = 0
 
         # Parse syllables from text for better lip sync timing
         syllable_values = self._calculate_syllable_mouth_values(audio, sample_rate, text)
+
+        # Clamp inputs for eyes and sentiment
+        base_eye_position = np.clip(eyes_base, 0, 1)
+        sentiment = float(np.clip(sentiment, -1.0, 1.0))
+        # Hold the eyes at the base position at the start and end of each clip so
+        # every interaction begins and returns to a known open state.
+        settle_frames_start = 3
+        settle_frames_end = 3
+        settle_end_start_idx = max(num_frames - settle_frames_end, 0)
 
         # Samples per PPM frame
         samples_per_frame = int(sample_rate * self.PERIOD / 1_000_000)
@@ -151,6 +162,7 @@ class PPMGenerator:
 
             if start_sample >= len(audio):
                 break
+            frames_generated += 1
 
             # Get syllable-based mouth value for this frame's timestamp
             time_in_audio = start_sample / sample_rate
@@ -174,15 +186,48 @@ class PPMGenerator:
             channel_values[frame_idx, 2] = int(mouth_value * 0.7 * 255)  # Ch2: Upper jaw (70% of lower)
 
             # Eye control based on sentiment
-            # Map sentiment from -1..1 to eye position 0..1
-            eye_position = 0.5 + sentiment * 0.3  # Vary ±30% based on sentiment
-            eye_position = np.clip(eye_position, 0, 1)
+            if frame_idx < settle_frames_start or frame_idx >= settle_end_start_idx:
+                # Force initial and final frames to the base position to reset between interactions
+                eye_position = base_eye_position
+            else:
+                # Map sentiment from -1..1 to eye position 0..1 around the base
+                eye_position = base_eye_position + sentiment * 0.3  # Vary ±30% based on sentiment
+                eye_position = np.clip(eye_position, 0, 1)
 
-            # Add occasional blinks (random drops)
-            if np.random.random() < 0.005:  # 0.5% chance per frame (~once per 10 seconds at 50Hz)
+            # Add occasional blinks (random drops) after the settle period
+            blink_triggered = False
+            if (
+                settle_frames_start <= frame_idx < settle_end_start_idx
+                and np.random.random() < 0.005  # 0.5% chance per frame (~once per 10 seconds at 50Hz)
+            ):
+                blink_triggered = True
+                blink_count += 1
                 eye_position *= 0.3  # Blink
 
-            channel_values[frame_idx, 1] = int(eye_position * 255)  # Ch1: Eyes
+            # Keep a floor on eye openness unless we are explicitly blinking
+            if not blink_triggered:
+                min_eye_open = max(base_eye_position * 0.75, 0.65)  # Keep eyes mostly open
+                eye_position = max(eye_position, min_eye_open)
+
+            # Hardware expects inverted polarity: higher command closes lids, so flip to keep
+            # higher logical openness mapping to lower command value.
+            eye_command = 1.0 - eye_position
+            channel_values[frame_idx, 1] = int(eye_command * 255)  # Ch1: Eyes (inverted)
+
+        # Trim to the frames we actually generated (avoids trailing zeros from the prealloc)
+        if frames_generated > 0:
+            channel_values = channel_values[:frames_generated]
+        else:
+            channel_values = channel_values[:1]
+
+        # Enforce base eye position on the true first/last frames (after trimming)
+        base_value = int(base_eye_position * 255)
+        start_frames = min(settle_frames_start, len(channel_values))
+        end_frames_start = max(len(channel_values) - settle_frames_end, 0)
+        if start_frames > 0:
+            channel_values[:start_frames, 1] = base_value
+        if settle_frames_end > 0:
+            channel_values[end_frames_start:, 1] = base_value
 
         # Validate and log mouth movement statistics
         mouth_values = channel_values[:, 3]  # Lower jaw
@@ -199,6 +244,24 @@ class PPMGenerator:
         # Sanity check: warn if mouth barely moves
         if non_zero_frames < num_frames * 0.1:
             logger.warning(f"Low mouth activity detected! Only {non_zero_frames}/{num_frames} frames have movement")
+
+        # Log eye movement statistics for debugging excessive closing
+        eyes_values = channel_values[:, 1]  # Already inverted command values
+        if len(eyes_values) > 0:
+            eye_stats = {
+                "min": np.min(eyes_values) / 255.0,
+                "median": float(np.median(eyes_values) / 255.0),
+                "max": np.max(eyes_values) / 255.0,
+                "blinks": blink_count,
+                "frames": len(eyes_values),
+                "base": base_eye_position,
+                "sentiment": sentiment,
+            }
+            logger.info(
+                "Eye stats: base={base:.2f}, sentiment={sentiment:+.2f}, "
+                "median={median:.3f}, min={min:.3f}, max={max:.3f}, "
+                "blinks={blinks} over {frames} frames".format(**eye_stats)
+            )
 
         return channel_values
 
@@ -317,4 +380,3 @@ class PPMGenerator:
                 # Split word evenly (rough approximation)
                 syllable_list.extend([word] * count)
             return syllable_list
-

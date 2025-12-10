@@ -12,9 +12,9 @@ This application enables real-time voice conversations with ChatGPT through a 19
 │                   (State Machine Manager)                   │
 └───────┬─────────────────────────────────────────────────────┘
         │
-        ├─► Wake Word Detector (Porcupine/OpenWakeWord)
+        ├─► Wake Word Detector (OpenWakeWord)
         │   - Always-on listening
-        │   - "Hey, Teddy" detection
+        │   - Personality-specific wake phrases ("Hey, Johnny" / "Hey, Rich")
         │   - Triggers state transition: IDLE → LISTENING
         │
         ├─► Audio Input Pipeline
@@ -224,8 +224,7 @@ The original mechanism uses:
 
 Using `.env` file for:
 - OpenAI API key
-- Picovoice/OpenWakeWord credentials
-- Audio device indices
+- Audio device names
 - Timing thresholds
 - Model selections
 - Debug flags
@@ -233,7 +232,8 @@ Using `.env` file for:
 ## Dependencies
 
 Core libraries:
-- `pvporcupine` or `openwakeword` - Wake word detection
+- `openwakeword` - Wake word detection (free & open source)
+- `onnxruntime` - ONNX model inference for wake word detection
 - `pyaudio` or `sounddevice` - Audio I/O
 - `webrtcvad` - Voice activity detection
 - `openai` - Whisper, GPT-4o, TTS APIs
