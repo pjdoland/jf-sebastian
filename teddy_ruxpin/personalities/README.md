@@ -41,7 +41,9 @@ PERSONALITY=leopold
 
 ## Creating a New Personality
 
-Creating a personality is simple - just create a folder and a YAML file!
+**📖 Full Guide:** For a comprehensive step-by-step tutorial, see [docs/CREATING_PERSONALITIES.md](../../docs/CREATING_PERSONALITIES.md)
+
+**Quick Start:** Creating a personality is simple - just create a folder and a YAML file!
 
 ### Step 1: Copy an Existing Personality
 

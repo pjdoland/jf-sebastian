@@ -336,7 +336,11 @@ Leopold: "Just reviewing my notes from the second abduction... Twice, actually. 
 
 ### Creating Custom Personalities
 
-Creating a new personality is easy - just create a folder and a YAML file! See `teddy_ruxpin/personalities/README.md` for detailed instructions.
+Creating a new personality is easy - just create a folder and a YAML file!
+
+**📖 Full Guide:** See [docs/CREATING_PERSONALITIES.md](docs/CREATING_PERSONALITIES.md) for a comprehensive step-by-step guide.
+
+**Quick Reference:** See `teddy_ruxpin/personalities/README.md` for technical details.
 
 Each personality is defined in a simple `personality.yaml` file:
 
@@ -508,9 +512,9 @@ pytest tests/
 
 The modular architecture makes it easy to extend:
 
-- **New personalities**: Create a new directory in `teddy_ruxpin/personalities/` (see personalities README)
-- **Custom wake words**: Train using OpenWakeWord and add `.onnx` file to your personality's directory (see `docs/TRAIN_WAKE_WORDS.md`)
-- **Different filler phrases**: Edit personality's `filler_phrases` property
+- **New personalities**: See [docs/CREATING_PERSONALITIES.md](docs/CREATING_PERSONALITIES.md) for a complete guide
+- **Custom wake words**: Train using OpenWakeWord (see [docs/TRAIN_WAKE_WORDS.md](docs/TRAIN_WAKE_WORDS.md))
+- **Different filler phrases**: Edit your personality's `filler_phrases` in the YAML file
 - **Improved lip sync**: Adjust syllable detection in `ppm_generator.py`
 - **Alternative PPM timing**: Modify timing parameters in `PPMGenerator.__init__()`
 
