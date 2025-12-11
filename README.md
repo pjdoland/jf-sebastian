@@ -7,6 +7,8 @@ An AI conversation system that brings life to vintage animatronic toys. Built fo
 
 Includes three distinct personalities: a tiki bartender, Abraham Lincoln (a homage to Disney's pioneering animatronics), and an eccentric conspiracy theorist. Add your own personalities using simple YAML files - no programming required!
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 ## Features
 
 - **Modular Personality System**: Switch between different AI personalities with unique voices and behaviors
@@ -20,6 +22,10 @@ Includes three distinct personalities: a tiki bartender, Abraham Lincoln (a homa
 - **Natural Voice**: OpenAI TTS generates speech with personality-specific voices
 - **Animatronic Control**: Generates PPM control signals for mouth (syllable-based lip sync) and eyes (sentiment-based)
 - **Stereo Output**: LEFT channel = voice audio, RIGHT channel = PPM motor control signals (60Hz, 16.6ms frames)
+
+## Quick Start
+
+**New to J.F. Sebastian?** See the [Quick Start Guide](docs/QUICKSTART.md) to get your animatronic talking in 5 minutes!
 
 ## System Requirements
 
@@ -362,7 +368,7 @@ No programming required - just copy an existing personality folder and edit the 
 
 ## Architecture
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed system design, component descriptions, and technical specifications.
+See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed system design, component descriptions, and technical specifications.
 
 ### Key Components
 
@@ -453,49 +459,61 @@ Inspect stereo output in Audacity:
 
 ```
 jf-sebastian/
-├── teddy_ruxpin/
+├── teddy_ruxpin/            # Main application package
 │   ├── __init__.py
 │   ├── main.py              # Main application
 │   ├── config/
 │   │   ├── __init__.py
 │   │   └── settings.py      # Configuration management
-│   ├── personalities/       # Modular personality system
+│   ├── modules/
 │   │   ├── __init__.py
-│   │   ├── README.md        # Personality creation guide
-│   │   ├── base.py          # Personality loader (reads YAML)
-│   │   ├── johnny/          # Johnny personality (drop-in folder)
-│   │   │   ├── personality.yaml   # Personality definition
-│   │   │   ├── hey_johnny.onnx    # Wake word model
-│   │   │   └── filler_audio/
-│   │   │       ├── filler_01.wav
-│   │   │       ├── filler_02.wav
-│   │   │       └── ...
-│   │   ├── mr_lincoln/      # Mr. Lincoln personality (drop-in folder)
-│   │   │   ├── personality.yaml   # Personality definition
-│   │   │   ├── hey_mr_lincoln.onnx # Wake word model
-│   │   │   └── filler_audio/
-│   │   └── leopold/         # Leopold personality (drop-in folder)
-│   │       ├── personality.yaml   # Personality definition
-│   │       ├── hey_leopold.onnx   # Wake word model
-│   │       └── filler_audio/
-│   └── modules/
-│       ├── __init__.py
-│       ├── state_machine.py           # State management
-│       ├── wake_word.py               # Wake word detection
-│       ├── audio_input.py             # Microphone + VAD
-│       ├── speech_to_text.py          # Whisper API
-│       ├── conversation.py            # GPT-4o integration
-│       ├── text_to_speech.py          # TTS API
-│       ├── filler_phrases.py          # Filler phrase manager
-│       ├── ppm_generator.py           # PPM signal generation (60Hz)
-│       ├── animatronic_control.py     # Syllable-based lip sync + sentiment
-│       └── audio_output.py            # Stereo playback
+│   │   ├── state_machine.py           # State management
+│   │   ├── wake_word.py               # Wake word detection
+│   │   ├── audio_input.py             # Microphone + VAD
+│   │   ├── speech_to_text.py          # Whisper API
+│   │   ├── conversation.py            # GPT-4o integration
+│   │   ├── text_to_speech.py          # TTS API
+│   │   ├── filler_phrases.py          # Filler phrase manager
+│   │   ├── ppm_generator.py           # PPM signal generation (60Hz)
+│   │   ├── animatronic_control.py     # Syllable-based lip sync + sentiment
+│   │   └── audio_output.py            # Stereo playback
+│   └── utils/
+│       └── audio_device_utils.py
+├── personalities/           # Device-agnostic personality system
+│   ├── __init__.py
+│   ├── README.md            # Personality creation guide
+│   ├── base.py              # Personality loader (reads YAML)
+│   ├── johnny/              # Johnny personality (drop-in folder)
+│   │   ├── personality.yaml # Personality definition
+│   │   ├── hey_johnny.onnx  # Wake word model
+│   │   └── filler_audio/
+│   │       ├── filler_01.wav
+│   │       ├── filler_02.wav
+│   │       └── ...
+│   ├── mr_lincoln/          # Mr. Lincoln personality (drop-in folder)
+│   │   ├── personality.yaml
+│   │   ├── hey_mr_lincoln.onnx
+│   │   └── filler_audio/
+│   └── leopold/             # Leopold personality (drop-in folder)
+│       ├── personality.yaml
+│       ├── hey_leopold.onnx
+│       └── filler_audio/
+├── tests/                   # Unit tests
+│   ├── personalities/
+│   ├── modules/
+│   └── config/
 ├── scripts/
-│   └── generate_fillers.py  # Generate personality filler audio
+│   ├── generate_fillers.py  # Generate personality filler audio
+│   └── test_microphone.py   # Microphone testing utility
+├── docs/
+│   ├── ARCHITECTURE.md
+│   ├── CREATING_PERSONALITIES.md
+│   ├── QUICKSTART.md
+│   └── TRAIN_WAKE_WORDS.md
 ├── requirements.txt
 ├── .env.example
-├── README.md
-└── ARCHITECTURE.md
+├── LICENSE
+└── README.md
 ```
 
 ### Running Tests
@@ -545,7 +563,9 @@ This project is named after J.F. Sebastian, the genetic designer from Blade Runn
 
 ## License
 
-This project is for educational and personal use. Teddy Ruxpin is a trademark of Wicked Cool Toys.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+Teddy Ruxpin is a trademark of Wicked Cool Toys. This project is not affiliated with or endorsed by Wicked Cool Toys.
 
 ## Credits
 
