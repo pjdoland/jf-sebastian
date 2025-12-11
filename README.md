@@ -47,6 +47,14 @@ Includes three distinct personalities: a tiki bartender, Abraham Lincoln (a homa
   - [Conversation Examples](#conversation-examples)
 - [Configuration Options](#configuration-options)
   - [.env Settings](#env-settings)
+    - [Personality & API Configuration](#personality-api-configuration)
+    - [Audio Device Configuration](#audio-device-configuration)
+    - [Voice Activity Detection](#voice-activity-detection)
+    - [Conversation Settings](#conversation-settings)
+    - [OpenAI Models](#openai-models)
+    - [Animatronic Control](#animatronic-control)
+    - [Debug Settings](#debug-settings)
+    - [Deprecated Settings](#deprecated-settings)
   - [Creating Custom Personalities](#creating-custom-personalities)
 - [Architecture](#architecture)
   - [Key Components](#key-components)
@@ -384,23 +392,77 @@ Leopold: "Just reviewing my notes from the second abduction... Twice, actually. 
 
 ### .env Settings
 
+#### Personality & API Configuration
+
 | Setting | Description | Default |
 |---------|-------------|---------|
 | `PERSONALITY` | Active personality ('johnny', 'mr_lincoln', 'leopold') | johnny |
 | `OPENAI_API_KEY` | OpenAI API key (required) | - |
+
+#### Audio Device Configuration
+
+| Setting | Description | Default |
+|---------|-------------|---------|
 | `INPUT_DEVICE_NAME` | Microphone device name | - |
 | `OUTPUT_DEVICE_NAME` | Speaker device name | - |
-| `SAMPLE_RATE` | Audio sample rate (Hz) | 16000 |
-| `VAD_AGGRESSIVENESS` | Voice activity detection (0-3) | 3 |
-| `SILENCE_TIMEOUT` | Max silence before timeout (seconds) | 10.0 |
-| `CONVERSATION_TIMEOUT` | Clear history after idle (seconds) | 120.0 |
-| `GPT_MODEL` | OpenAI GPT model | gpt-4o-mini |
-| `SENTIMENT_POSITIVE_THRESHOLD` | Eye control threshold | 0.3 |
-| `SENTIMENT_NEGATIVE_THRESHOLD` | Eye control threshold | -0.3 |
-| `DEBUG_MODE` | Enable debug logging | false |
-| `SAVE_DEBUG_AUDIO` | Save audio files for debugging | false |
+| `SAMPLE_RATE` | Audio sample rate (Hz) - must be 16000, 22050, 44100, or 48000 | 16000 |
+| `CHUNK_SIZE` | Audio chunk size for processing | 1024 |
 
-**Note**: TTS voice and system prompt are now defined per personality in `personalities/`
+#### Voice Activity Detection
+
+| Setting | Description | Default |
+|---------|-------------|---------|
+| `VAD_AGGRESSIVENESS` | Voice activity detection aggressiveness (0-3, higher = more aggressive) | 3 |
+| `SILENCE_TIMEOUT` | Max silence before timeout (seconds) | 5.0 |
+| `SPEECH_END_SILENCE_SECONDS` | Silence required to end speech after talking (seconds) | 0.5 |
+| `MIN_LISTEN_SECONDS` | Minimum listen window after wake word (seconds) | 1.0 |
+
+#### Conversation Settings
+
+| Setting | Description | Default |
+|---------|-------------|---------|
+| `CONVERSATION_TIMEOUT` | Clear history after idle (seconds) | 120.0 |
+| `MAX_HISTORY_LENGTH` | Maximum conversation history messages to maintain | 20 |
+
+#### OpenAI Models
+
+| Setting | Description | Default |
+|---------|-------------|---------|
+| `WHISPER_MODEL` | OpenAI Whisper speech-to-text model | whisper-1 |
+| `GPT_MODEL` | OpenAI GPT model for conversation | gpt-4o-mini |
+| `TTS_MODEL` | OpenAI text-to-speech model | tts-1 |
+
+**Note**: TTS voice is defined per personality in `personalities/` (not in .env)
+
+#### Animatronic Control
+
+| Setting | Description | Default |
+|---------|-------------|---------|
+| `PLAYBACK_PREROLL_MS` | Audio playback preroll (milliseconds) to prevent clipped starts | 240 |
+| `SENTIMENT_POSITIVE_THRESHOLD` | Sentiment threshold for positive eye expressions | 0.3 |
+| `SENTIMENT_NEGATIVE_THRESHOLD` | Sentiment threshold for negative eye expressions | -0.3 |
+
+#### Debug Settings
+
+| Setting | Description | Default |
+|---------|-------------|---------|
+| `DEBUG_MODE` | Enable debug features | false |
+| `LOG_LEVEL` | Logging level (DEBUG, INFO, WARNING, ERROR) | INFO |
+| `SAVE_DEBUG_AUDIO` | Save audio files for debugging | false |
+| `DEBUG_AUDIO_PATH` | Directory for debug audio files | ./debug_audio/ |
+
+#### Deprecated Settings
+
+These settings are no longer used but remain in .env.example for backward compatibility:
+
+| Setting | Description | Default |
+|---------|-------------|---------|
+| `MOUTH_SMOOTHING` | (Deprecated) Mouth control smoothing | 0.7 |
+| `CONTROL_CARRIER_FREQ` | (Deprecated) PPM carrier frequency | 60 |
+| `CONTROL_MIN_AMPLITUDE` | (Deprecated) Control signal min amplitude | 0.3 |
+| `CONTROL_MAX_AMPLITUDE` | (Deprecated) Control signal max amplitude | 1.0 |
+| `EYE_BLINK_MIN` | (Deprecated) Eye blink interval minimum | 3.0 |
+| `EYE_BLINK_MAX` | (Deprecated) Eye blink interval maximum | 5.0 |
 
 ### Creating Custom Personalities
 
