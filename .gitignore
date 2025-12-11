@@ -41,9 +41,10 @@ teddy_ruxpin.log
 
 # Debug Audio
 debug_audio/
-# Ignore audio files except personality filler audio
+
+# Audio files (including generated filler audio)
+# Filler audio should be regenerated using scripts/generate_fillers.py
 *.wav
-!personalities/*/filler_audio/*.wav
 *.mp3
 
 # OS
