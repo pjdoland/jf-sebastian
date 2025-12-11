@@ -3,9 +3,9 @@ Base personality class and YAML loader for animatronic characters.
 Personalities are defined in personality.yaml files within each personality directory.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 import yaml
 
 
@@ -17,7 +17,7 @@ class Personality:
     """
 
     name: str
-    """Character name (e.g., 'Johnny', 'Rich')"""
+    """Character name (e.g., 'Johnny', 'Mr. Lincoln')"""
 
     tts_voice: str
     """OpenAI TTS voice ID (e.g., 'onyx', 'echo', 'fable')"""
@@ -33,6 +33,12 @@ class Personality:
 
     personality_dir: Path
     """Directory containing this personality's files"""
+
+    tts_speed: float = 1.0
+    """TTS speech speed (0.25 to 4.0, default 1.0)"""
+
+    tts_style: Optional[str] = None
+    """Optional style instruction prepended to TTS input (e.g., 'speaking warmly and casually')"""
 
     @property
     def wake_word_model_paths(self) -> List[Path]:
@@ -88,6 +94,16 @@ def load_personality_from_yaml(personality_dir: Path) -> Personality:
             f"personality.yaml in {personality_dir}: 'filler_phrases' must be a list"
         )
 
+    # Get optional TTS settings with defaults
+    tts_speed = data.get('tts_speed', 1.0)
+    tts_style = data.get('tts_style', None)
+
+    # Validate tts_speed if provided
+    if tts_speed < 0.25 or tts_speed > 4.0:
+        raise ValueError(
+            f"personality.yaml in {personality_dir}: 'tts_speed' must be between 0.25 and 4.0"
+        )
+
     # Create Personality instance
     return Personality(
         name=data['name'],
@@ -95,7 +111,9 @@ def load_personality_from_yaml(personality_dir: Path) -> Personality:
         wake_word_model=data['wake_word_model'],
         system_prompt=data['system_prompt'],
         filler_phrases=data['filler_phrases'],
-        personality_dir=personality_dir
+        personality_dir=personality_dir,
+        tts_speed=tts_speed,
+        tts_style=tts_style
     )
 
 

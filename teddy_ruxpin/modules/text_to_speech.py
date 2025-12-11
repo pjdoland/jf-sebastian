@@ -20,27 +20,35 @@ class TextToSpeech:
     Handles text-to-speech synthesis using OpenAI TTS API.
     """
 
-    def __init__(self, voice: str = "onyx"):
+    def __init__(self, voice: str = "onyx", speed: float = 1.0, style_instruction: Optional[str] = None):
         """
         Initialize TTS client.
 
         Args:
             voice: OpenAI TTS voice ID (e.g., 'onyx', 'echo', 'fable')
+            speed: Default speech speed (0.25 to 4.0)
+            style_instruction: Optional style text to prepend (e.g., 'speaking warmly')
         """
         if not settings.OPENAI_API_KEY:
             raise ValueError("OPENAI_API_KEY not set in configuration")
 
         self.client = OpenAI(api_key=settings.OPENAI_API_KEY)
         self.voice = voice
-        logger.info(f"Text-to-speech initialized (model={settings.TTS_MODEL}, voice={self.voice})")
+        self.default_speed = speed
+        self.style_instruction = style_instruction
+        logger.info(
+            f"Text-to-speech initialized (model={settings.TTS_MODEL}, "
+            f"voice={self.voice}, speed={self.default_speed}, "
+            f"style={'Yes' if self.style_instruction else 'No'})"
+        )
 
-    def synthesize(self, text: str, speed: float = 1.0) -> Optional[bytes]:
+    def synthesize(self, text: str, speed: Optional[float] = None) -> Optional[bytes]:
         """
         Synthesize text to speech audio.
 
         Args:
             text: Text to synthesize
-            speed: Speech speed (0.25 to 4.0, default 1.0)
+            speed: Speech speed (0.25 to 4.0, uses default if None)
 
         Returns:
             Audio data bytes (MP3 format), or None if synthesis failed
@@ -49,14 +57,25 @@ class TextToSpeech:
             logger.warning("No text provided for synthesis")
             return None
 
+        # Use default speed if not specified
+        if speed is None:
+            speed = self.default_speed
+
+        # Apply style instruction if configured
+        if self.style_instruction:
+            # Prepend style as a bracketed instruction
+            styled_text = f"[{self.style_instruction}] {text}"
+        else:
+            styled_text = text
+
         try:
-            logger.info(f"Synthesizing speech: \"{text[:50]}...\"")
+            logger.info(f"Synthesizing speech: \"{styled_text[:80]}...\" (speed={speed})")
 
             # Call TTS API
             response = self.client.audio.speech.create(
                 model=settings.TTS_MODEL,
                 voice=self.voice,
-                input=text,
+                input=styled_text,
                 speed=speed,
                 response_format="mp3"  # We'll convert this to PCM for processing
             )
@@ -86,7 +105,7 @@ class TextToSpeech:
     def synthesize_with_retry(
         self,
         text: str,
-        speed: float = 1.0,
+        speed: Optional[float] = None,
         max_retries: int = 3
     ) -> Optional[bytes]:
         """
@@ -94,7 +113,7 @@ class TextToSpeech:
 
         Args:
             text: Text to synthesize
-            speed: Speech speed
+            speed: Speech speed (uses default if None)
             max_retries: Maximum number of retry attempts
 
         Returns:

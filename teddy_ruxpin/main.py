@@ -84,7 +84,11 @@ class TeddyRuxpinApp:
         self.audio_recorder = AudioRecorder(on_speech_end=self._on_speech_end)
         self.speech_to_text = SpeechToText()
         self.conversation_engine = ConversationEngine(system_prompt=self.personality.system_prompt)
-        self.text_to_speech = TextToSpeech(voice=self.personality.tts_voice)
+        self.text_to_speech = TextToSpeech(
+            voice=self.personality.tts_voice,
+            speed=self.personality.tts_speed,
+            style_instruction=self.personality.tts_style
+        )
         self.control_generator = AnimatronicControlGenerator()
         self.audio_player = AudioPlayer(on_playback_complete=self._on_playback_complete)
 

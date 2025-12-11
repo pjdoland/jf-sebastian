@@ -40,9 +40,13 @@ def generate_filler_files(personality, output_dir: Path):
     filler_phrases = personality.filler_phrases
     voice = personality.tts_voice
 
-    # Initialize TTS and control generator with personality's voice
+    # Initialize TTS and control generator with personality's TTS settings
     logger.info("Initializing TTS and animatronic control...")
-    tts = TextToSpeech(voice=voice)
+    tts = TextToSpeech(
+        voice=voice,
+        speed=personality.tts_speed,
+        style_instruction=personality.tts_style
+    )
     control_gen = AnimatronicControlGenerator()
 
     # Generate each filler phrase

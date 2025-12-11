@@ -66,6 +66,8 @@ This simple YAML file defines everything about your character:
 ```yaml
 name: YourName
 tts_voice: onyx
+tts_speed: 1.0  # Optional: 0.25 to 4.0
+tts_style: "speaking warmly and conversationally"  # Optional
 wake_word_model: hey_yourname.onnx
 system_prompt: |
   Character description here...
@@ -119,6 +121,14 @@ name: Captain Morgan
 
 # Choose a voice (see Voice Selection below)
 tts_voice: onyx
+
+# TTS speed (0.25 to 4.0, default 1.0)
+# Slower for dignified characters (0.9), faster for energetic ones (1.1)
+tts_speed: 1.0
+
+# TTS style instruction (optional)
+# Influences tone and delivery by prepending to all speech
+tts_style: "speaking gruffly like a weathered sea captain"
 
 # Wake word filename (you'll create this later)
 wake_word_model: hey_captain.onnx
