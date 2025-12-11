@@ -135,9 +135,9 @@ OUTPUT_DEVICE_NAME=Arsvita
 No API key required! OpenWakeWord is completely free and open source.
 
 Each personality includes its own wake word model file:
-- Johnny: `teddy_ruxpin/personalities/johnny/hey_johnny.onnx`
-- Mr. Lincoln: `teddy_ruxpin/personalities/mr_lincoln/hey_mr_lincoln.onnx`
-- Leopold: `teddy_ruxpin/personalities/leopold/hey_leopold.onnx`
+- Johnny: `personalities/johnny/hey_johnny.onnx`
+- Mr. Lincoln: `personalities/mr_lincoln/hey_mr_lincoln.onnx`
+- Leopold: `personalities/leopold/hey_leopold.onnx`
 
 To create a custom wake word for a new personality:
 1. Follow the guide in `docs/TRAIN_WAKE_WORDS.md`
@@ -222,7 +222,7 @@ PERSONALITY=mr_lincoln
 PERSONALITY=leopold
 ```
 
-Then restart the application. See `teddy_ruxpin/personalities/README.md` for detailed instructions on creating new personalities.
+Then restart the application. See `personalities/README.md` for detailed instructions on creating new personalities.
 
 Personalities are simple YAML files - no coding required! Just copy an existing personality folder and modify the `personality.yaml` file.
 
@@ -332,7 +332,7 @@ Leopold: "Just reviewing my notes from the second abduction... Twice, actually. 
 | `DEBUG_MODE` | Enable debug logging | false |
 | `SAVE_DEBUG_AUDIO` | Save audio files for debugging | false |
 
-**Note**: TTS voice and system prompt are now defined per personality in `teddy_ruxpin/personalities/`
+**Note**: TTS voice and system prompt are now defined per personality in `personalities/`
 
 ### Creating Custom Personalities
 
@@ -340,7 +340,7 @@ Creating a new personality is easy - just create a folder and a YAML file!
 
 **📖 Full Guide:** See [docs/CREATING_PERSONALITIES.md](docs/CREATING_PERSONALITIES.md) for a comprehensive step-by-step guide.
 
-**Quick Reference:** See `teddy_ruxpin/personalities/README.md` for technical details.
+**Quick Reference:** See `personalities/README.md` for technical details.
 
 Each personality is defined in a simple `personality.yaml` file:
 

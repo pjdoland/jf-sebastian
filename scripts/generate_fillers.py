@@ -13,7 +13,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from teddy_ruxpin.config import settings
-from teddy_ruxpin.personalities import get_personality
+from personalities import get_personality
 from teddy_ruxpin.modules.text_to_speech import TextToSpeech
 from teddy_ruxpin.modules.animatronic_control import AnimatronicControlGenerator, save_stereo_wav
 

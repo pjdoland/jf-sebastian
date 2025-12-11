@@ -122,7 +122,7 @@ fi
 
 # Create required directories
 print_step "8/10" "Creating required directories..."
-directories=("debug_audio" "models" "teddy_ruxpin/personalities/johnny/filler_audio" "teddy_ruxpin/personalities/rich/filler_audio")
+directories=("debug_audio" "models" "personalities/johnny/filler_audio" "personalities/rich/filler_audio")
 for dir in "${directories[@]}"; do
     if [ ! -d "$dir" ]; then
         mkdir -p "$dir"
@@ -230,7 +230,7 @@ if [ $models_found -eq 0 ]; then
 fi
 
 # Check if filler phrases exist
-if [ ! -f "teddy_ruxpin/personalities/johnny/filler_audio/filler_01.wav" ]; then
+if [ ! -f "personalities/johnny/filler_audio/filler_01.wav" ]; then
     needs_fillers=true
 fi
 
@@ -270,7 +270,7 @@ echo
 
 echo "For detailed documentation:"
 echo "  - README.md - Complete guide and setup instructions"
-echo "  - teddy_ruxpin/personalities/README.md - How to create personalities"
+echo "  - personalities/README.md - How to create personalities"
 echo
 
 if [ "$needs_config" = true ] || [ "$needs_models" = true ]; then

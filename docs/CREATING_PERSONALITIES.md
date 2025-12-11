@@ -101,15 +101,15 @@ Start by copying an existing personality:
 
 ```bash
 # Copy Johnny as a template
-cp -r teddy_ruxpin/personalities/johnny teddy_ruxpin/personalities/your_name
+cp -r personalities/johnny personalities/your_name
 
 # Or copy Mr. Lincoln for a more formal character
-cp -r teddy_ruxpin/personalities/mr_lincoln teddy_ruxpin/personalities/your_name
+cp -r personalities/mr_lincoln personalities/your_name
 ```
 
 ### Step 3: Edit personality.yaml
 
-Open `teddy_ruxpin/personalities/your_name/personality.yaml` in a text editor.
+Open `personalities/your_name/personality.yaml` in a text editor.
 
 #### Set Basic Info
 
@@ -634,7 +634,7 @@ Want to share your creation?
 2. **Package it up:**
    ```bash
    # Create a zip of just your personality folder
-   cd teddy_ruxpin/personalities
+   cd personalities
    zip -r my_character.zip my_character/
    ```
 3. **Include instructions:**
@@ -654,7 +654,7 @@ Want to share your creation?
 
 - **Main README:** [../README.md](../README.md)
 - **Wake Word Training:** [TRAIN_WAKE_WORDS.md](TRAIN_WAKE_WORDS.md)
-- **Personality Directory README:** [../teddy_ruxpin/personalities/README.md](../teddy_ruxpin/personalities/README.md)
+- **Personality Directory README:** [../personalities/README.md](../personalities/README.md)
 - **OpenAI TTS Docs:** https://platform.openai.com/docs/guides/text-to-speech
 - **OpenWakeWord Docs:** https://github.com/dscripka/openWakeWord
 

@@ -14,7 +14,7 @@ from typing import Optional
 import numpy as np
 
 from teddy_ruxpin.config import settings
-from teddy_ruxpin.personalities import get_personality
+from personalities import get_personality
 from teddy_ruxpin.modules.state_machine import StateMachine, ConversationState
 from teddy_ruxpin.modules.wake_word import WakeWordDetector
 from teddy_ruxpin.modules.audio_input import AudioRecorder, save_audio_to_wav

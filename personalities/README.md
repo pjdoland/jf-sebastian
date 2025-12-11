@@ -49,12 +49,12 @@ PERSONALITY=leopold
 
 ```bash
 # Copy an existing personality as a template
-cp -r teddy_ruxpin/personalities/johnny teddy_ruxpin/personalities/yourname
+cp -r personalities/johnny personalities/yourname
 ```
 
 ### Step 2: Edit personality.yaml
 
-Open `teddy_ruxpin/personalities/yourname/personality.yaml` and customize:
+Open `personalities/yourname/personality.yaml` and customize:
 
 ```yaml
 # Your personality name
@@ -86,7 +86,7 @@ filler_phrases:
 - Follow the guide in `docs/TRAIN_WAKE_WORDS.md`
 - Train an OpenWakeWord model for your wake phrase (e.g., "Hey YourName")
 - Save the `.onnx` model file as `hey_yourname.onnx`
-- Place it in your personality's directory: `teddy_ruxpin/personalities/yourname/hey_yourname.onnx`
+- Place it in your personality's directory: `personalities/yourname/hey_yourname.onnx`
 
 ### Step 4: Generate Filler Audio
 
@@ -156,7 +156,7 @@ Personalities are defined in `personality.yaml` files with these fields:
 
 ### Auto-Discovery
 
-The system automatically scans `teddy_ruxpin/personalities/` for subdirectories containing `personality.yaml` files. No manual registration needed!
+The system automatically scans `personalities/` for subdirectories containing `personality.yaml` files. No manual registration needed!
 
 ### Validation
 

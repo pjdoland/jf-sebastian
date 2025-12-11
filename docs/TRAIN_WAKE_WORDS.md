@@ -62,13 +62,13 @@ Move your trained `.onnx` file directly into the personality's directory:
 
 ```bash
 # For Johnny personality
-mv hey_johnny.onnx /path/to/jf-sebastian/teddy_ruxpin/personalities/johnny/
+mv hey_johnny.onnx /path/to/jf-sebastian/personalities/johnny/
 
 # For Rich personality
-mv hey_rich.onnx /path/to/jf-sebastian/teddy_ruxpin/personalities/rich/
+mv hey_rich.onnx /path/to/jf-sebastian/personalities/rich/
 
 # For a new custom personality
-mv hey_yourname.onnx /path/to/jf-sebastian/teddy_ruxpin/personalities/yourname/
+mv hey_yourname.onnx /path/to/jf-sebastian/personalities/yourname/
 ```
 
 ### 6. Verify Configuration

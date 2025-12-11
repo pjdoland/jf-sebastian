@@ -43,7 +43,7 @@ teddy_ruxpin.log
 debug_audio/
 # Ignore audio files except personality filler audio
 *.wav
-!teddy_ruxpin/personalities/*/filler_audio/*.wav
+!personalities/*/filler_audio/*.wav
 *.mp3
 
 # OS
@@ -56,7 +56,7 @@ Thumbs.db
 # Wake word models (stored in personality directories)
 # Keep these in version control by default so personalities work out of the box
 # Uncomment if you want to exclude custom wake word models:
-# teddy_ruxpin/personalities/*/*.onnx
+# personalities/*/*.onnx
 
 # Testing
 .pytest_cache/
@@ -67,4 +67,4 @@ htmlcov/
 reference/
 
 # Private Personalities (not distributed)
-teddy_ruxpin/personalities/rich/
+personalities/rich/

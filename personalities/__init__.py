@@ -2,7 +2,7 @@
 Personality system for animatronic characters.
 
 Personalities are automatically discovered from subdirectories containing personality.yaml files.
-Just drop a new personality folder into teddy_ruxpin/personalities/ and it will be available!
+Just drop a new personality folder into personalities/ and it will be available!
 """
 
 from pathlib import Path
@@ -21,7 +21,7 @@ def get_personality(name: str) -> Personality:
     Personalities are automatically discovered from subdirectories containing personality.yaml.
 
     Args:
-        name: Personality name (e.g., 'johnny', 'rich') - matches folder name
+        name: Personality name (e.g., 'johnny', 'mr_lincoln', 'leopold') - matches folder name
 
     Returns:
         Personality instance loaded from personality.yaml

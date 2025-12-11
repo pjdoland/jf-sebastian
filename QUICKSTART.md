@@ -117,7 +117,7 @@ Press Ctrl+C to exit.
 
 ### No filler phrases playing?
 - Run: `python scripts/generate_fillers.py --personality johnny`
-- Check that `teddy_ruxpin/personalities/johnny/filler_audio/` directory exists and contains .wav files
+- Check that `personalities/johnny/filler_audio/` directory exists and contains .wav files
 - Enable debug logging: `LOG_LEVEL=DEBUG` in `.env`
 
 ### API errors?
