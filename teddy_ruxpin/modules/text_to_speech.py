@@ -27,7 +27,8 @@ class TextToSpeech:
         Args:
             voice: OpenAI TTS voice ID (e.g., 'onyx', 'echo', 'fable')
             speed: Default speech speed (0.25 to 4.0)
-            style_instruction: Optional style text to prepend (e.g., 'speaking warmly')
+            style_instruction: Optional style instruction for gpt-4o-mini-tts model
+                             (e.g., 'Speak warmly and casually', 'Use a dignified tone')
         """
         if not settings.OPENAI_API_KEY:
             raise ValueError("OPENAI_API_KEY not set in configuration")
@@ -61,15 +62,15 @@ class TextToSpeech:
         if speed is None:
             speed = self.default_speed
 
-        # Apply style instruction if configured
-        if self.style_instruction:
-            # Prepend style as a bracketed instruction
-            styled_text = f"[{self.style_instruction}] {text}"
+        # Prepend style instruction if using gpt-4o-mini-tts model
+        if self.style_instruction and 'gpt-4o' in settings.TTS_MODEL:
+            # For gpt-4o-mini-tts, prepend the style instruction as a prompt
+            styled_text = f"{self.style_instruction}\n\n{text}"
         else:
             styled_text = text
 
         try:
-            logger.info(f"Synthesizing speech: \"{styled_text[:80]}...\" (speed={speed})")
+            logger.info(f"Synthesizing speech: \"{text[:80]}...\" (speed={speed})")
 
             # Call TTS API
             response = self.client.audio.speech.create(

@@ -67,7 +67,7 @@ This simple YAML file defines everything about your character:
 name: YourName
 tts_voice: onyx
 tts_speed: 1.0  # Optional: 0.25 to 4.0
-tts_style: "speaking warmly and conversationally"  # Optional
+tts_style: "Speak warmly and conversationally"  # Optional
 wake_word_model: hey_yourname.onnx
 system_prompt: |
   Character description here...
@@ -126,9 +126,9 @@ tts_voice: onyx
 # Slower for dignified characters (0.9), faster for energetic ones (1.1)
 tts_speed: 1.0
 
-# TTS style instruction (optional)
-# Influences tone and delivery by prepending to all speech
-tts_style: "speaking gruffly like a weathered sea captain"
+# TTS style instruction (optional, for gpt-4o-mini-tts model)
+# Controls tone, emotional range, and speaking style
+tts_style: "Speak gruffly like a weathered sea captain"
 
 # Wake word filename (you'll create this later)
 wake_word_model: hey_captain.onnx

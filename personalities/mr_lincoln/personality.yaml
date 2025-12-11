@@ -9,8 +9,9 @@ tts_voice: echo
 # TTS speed (0.25 to 4.0, default 1.0) - slower for measured, dignified delivery
 tts_speed: 0.9
 
-# TTS style instruction (prepended to all speech for consistent tone)
-tts_style: "speaking with dignity and measured gravitas, as befitting a president"
+# TTS style instruction (for gpt-4o-mini-tts model)
+# Controls tone, emotional range, and speaking style
+tts_style: "Speak with dignity, gravitas, and measured wisdom, as befitting a president. Use a thoughtful, authoritative tone with careful phrasing."
 
 # Wake word model file (stored in this personality's directory)
 # Note: You'll need to train this model using OpenWakeWord

@@ -67,9 +67,9 @@ tts_voice: onyx
 # Adjust to match character energy: slower for dignified, faster for manic
 tts_speed: 1.0
 
-# TTS style instruction (optional)
-# Prepended to all speech to influence tone and delivery
-tts_style: "speaking warmly and conversationally"
+# TTS style instruction (optional, for gpt-4o-mini-tts model)
+# Controls tone, emotional range, and speaking style
+tts_style: "Speak warmly and conversationally"
 
 # Wake word model filename (in this same directory)
 wake_word_model: hey_yourname.onnx
@@ -163,9 +163,9 @@ Personalities are defined in `personality.yaml` files with these fields:
 - **`system_prompt`**: Multi-line text defining the character's personality
 - **`filler_phrases`**: List of 8-10 second phrases for low-latency response
 
-**Optional TTS settings:**
+**Optional TTS settings (for gpt-4o-mini-tts model):**
 - **`tts_speed`**: Speech speed from 0.25 to 4.0 (default: 1.0). Adjust to match character energy - slower for dignified characters (0.9), faster for manic ones (1.1)
-- **`tts_style`**: Style instruction prepended to all speech to influence tone and delivery (e.g., "speaking warmly and casually" or "speaking with dignity and gravitas")
+- **`tts_style`**: Style instruction to control tone, emotional range, intonation, and speaking style (e.g., "Speak warmly and casually" or "Use a dignified, authoritative tone")
 
 ### Auto-Discovery
 

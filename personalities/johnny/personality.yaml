@@ -8,8 +8,9 @@ tts_voice: onyx
 # TTS speed (0.25 to 4.0, default 1.0) - slightly slower for relaxed vibe
 tts_speed: 0.95
 
-# TTS style instruction (prepended to all speech for consistent tone)
-tts_style: "speaking casually and warmly with a laid-back, friendly tone"
+# TTS style instruction (for gpt-4o-mini-tts model)
+# Controls tone, emotional range, and speaking style
+tts_style: "Speak in a warm, laid-back, friendly tone with a casual vibe. Sound like a relaxed bartender chatting with customers."
 
 # Wake word model file (stored in this personality's directory)
 wake_word_model: hey_johnny.onnx

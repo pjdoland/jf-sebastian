@@ -38,7 +38,7 @@ class Personality:
     """TTS speech speed (0.25 to 4.0, default 1.0)"""
 
     tts_style: Optional[str] = None
-    """Optional style instruction prepended to TTS input (e.g., 'speaking warmly and casually')"""
+    """Optional style instruction for gpt-4o-mini-tts model (e.g., 'Speak warmly and casually')"""
 
     @property
     def wake_word_model_paths(self) -> List[Path]:
