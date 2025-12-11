@@ -89,7 +89,7 @@ Includes three distinct personalities: a tiki bartender, Abraham Lincoln (a homa
 - **Low-Latency Fillers**: Pre-generated personality-specific phrases play immediately while processing
 - **Speech Recognition**: OpenAI Whisper API for accurate speech-to-text transcription
 - **AI Conversation**: GPT-4o-mini powers personality-driven responses with conversation context
-- **Natural Voice**: OpenAI TTS generates speech with personality-specific voices
+- **Natural Voice**: OpenAI TTS (gpt-4o-mini-tts) generates speech with personality-specific voices, speeds, and tones
 - **Animatronic Control**: Generates PPM control signals for mouth (syllable-based lip sync) and eyes (sentiment-based)
 - **Stereo Output**: LEFT channel = voice audio, RIGHT channel = PPM motor control signals (60Hz, 16.6ms frames)
 
@@ -311,7 +311,7 @@ source venv/bin/activate
 python scripts/generate_fillers.py
 ```
 
-This creates 30 pre-recorded WAV files with PPM control tracks for instant playback.
+This creates 30 pre-recorded WAV files with PPM control tracks for instant playback. The audio is generated using each personality's configured voice, speed, and tone settings.
 
 ## Usage
 
@@ -430,9 +430,9 @@ Leopold: "Just reviewing my notes from the second abduction... Twice, actually. 
 |---------|-------------|---------|
 | `WHISPER_MODEL` | OpenAI Whisper speech-to-text model | whisper-1 |
 | `GPT_MODEL` | OpenAI GPT model for conversation | gpt-4o-mini |
-| `TTS_MODEL` | OpenAI text-to-speech model | tts-1 |
+| `TTS_MODEL` | OpenAI text-to-speech model | gpt-4o-mini-tts |
 
-**Note**: TTS voice is defined per personality in `personalities/` (not in .env)
+**Note**: TTS voice, speed, and style are defined per personality in `personalities/` (not in .env). The gpt-4o-mini-tts model supports prompting for tone, emotional range, intonation, and speaking style.
 
 #### Animatronic Control
 
@@ -477,6 +477,8 @@ Each personality is defined in a simple `personality.yaml` file:
 ```yaml
 name: YourName
 tts_voice: onyx  # or echo, fable, nova, shimmer, alloy
+tts_speed: 1.0  # Optional: 0.25 to 4.0 (slower for dignified, faster for manic)
+tts_style: "Speak warmly and conversationally"  # Optional: tone/style instruction
 wake_word_model: hey_yourname.onnx
 
 system_prompt: |
