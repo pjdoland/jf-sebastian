@@ -62,24 +62,25 @@ class TextToSpeech:
         if speed is None:
             speed = self.default_speed
 
-        # Prepend style instruction if using gpt-4o-mini-tts model
-        if self.style_instruction and 'gpt-4o' in settings.TTS_MODEL:
-            # For gpt-4o-mini-tts, prepend the style instruction as a prompt
-            styled_text = f"{self.style_instruction}\n\n{text}"
-        else:
-            styled_text = text
-
         try:
             logger.info(f"Synthesizing speech: \"{text[:80]}...\" (speed={speed})")
 
+            # Build API parameters
+            api_params = {
+                "model": settings.TTS_MODEL,
+                "voice": self.voice,
+                "input": text,
+                "speed": speed,
+                "response_format": "mp3"
+            }
+
+            # Add instructions parameter for gpt-4o-mini-tts model
+            if self.style_instruction and 'gpt-4o' in settings.TTS_MODEL:
+                api_params["instructions"] = self.style_instruction
+                logger.debug(f"Using style instructions: {self.style_instruction[:50]}...")
+
             # Call TTS API
-            response = self.client.audio.speech.create(
-                model=settings.TTS_MODEL,
-                voice=self.voice,
-                input=styled_text,
-                speed=speed,
-                response_format="mp3"  # We'll convert this to PCM for processing
-            )
+            response = self.client.audio.speech.create(**api_params)
 
             # Get audio bytes
             audio_data = response.content
