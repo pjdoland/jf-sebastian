@@ -26,7 +26,7 @@ pip install openwakeword[training]
 
 ### 2. Record Your Wake Phrase
 
-You'll need to record yourself saying the wake phrase (e.g., "Hey Johnny" or "Hey Rich") multiple times in different ways:
+You'll need to record yourself saying the wake phrase (e.g., "Hey Johnny", "Hey Mr. Lincoln", or "Hey Leopold") multiple times in different ways:
 
 - Different tones (normal, excited, tired)
 - Different volumes (quiet, normal, loud)
@@ -64,8 +64,11 @@ Move your trained `.onnx` file directly into the personality's directory:
 # For Johnny personality
 mv hey_johnny.onnx /path/to/jf-sebastian/personalities/johnny/
 
-# For Rich personality
-mv hey_rich.onnx /path/to/jf-sebastian/personalities/rich/
+# For Mr. Lincoln personality
+mv hey_mr_lincoln.onnx /path/to/jf-sebastian/personalities/mr_lincoln/
+
+# For Leopold personality
+mv hey_leopold.onnx /path/to/jf-sebastian/personalities/leopold/
 
 # For a new custom personality
 mv hey_yourname.onnx /path/to/jf-sebastian/personalities/yourname/
@@ -130,4 +133,4 @@ To use a pre-trained model, update the personality file to reference the bundled
 - Training requires more dependencies than runtime (add `[training]` to pip install)
 - Model training can take 30 minutes to several hours depending on samples and hardware
 - You can use Google Colab for training if you don't have a powerful local machine
-- Models are specific to the phrase - you need separate models for "Hey Johnny" and "Hey Rich"
+- Models are specific to the phrase - you need separate models for each wake word

@@ -14,7 +14,7 @@ This application enables real-time voice conversations with ChatGPT through a 19
         │
         ├─► Wake Word Detector (OpenWakeWord)
         │   - Always-on listening
-        │   - Personality-specific wake phrases ("Hey, Johnny" / "Hey, Rich")
+        │   - Personality-specific wake phrases ("Hey, Johnny" / "Hey, Mr. Lincoln" / "Hey, Leopold")
         │   - Triggers state transition: IDLE → LISTENING
         │
         ├─► Audio Input Pipeline

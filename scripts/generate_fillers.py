@@ -13,7 +13,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from teddy_ruxpin.config import settings
-from personalities import get_personality
+from personalities import get_personality, list_personalities
 from teddy_ruxpin.modules.text_to_speech import TextToSpeech
 from teddy_ruxpin.modules.animatronic_control import AnimatronicControlGenerator, save_stereo_wav
 
@@ -78,16 +78,24 @@ def generate_filler_files(personality, output_dir: Path):
 
 def main():
     """Main entry point."""
+    # Discover available personalities
+    available_personalities = list_personalities()
+
     # Parse command-line arguments
     parser = argparse.ArgumentParser(
-        description="Generate filler phrase audio files for a personality"
+        description="Generate filler phrase audio files for personalities"
     )
     parser.add_argument(
         "--personality",
         type=str,
-        default=settings.PERSONALITY,
-        choices=["johnny", "rich"],
-        help="Personality to generate fillers for (default: from .env)"
+        default=None,
+        help=f"Personality to generate fillers for. Available: {', '.join(available_personalities)}. "
+             f"If not specified, generates for all personalities."
+    )
+    parser.add_argument(
+        "--all",
+        action="store_true",
+        help="Generate fillers for all available personalities (same as not specifying --personality)"
     )
     args = parser.parse_args()
 
@@ -103,29 +111,45 @@ def main():
             logger.error(f"  - {error}")
         sys.exit(1)
 
-    # Load personality from command-line argument
-    try:
-        personality = get_personality(args.personality)
-        logger.info(f"Personality: {personality.name}")
-        logger.info(f"TTS Voice: {personality.tts_voice}")
-        logger.info(f"Filler count: {len(personality.filler_phrases)}")
-    except ValueError as e:
-        logger.error(f"Failed to load personality: {e}")
-        sys.exit(1)
+    # Determine which personalities to process
+    if args.personality:
+        # Single personality specified
+        personalities_to_process = [args.personality]
+    else:
+        # Generate for all personalities
+        personalities_to_process = available_personalities
+        logger.info(f"No personality specified - generating for all {len(personalities_to_process)} personalities")
+        logger.info("")
 
-    # Set output directory to personality's filler_audio directory
-    output_dir = personality.filler_audio_dir
+    # Process each personality
+    for personality_name in personalities_to_process:
+        logger.info("=" * 80)
+        logger.info(f"Processing: {personality_name}")
+        logger.info("=" * 80)
 
-    logger.info(f"Output directory: {output_dir}")
-    logger.info("")
+        # Load personality
+        try:
+            personality = get_personality(personality_name)
+            logger.info(f"Personality: {personality.name}")
+            logger.info(f"TTS Voice: {personality.tts_voice}")
+            logger.info(f"Filler count: {len(personality.filler_phrases)}")
+        except ValueError as e:
+            logger.error(f"Failed to load personality '{personality_name}': {e}")
+            continue
 
-    # Generate fillers
-    generate_filler_files(personality, output_dir)
+        # Set output directory to personality's filler_audio directory
+        output_dir = personality.filler_audio_dir
 
-    logger.info("")
+        logger.info(f"Output directory: {output_dir}")
+        logger.info("")
+
+        # Generate fillers
+        generate_filler_files(personality, output_dir)
+
+        logger.info("")
+
     logger.info("=" * 80)
-    logger.info(f"Done! Filler phrases for {personality.name} are ready to use.")
-    logger.info(f"Location: {output_dir}")
+    logger.info("All done!")
     logger.info("=" * 80)
 
 

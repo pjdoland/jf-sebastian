@@ -181,7 +181,7 @@ Edit `.env` and add your API keys:
 
 ```bash
 # Personality Selection
-PERSONALITY=johnny  # Options: 'johnny' or 'rich'
+PERSONALITY=johnny  # Options: 'johnny', 'mr_lincoln', 'leopold'
 
 # Required API Keys
 OPENAI_API_KEY=sk-your-openai-api-key
@@ -313,23 +313,23 @@ This creates 30 pre-recorded WAV files with PPM control tracks for instant playb
 python -m teddy_ruxpin.main
 ```
 
-You should see (example with Rich personality):
+You should see (example with Johnny personality):
 ```
 ================================================================================
 J.F. Sebastian - Animatronic AI Conversation System
 "I make friends. They're toys. My friends are toys."
 ================================================================================
-Personality: Rich
-Wake word: Hey Rich
+Personality: Johnny
+Wake word: Hey Johnny
 ...
-System ready! Say 'Hey, Rich' to start talking.
+System ready! Say 'Hey, Johnny' to start talking.
 Press Ctrl+C to exit.
 ================================================================================
 ```
 
 ### Having a Conversation
 
-1. **Wake the character**: Say the wake word ("Hey, Johnny" or "Hey, Rich")
+1. **Wake the character**: Say the wake word ("Hey, Johnny", "Hey, Mr. Lincoln", or "Hey, Leopold")
 2. **Speak**: Once detected, speak your message
 3. **Listen**: Character responds with personality-appropriate answer
 4. **Repeat**: Continue the conversation
@@ -386,7 +386,7 @@ Leopold: "Just reviewing my notes from the second abduction... Twice, actually. 
 
 | Setting | Description | Default |
 |---------|-------------|---------|
-| `PERSONALITY` | Active personality ('johnny' or 'rich') | johnny |
+| `PERSONALITY` | Active personality ('johnny', 'mr_lincoln', 'leopold') | johnny |
 | `OPENAI_API_KEY` | OpenAI API key (required) | - |
 | `INPUT_DEVICE_NAME` | Microphone device name | - |
 | `OUTPUT_DEVICE_NAME` | Speaker device name | - |
@@ -448,7 +448,7 @@ See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed system design, componen
 
 ### Wake Word Not Detecting
 
-- **Issue**: "Hey, Johnny" or "Hey, Rich" not recognized
+- **Issue**: Wake word not recognized
 - **Solutions**:
   - Check microphone is working and selected correctly
   - Speak clearly and slightly louder

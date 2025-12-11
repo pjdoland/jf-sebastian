@@ -4,7 +4,7 @@
 
 name: Mr. Lincoln
 
-tts_voice: echo
+tts_voice: sage 
 
 # Wake word model file (stored in this personality's directory)
 # Note: You'll need to train this model using OpenWakeWord

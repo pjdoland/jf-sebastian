@@ -127,8 +127,8 @@ The only external configuration needed is setting `PERSONALITY=yourname` in `.en
 ## Available TTS Voices
 
 OpenAI provides these voices:
-- **onyx**: Male, casual (used by Johnny)
-- **echo**: Male, professional (used by Rich)
+- **onyx**: Male, casual (used by Johnny and Leopold)
+- **echo**: Male, dignified (used by Mr. Lincoln)
 - **fable**: Male, expressive
 - **nova**: Female, friendly
 - **shimmer**: Female, warm
