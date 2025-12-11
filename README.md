@@ -9,6 +9,68 @@ Includes three distinct personalities: a tiki bartender, Abraham Lincoln (a homa
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
+
+<!-- TOC -->
+
+## Table of Contents
+
+- [Features](#features)
+- [Quick Start](#quick-start)
+- [System Requirements](#system-requirements)
+  - [Software](#software)
+  - [Hardware](#hardware)
+- [Hardware Setup](#hardware-setup)
+  - [Teddy Ruxpin Connection](#teddy-ruxpin-connection)
+    - [Recommended Bluetooth Adapter](#recommended-bluetooth-adapter)
+    - [Setup Steps](#setup-steps)
+- [Installation](#installation)
+  - [1. Clone the Repository](#1-clone-the-repository)
+  - [2. Create Virtual Environment](#2-create-virtual-environment)
+  - [3. Install Dependencies](#3-install-dependencies)
+  - [4. Download OpenWakeWord Preprocessing Models](#4-download-openwakeword-preprocessing-models)
+  - [5. Install System Dependencies](#5-install-system-dependencies)
+  - [6. Configuration](#6-configuration)
+  - [7. Get API Keys](#7-get-api-keys)
+    - [OpenAI API Key](#openai-api-key)
+    - [Wake Word Models (OpenWakeWord)](#wake-word-models-openwakeword)
+  - [8. Finding Audio Devices](#8-finding-audio-devices)
+- [Personalities](#personalities)
+  - [Available Personalities](#available-personalities)
+    - [Johnny - Tiki Bartender](#johnny-tiki-bartender)
+    - [Mr. Lincoln - Abraham Lincoln](#mr-lincoln-abraham-lincoln)
+    - [Leopold - Conspiracy Theorist](#leopold-conspiracy-theorist)
+  - [Switching Personalities](#switching-personalities)
+  - [Generating Filler Audio](#generating-filler-audio)
+- [Usage](#usage)
+  - [Starting the Application](#starting-the-application)
+  - [Having a Conversation](#having-a-conversation)
+  - [Conversation Examples](#conversation-examples)
+- [Configuration Options](#configuration-options)
+  - [.env Settings](#env-settings)
+  - [Creating Custom Personalities](#creating-custom-personalities)
+- [Architecture](#architecture)
+  - [Key Components](#key-components)
+- [Troubleshooting](#troubleshooting)
+  - [Wake Word Not Detecting](#wake-word-not-detecting)
+  - [Audio Device Issues](#audio-device-issues)
+  - [API Errors](#api-errors)
+  - [Teddy Not Moving](#teddy-not-moving)
+  - [Latency Issues](#latency-issues)
+- [Debug Mode](#debug-mode)
+- [Development](#development)
+  - [Project Structure](#project-structure)
+  - [Running Tests](#running-tests)
+  - [Adding Features](#adding-features)
+- [Performance Metrics](#performance-metrics)
+- [Cost Estimates](#cost-estimates)
+- [About the Name](#about-the-name)
+- [License](#license)
+- [Credits](#credits)
+- [Contributing](#contributing)
+- [Support](#support)
+
+<!-- /TOC -->
+
 ## Features
 
 - **Modular Personality System**: Switch between different AI personalities with unique voices and behaviors
