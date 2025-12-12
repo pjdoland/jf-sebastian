@@ -90,12 +90,11 @@ class AnimatronicControlGenerator:
             ppm_signal = ppm_signal[:min_length]
 
             # Apply channel-specific gains to balance audio vs control
-            # Voice: boost a bit more for clearer playback
-            voice_gain = 0.7 * 1.5  # 105%
+            voice_gain = settings.VOICE_GAIN
             voice_audio_resampled = voice_audio_resampled * voice_gain
 
-            # Control: reduce by 25% to minimize bleedover
-            control_gain = 0.7 * 0.75  # 52.5%
+            # Control track gain
+            control_gain = settings.CONTROL_GAIN
             ppm_signal = ppm_signal * control_gain
 
             # Create stereo array

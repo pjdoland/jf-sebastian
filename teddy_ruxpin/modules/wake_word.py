@@ -55,7 +55,7 @@ class WakeWordDetector:
         # Debouncing to prevent multiple rapid detections
         self._last_detection_time: float = 0.0
         self._debounce_seconds: float = 2.0  # Minimum time between detections
-        self._detection_threshold: float = 0.99
+        self._detection_threshold: float = settings.WAKE_WORD_THRESHOLD
 
         if not OPENWAKEWORD_AVAILABLE:
             raise RuntimeError("openwakeword library not installed")

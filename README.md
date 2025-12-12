@@ -460,8 +460,16 @@ Leopold: "Just reviewing my notes from the second abduction... Twice, actually. 
 | Setting | Description | Default |
 |---------|-------------|---------|
 | `PLAYBACK_PREROLL_MS` | Audio playback preroll (milliseconds) to prevent clipped starts | 240 |
+| `VOICE_GAIN` | Voice audio volume level (0.0 to 2.0) | 1.05 |
+| `CONTROL_GAIN` | Control track volume level (0.0 to 1.0) | 0.52 |
 | `SENTIMENT_POSITIVE_THRESHOLD` | Sentiment threshold for positive eye expressions | 0.3 |
 | `SENTIMENT_NEGATIVE_THRESHOLD` | Sentiment threshold for negative eye expressions | -0.3 |
+
+#### Wake Word Detection
+
+| Setting | Description | Default |
+|---------|-------------|---------|
+| `WAKE_WORD_THRESHOLD` | Wake word detection threshold (0.0 to 1.0, higher = more strict) | 0.99 |
 
 #### Debug Settings
 

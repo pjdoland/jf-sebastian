@@ -50,6 +50,11 @@ class Settings:
     # Animatronic Control
     SENTIMENT_POSITIVE_THRESHOLD: float = float(os.getenv("SENTIMENT_POSITIVE_THRESHOLD", "0.3"))
     SENTIMENT_NEGATIVE_THRESHOLD: float = float(os.getenv("SENTIMENT_NEGATIVE_THRESHOLD", "-0.3"))
+    VOICE_GAIN: float = float(os.getenv("VOICE_GAIN", "1.05"))  # Voice audio volume (0.0 to 2.0)
+    CONTROL_GAIN: float = float(os.getenv("CONTROL_GAIN", "0.52"))  # Control track volume (0.0 to 1.0)
+
+    # Wake Word Detection
+    WAKE_WORD_THRESHOLD: float = float(os.getenv("WAKE_WORD_THRESHOLD", "0.99"))  # Detection threshold (0.0 to 1.0)
 
     # Debug Settings
     DEBUG_MODE: bool = os.getenv("DEBUG_MODE", "false").lower() == "true"
