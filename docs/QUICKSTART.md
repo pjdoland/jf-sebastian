@@ -78,7 +78,10 @@ This creates 30 WAV files with:
 - After changing `tts_voice`, `tts_speed`, or `tts_style` in the personality YAML
 - After editing the `filler_phrases` list
 
-The script automatically uses the personality configured in your `.env` file.
+**Note:** This command generates fillers for all personalities. To generate for just one personality:
+```bash
+python scripts/generate_fillers.py --personality johnny
+```
 
 ## 6. Run the Application
 
