@@ -56,15 +56,29 @@ OUTPUT_DEVICE_NAME=Arsvita
 python scripts/test_microphone.py
 ```
 
-## 5. Generate Filler Phrases
+## 5. Generate Filler Audio
 
-Filler phrases provide low-latency responses while processing:
+**This step is required before running the application.** Filler phrases are pre-recorded audio clips that play immediately when you speak, creating a natural conversational feel while the system processes your question in the background.
 
 ```bash
-python scripts/generate_fillers.py --personality johnny
+python scripts/generate_fillers.py
 ```
 
-This creates 8-15 second audio clips that play immediately when you speak, making conversations feel more natural and responsive.
+This creates 30 WAV files with:
+- Voice audio synthesized using the personality's configured voice, speed, and tone
+- PPM control signals for mouth/eye movement
+
+**Why is this needed?** The filler audio must be pre-generated because:
+- It provides instant feedback (plays within 0.5 seconds of you finishing speaking)
+- Allows background processing of transcription and AI response (4-6 seconds)
+- Makes conversations feel natural and responsive instead of having awkward silence
+
+**When to regenerate:**
+- After switching to a different personality
+- After changing `tts_voice`, `tts_speed`, or `tts_style` in the personality YAML
+- After editing the `filler_phrases` list
+
+The script automatically uses the personality configured in your `.env` file.
 
 ## 6. Run the Application
 

@@ -34,6 +34,7 @@ Includes three distinct personalities: a tiki bartender, Abraham Lincoln (a homa
     - [OpenAI API Key](#openai-api-key)
     - [Wake Word Models (OpenWakeWord)](#wake-word-models-openwakeword)
   - [8. Finding Audio Devices](#8-finding-audio-devices)
+  - [9. Generate Filler Audio](#9-generate-filler-audio)
 - [Personalities](#personalities)
   - [Available Personalities](#available-personalities)
     - [Johnny - Tiki Bartender](#johnny-tiki-bartender)
@@ -254,6 +255,28 @@ INPUT_DEVICE_NAME=MacBook Air Microphone
 OUTPUT_DEVICE_NAME=Arsvita
 ```
 
+### 9. Generate Filler Audio
+
+**This step is required before running the application.** Filler phrases are pre-recorded audio clips that play immediately when you speak, creating a natural conversational feel while the system processes your question in the background.
+
+Generate the filler audio for your chosen personality:
+
+```bash
+python scripts/generate_fillers.py
+```
+
+This creates 30 WAV files in your personality's `filler_audio/` directory. Each file contains:
+- Voice audio synthesized with the personality's configured voice, speed, and tone
+- PPM control signals for animatronic movement (mouth and eyes)
+
+**When to regenerate filler audio:**
+- After creating a new personality
+- After switching to a different personality (if fillers don't exist yet)
+- After modifying a personality's `tts_voice`, `tts_speed`, or `tts_style` settings
+- After editing the `filler_phrases` list in the personality YAML file
+
+The script automatically detects your current personality from `.env` and generates audio for that personality only.
+
 ## Personalities
 
 The system includes a modular personality framework. Each personality has:
@@ -298,20 +321,15 @@ PERSONALITY=mr_lincoln
 PERSONALITY=leopold
 ```
 
-Then restart the application. See `personalities/README.md` for detailed instructions on creating new personalities.
-
-Personalities are simple YAML files - no coding required! Just copy an existing personality folder and modify the `personality.yaml` file.
-
-### Generating Filler Audio
-
-After creating a new personality or switching personalities, generate the filler audio files:
+**Important:** After switching personalities, regenerate the filler audio if it doesn't exist yet:
 
 ```bash
-source venv/bin/activate
 python scripts/generate_fillers.py
 ```
 
-This creates 30 pre-recorded WAV files with PPM control tracks for instant playback. The audio is generated using each personality's configured voice, speed, and tone settings.
+See `personalities/README.md` for detailed instructions on creating new personalities.
+
+Personalities are simple YAML files - no coding required! Just copy an existing personality folder and modify the `personality.yaml` file.
 
 ## Usage
 
