@@ -35,13 +35,9 @@ def test_settings_audio_config_defaults():
 
 def test_settings_animatronic_config_defaults():
     """Test animatronic control defaults."""
-    assert 0.0 <= Settings.MOUTH_SMOOTHING <= 1.0
-    assert Settings.CONTROL_CARRIER_FREQ == 60
-    assert 0.0 <= Settings.CONTROL_MIN_AMPLITUDE <= 1.0
-    assert 0.0 <= Settings.CONTROL_MAX_AMPLITUDE <= 1.0
-    assert Settings.CONTROL_MIN_AMPLITUDE < Settings.CONTROL_MAX_AMPLITUDE
-    assert Settings.EYE_BLINK_MIN > 0
-    assert Settings.EYE_BLINK_MAX > Settings.EYE_BLINK_MIN
+    # Sentiment thresholds are the only animatronic settings that remain
+    assert hasattr(Settings, 'SENTIMENT_POSITIVE_THRESHOLD')
+    assert hasattr(Settings, 'SENTIMENT_NEGATIVE_THRESHOLD')
 
 
 def test_settings_debug_config_defaults():
@@ -112,17 +108,6 @@ def test_settings_validate_invalid_vad_aggressiveness():
     assert any("VAD_AGGRESSIVENESS" in err for err in errors)
 
 
-def test_settings_validate_invalid_mouth_smoothing():
-    """Test validation fails for invalid mouth smoothing."""
-    class TestSettings(Settings):
-        OPENAI_API_KEY = "test-key"
-        PICOVOICE_ACCESS_KEY = "test-key"
-        MOUTH_SMOOTHING = 1.5  # Invalid (must be 0.0-1.0)
-
-    errors = TestSettings.validate()
-    assert any("MOUTH_SMOOTHING" in err for err in errors)
-
-
 def test_settings_validate_all_valid():
     """Test validation passes with all valid settings."""
     class TestSettings(Settings):
@@ -130,7 +115,6 @@ def test_settings_validate_all_valid():
         PICOVOICE_ACCESS_KEY = "test-key"
         SAMPLE_RATE = 44100
         VAD_AGGRESSIVENESS = 2
-        MOUTH_SMOOTHING = 0.7
 
     errors = TestSettings.validate()
     assert len(errors) == 0

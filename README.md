@@ -472,18 +472,6 @@ Leopold: "Just reviewing my notes from the second abduction... Twice, actually. 
 | `SAVE_DEBUG_AUDIO` | Save audio files for debugging | false |
 | `DEBUG_AUDIO_PATH` | Directory for debug audio files | ./debug_audio/ |
 
-#### Deprecated Settings
-
-These settings are no longer used but remain in .env.example for backward compatibility:
-
-| Setting | Description | Default |
-|---------|-------------|---------|
-| `MOUTH_SMOOTHING` | (Deprecated) Mouth control smoothing | 0.7 |
-| `CONTROL_CARRIER_FREQ` | (Deprecated) PPM carrier frequency | 60 |
-| `CONTROL_MIN_AMPLITUDE` | (Deprecated) Control signal min amplitude | 0.3 |
-| `CONTROL_MAX_AMPLITUDE` | (Deprecated) Control signal max amplitude | 1.0 |
-| `EYE_BLINK_MIN` | (Deprecated) Eye blink interval minimum | 3.0 |
-| `EYE_BLINK_MAX` | (Deprecated) Eye blink interval maximum | 5.0 |
 
 ### Creating Custom Personalities
 

@@ -48,12 +48,6 @@ class Settings:
     # Note: TTS_VOICE is now defined per-personality
 
     # Animatronic Control
-    MOUTH_SMOOTHING: float = float(os.getenv("MOUTH_SMOOTHING", "0.7"))
-    CONTROL_CARRIER_FREQ: float = float(os.getenv("CONTROL_CARRIER_FREQ", "60"))
-    CONTROL_MIN_AMPLITUDE: float = float(os.getenv("CONTROL_MIN_AMPLITUDE", "0.3"))
-    CONTROL_MAX_AMPLITUDE: float = float(os.getenv("CONTROL_MAX_AMPLITUDE", "1.0"))
-    EYE_BLINK_MIN: float = float(os.getenv("EYE_BLINK_MIN", "3.0"))
-    EYE_BLINK_MAX: float = float(os.getenv("EYE_BLINK_MAX", "5.0"))
     SENTIMENT_POSITIVE_THRESHOLD: float = float(os.getenv("SENTIMENT_POSITIVE_THRESHOLD", "0.3"))
     SENTIMENT_NEGATIVE_THRESHOLD: float = float(os.getenv("SENTIMENT_NEGATIVE_THRESHOLD", "-0.3"))
 
@@ -82,9 +76,6 @@ class Settings:
 
         if not 0 <= cls.VAD_AGGRESSIVENESS <= 3:
             errors.append(f"VAD_AGGRESSIVENESS must be 0-3, got {cls.VAD_AGGRESSIVENESS}")
-
-        if not 0.0 <= cls.MOUTH_SMOOTHING <= 1.0:
-            errors.append(f"MOUTH_SMOOTHING must be 0.0-1.0, got {cls.MOUTH_SMOOTHING}")
 
         return errors
 

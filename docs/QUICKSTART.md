@@ -154,11 +154,6 @@ Press Ctrl+C to exit.
 - `SILENCE_TIMEOUT`: How long to wait for speech (default: 10.0 seconds)
 - `CONVERSATION_TIMEOUT`: When to clear conversation history (default: 120.0 seconds)
 
-### Animatronic Control
-- `MOUTH_SMOOTHING`: Lip sync smoothness (0.0-1.0, default: 0.7)
-- `CONTROL_CARRIER_FREQ`: PPM carrier frequency (default: 60 Hz)
-- `EYE_BLINK_MIN/MAX`: Eye blink interval range (default: 3.0-5.0 seconds)
-
 ### Debug Mode
 Enable detailed logging and save audio files:
 ```bash
