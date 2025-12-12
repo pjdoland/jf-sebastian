@@ -4,18 +4,45 @@
 
 Get your animatronic AI companion talking in 5 minutes!
 
-## 1. Install Dependencies
+## Installation Methods
+
+Choose one of the following installation methods:
+
+### Option 1: Automated Installation (Recommended)
+
+The easiest way to get started:
 
 ```bash
+# Clone repository
+git clone https://github.com/pjdoland/jf-sebastian.git
+cd jf-sebastian
+
+# Run automated setup
 ./setup.sh
 ```
 
-This will:
-- Create Python virtual environment
-- Install all Python packages
-- Install system dependencies (PortAudio, FFmpeg)
-- Create configuration file
-- List available audio devices
+The setup script automatically:
+- Creates Python virtual environment
+- Installs all Python packages
+- Downloads OpenWakeWord preprocessing models
+- Installs system dependencies (PortAudio, FFmpeg via Homebrew)
+- Creates required directories
+- Creates `.env` configuration file from template
+- Lists available audio devices
+- Generates filler audio for all personalities
+- Checks for wake word models
+
+**Then skip to step 2 below.**
+
+### Option 2: Manual Installation
+
+For more control over the installation process, follow the detailed step-by-step instructions in the [README Installation section](../README.md#installation).
+
+---
+
+## 1. Install Dependencies
+
+If you used the automated installation above, this step is already complete. Otherwise, see [README Installation section](../README.md#installation) for manual setup.
 
 ## 2. Configure API Keys
 
@@ -58,7 +85,9 @@ python scripts/test_microphone.py
 
 ## 5. Generate Filler Audio
 
-**This step is required before running the application.** Filler phrases are pre-recorded audio clips that play immediately when you speak, creating a natural conversational feel while the system processes your question in the background.
+**If you used the automated installation (`./setup.sh`), this step is already complete.** The setup script automatically generates filler audio for all personalities.
+
+**For manual installation:** Filler phrases are pre-recorded audio clips that play immediately when you speak, creating a natural conversational feel while the system processes your question in the background.
 
 ```bash
 python scripts/generate_fillers.py

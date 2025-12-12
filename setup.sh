@@ -35,7 +35,7 @@ print_step() {
 }
 
 # Check Python version
-print_step "1/10" "Checking Python version..."
+print_step "1/11" "Checking Python version..."
 python_version=$(python3 --version 2>&1 | awk '{print $2}')
 required_version="3.10"
 
@@ -46,7 +46,7 @@ fi
 print_success "Python $python_version"
 
 # Create virtual environment
-print_step "2/10" "Creating virtual environment..."
+print_step "2/11" "Creating virtual environment..."
 if [ -d "venv" ]; then
     print_warning "Virtual environment already exists (skipping)"
 else
@@ -55,23 +55,23 @@ else
 fi
 
 # Activate virtual environment
-print_step "3/10" "Activating virtual environment..."
+print_step "3/11" "Activating virtual environment..."
 source venv/bin/activate
 print_success "Virtual environment activated"
 
 # Upgrade pip
-print_step "4/10" "Upgrading pip..."
+print_step "4/11" "Upgrading pip..."
 pip install --upgrade pip -q
 print_success "Pip upgraded"
 
 # Install dependencies
-print_step "5/10" "Installing Python dependencies..."
+print_step "5/11" "Installing Python dependencies..."
 echo "This may take a few minutes..."
 pip install -r requirements.txt -q
 print_success "Dependencies installed"
 
 # Download OpenWakeWord preprocessing models
-print_step "6/10" "Downloading OpenWakeWord preprocessing models..."
+print_step "6/11" "Downloading OpenWakeWord preprocessing models..."
 echo "Downloading required model files (melspectrogram.onnx, embedding_model.onnx)..."
 python3 -c "from openwakeword import utils; utils.download_models(['alexa'])" 2>/dev/null || {
     print_warning "OpenWakeWord models may already exist or download failed"
@@ -97,7 +97,7 @@ else:
 }
 
 # Check for system dependencies
-print_step "7/10" "Checking system dependencies..."
+print_step "7/11" "Checking system dependencies..."
 if ! command -v brew &> /dev/null; then
     print_warning "Homebrew not found. Install manually: https://brew.sh"
     echo "  Required packages: portaudio, ffmpeg"
@@ -121,8 +121,8 @@ else
 fi
 
 # Create required directories
-print_step "8/10" "Creating required directories..."
-directories=("debug_audio" "models" "personalities/johnny/filler_audio" "personalities/rich/filler_audio")
+print_step "8/11" "Creating required directories..."
+directories=("debug_audio" "personalities/johnny/filler_audio" "personalities/mr_lincoln/filler_audio" "personalities/leopold/filler_audio")
 for dir in "${directories[@]}"; do
     if [ ! -d "$dir" ]; then
         mkdir -p "$dir"
@@ -133,7 +133,7 @@ for dir in "${directories[@]}"; do
 done
 
 # Setup configuration
-print_step "9/10" "Setting up configuration..."
+print_step "9/11" "Setting up configuration..."
 if [ -f ".env" ]; then
     print_warning ".env file already exists (skipping creation)"
 
@@ -167,29 +167,35 @@ else
     fi
 fi
 
+# Generate filler audio for all personalities
+print_step "10/11" "Generating filler audio for personalities..."
+echo "This creates pre-recorded phrases that play immediately while processing responses."
+echo "Generating for all personalities (this may take 2-3 minutes)..."
+python scripts/generate_fillers.py 2>&1 | grep -E "(Processing:|Saved:|complete)" || {
+    print_warning "Filler generation failed or incomplete"
+    echo "You can generate manually later with: python scripts/generate_fillers.py"
+}
+print_success "Filler audio generated"
+
 # Check for wake word models
-print_step "10/10" "Checking wake word models..."
+print_step "11/11" "Checking wake word models..."
 models_found=0
 models_missing=()
 
-if [ -f "models/hey_johnny.onnx" ]; then
-    print_success "Johnny wake word model found (hey_johnny.onnx)"
-    models_found=$((models_found + 1))
-else
-    models_missing+=("hey_johnny.onnx (for Johnny personality)")
-fi
-
-if [ -f "models/hey_rich.onnx" ]; then
-    print_success "Rich wake word model found (hey_rich.onnx)"
-    models_found=$((models_found + 1))
-else
-    models_missing+=("hey_rich.onnx (for Rich personality)")
-fi
+# Check for personality wake word models in their directories
+for personality in johnny mr_lincoln leopold; do
+    if [ -f "personalities/$personality/hey_$personality.onnx" ]; then
+        print_success "$personality wake word model found"
+        models_found=$((models_found + 1))
+    else
+        models_missing+=("hey_$personality.onnx (for $personality personality)")
+    fi
+done
 
 if [ $models_found -eq 0 ]; then
-    print_warning "No wake word models found in models/ directory"
-    echo "You need to train custom wake word models using OpenWakeWord."
-    echo "See: https://github.com/dscripka/openWakeWord for training instructions"
+    print_warning "No wake word models found"
+    echo "Wake word models should be in each personality's directory."
+    echo "See docs/TRAIN_WAKE_WORDS.md for training instructions"
 else
     print_success "Found $models_found wake word model(s)"
 fi
@@ -229,11 +235,6 @@ if [ $models_found -eq 0 ]; then
     needs_models=true
 fi
 
-# Check if filler phrases exist
-if [ ! -f "personalities/johnny/filler_audio/filler_01.wav" ]; then
-    needs_fillers=true
-fi
-
 echo "Next steps:"
 echo
 
@@ -250,22 +251,15 @@ echo "   OUTPUT_DEVICE_NAME=\"Arsvita\""
 echo
 
 if [ "$needs_models" = true ]; then
-    echo "3. ${YELLOW}REQUIRED${NC}: Add wake word models to models/ directory"
-    echo "   - Train custom models: https://github.com/dscripka/openWakeWord"
-    echo "   - Place .onnx files in models/"
-    echo "     • models/hey_johnny.onnx (for Johnny personality)"
-    echo "     • models/hey_rich.onnx (for Rich personality)"
+    echo "3. ${YELLOW}NOTE${NC}: Some wake word models may be missing"
+    echo "   - All personalities have wake word models in their directories"
+    echo "   - See docs/TRAIN_WAKE_WORDS.md to create custom wake words"
     echo
 fi
 
-if [ "$needs_fillers" = true ]; then
-    echo "4. Generate filler phrases:"
-    echo "   python scripts/generate_fillers.py"
-    echo
-fi
-
-echo "5. Run the application:"
-echo "   python3 -m teddy_ruxpin.main"
+echo "4. Run the application:"
+echo "   ./run.sh"
+echo "   or: python3 -m teddy_ruxpin.main"
 echo
 
 echo "For detailed documentation:"

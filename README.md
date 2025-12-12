@@ -135,27 +135,70 @@ This system is designed to work with an original **1985 cassette-based Teddy Rux
 
 ## Installation
 
-### 1. Clone the Repository
+You can install J.F. Sebastian using either the automated setup script (recommended) or manual step-by-step installation.
+
+### Method 1: Automated Installation (Recommended)
+
+The easiest way to get started is using the provided setup script:
+
+```bash
+# Clone the repository
+git clone https://github.com/pjdoland/jf-sebastian.git
+cd jf-sebastian
+
+# Run automated setup
+./setup.sh
+```
+
+The setup script will automatically:
+1. Check Python version (3.10+ required)
+2. Create virtual environment
+3. Install Python dependencies
+4. Download OpenWakeWord preprocessing models
+5. Install system dependencies (PortAudio, FFmpeg via Homebrew)
+6. Create required directories
+7. Create `.env` configuration file from template
+8. List available audio devices
+9. Generate filler audio for all personalities
+10. Check for wake word models
+
+**After running setup.sh:**
+1. Edit `.env` and add your OpenAI API key:
+   ```bash
+   OPENAI_API_KEY=sk-your-openai-api-key
+   ```
+2. Configure audio devices in `.env` (see device list from setup):
+   ```bash
+   INPUT_DEVICE_NAME=MacBook Air Microphone
+   OUTPUT_DEVICE_NAME=Arsvita
+   ```
+3. You're ready to run: `./run.sh`
+
+### Method 2: Manual Installation
+
+If you prefer more control or need to troubleshoot, you can install manually:
+
+#### 1. Clone the Repository
 
 ```bash
 git clone https://github.com/pjdoland/jf-sebastian.git
 cd jf-sebastian
 ```
 
-### 2. Create Virtual Environment
+#### 2. Create Virtual Environment
 
 ```bash
 python3 -m venv venv
 source venv/bin/activate  # On macOS/Linux
 ```
 
-### 3. Install Dependencies
+#### 3. Install Dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 4. Download OpenWakeWord Preprocessing Models
+#### 4. Download OpenWakeWord Preprocessing Models
 
 OpenWakeWord requires preprocessing models that must be downloaded separately:
 
@@ -165,7 +208,7 @@ python3 -c "from openwakeword import utils; utils.download_models(['alexa'])"
 
 This downloads the required `melspectrogram.onnx` and `embedding_model.onnx` files to the openwakeword package directory.
 
-### 5. Install System Dependencies
+#### 5. Install System Dependencies
 
 For audio processing, you may need additional system libraries:
 
@@ -178,7 +221,7 @@ brew install portaudio ffmpeg
 # - FFmpeg (for MP3 to PCM conversion)
 ```
 
-### 6. Configuration
+#### 6. Configuration
 
 Create a `.env` file from the example:
 
@@ -200,14 +243,14 @@ INPUT_DEVICE_NAME=MacBook Air Microphone
 OUTPUT_DEVICE_NAME=Arsvita
 ```
 
-### 7. Get API Keys
+#### 7. Get API Keys
 
-#### OpenAI API Key
+**OpenAI API Key:**
 1. Go to https://platform.openai.com/api-keys
 2. Create a new API key
 3. Add to `.env` as `OPENAI_API_KEY`
 
-#### Wake Word Models (OpenWakeWord)
+**Wake Word Models (OpenWakeWord):**
 
 No API key required! OpenWakeWord is completely free and open source.
 
@@ -221,7 +264,7 @@ To create a custom wake word for a new personality:
 2. Train a model for your desired wake phrase
 3. Place the `.onnx` model file in your personality's directory
 
-### 8. Finding Audio Devices
+#### 8. Finding Audio Devices
 
 Run the audio output utility to list all devices:
 
@@ -255,17 +298,17 @@ INPUT_DEVICE_NAME=MacBook Air Microphone
 OUTPUT_DEVICE_NAME=Arsvita
 ```
 
-### 9. Generate Filler Audio
+#### 9. Generate Filler Audio
 
 **This step is required before running the application.** Filler phrases are pre-recorded audio clips that play immediately when you speak, creating a natural conversational feel while the system processes your question in the background.
 
-Generate the filler audio for your chosen personality:
+Generate the filler audio for all personalities:
 
 ```bash
 python scripts/generate_fillers.py
 ```
 
-This creates 30 WAV files in your personality's `filler_audio/` directory. Each file contains:
+This creates 30 WAV files in each personality's `filler_audio/` directory. Each file contains:
 - Voice audio synthesized with the personality's configured voice, speed, and tone
 - PPM control signals for animatronic movement (mouth and eyes)
 
