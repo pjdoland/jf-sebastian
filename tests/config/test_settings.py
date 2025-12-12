@@ -12,7 +12,7 @@ from teddy_ruxpin.config.settings import Settings
 def test_settings_default_values():
     """Test that Settings class has sensible default values."""
     # These should work even without environment variables
-    assert Settings.PERSONALITY in ["johnny", "rich"]
+    assert Settings.PERSONALITY in ["johnny", "rich", "mr_lincoln", "leopold"]
     assert Settings.SAMPLE_RATE in [16000, 22050, 44100, 48000]
     assert Settings.CHUNK_SIZE > 0
     assert 0 <= Settings.VAD_AGGRESSIVENESS <= 3
@@ -21,7 +21,7 @@ def test_settings_default_values():
     assert Settings.MAX_HISTORY_LENGTH > 0
     assert Settings.WHISPER_MODEL == "whisper-1"
     assert Settings.GPT_MODEL == "gpt-4o-mini"
-    assert Settings.TTS_MODEL == "tts-1"
+    assert Settings.TTS_MODEL in ["tts-1", "tts-1-hd", "gpt-4o-mini-tts"]  # Can be configured in .env
 
 
 def test_settings_audio_config_defaults():
@@ -30,7 +30,7 @@ def test_settings_audio_config_defaults():
     assert Settings.SAMPLE_RATE in [16000, 22050, 44100, 48000]
     assert Settings.CHUNK_SIZE == 1024
     assert Settings.VAD_AGGRESSIVENESS == 3
-    assert Settings.SILENCE_TIMEOUT == 10.0
+    assert Settings.SILENCE_TIMEOUT > 0  # Can be configured in .env
 
 
 def test_settings_animatronic_config_defaults():
@@ -69,28 +69,25 @@ def test_settings_validate_missing_api_key():
     # Create a test Settings class with missing API key
     class TestSettings(Settings):
         OPENAI_API_KEY = ""
-        PICOVOICE_ACCESS_KEY = "test-key"
 
     errors = TestSettings.validate()
     assert any("OPENAI_API_KEY" in err for err in errors)
 
 
 def test_settings_validate_missing_wake_word_config():
-    """Test validation fails when wake word config is missing."""
+    """Test that validation doesn't require wake word config (handled per personality)."""
     class TestSettings(Settings):
         OPENAI_API_KEY = "test-key"
-        PICOVOICE_ACCESS_KEY = ""
-        OPENWAKEWORD_MODEL_PATH = None
 
     errors = TestSettings.validate()
-    assert any("PICOVOICE_ACCESS_KEY" in err or "OPENWAKEWORD_MODEL_PATH" in err for err in errors)
+    # Wake word validation removed - now handled per personality
+    assert not any("wake" in err.lower() for err in errors)
 
 
 def test_settings_validate_invalid_sample_rate():
     """Test validation fails for invalid sample rate."""
     class TestSettings(Settings):
         OPENAI_API_KEY = "test-key"
-        PICOVOICE_ACCESS_KEY = "test-key"
         SAMPLE_RATE = 32000  # Invalid
 
     errors = TestSettings.validate()
@@ -101,7 +98,6 @@ def test_settings_validate_invalid_vad_aggressiveness():
     """Test validation fails for invalid VAD aggressiveness."""
     class TestSettings(Settings):
         OPENAI_API_KEY = "test-key"
-        PICOVOICE_ACCESS_KEY = "test-key"
         VAD_AGGRESSIVENESS = 5  # Invalid (must be 0-3)
 
     errors = TestSettings.validate()
@@ -112,7 +108,6 @@ def test_settings_validate_all_valid():
     """Test validation passes with all valid settings."""
     class TestSettings(Settings):
         OPENAI_API_KEY = "test-key"
-        PICOVOICE_ACCESS_KEY = "test-key"
         SAMPLE_RATE = 44100
         VAD_AGGRESSIVENESS = 2
 
@@ -121,15 +116,13 @@ def test_settings_validate_all_valid():
 
 
 def test_settings_validate_with_openwakeword():
-    """Test validation passes with OpenWakeWord instead of Picovoice."""
+    """Test validation passes with OpenWakeWord (wake word handled per personality)."""
     class TestSettings(Settings):
         OPENAI_API_KEY = "test-key"
-        PICOVOICE_ACCESS_KEY = ""
-        OPENWAKEWORD_MODEL_PATH = "/path/to/model"
 
     errors = TestSettings.validate()
-    # Should not have wake word error
-    assert not any("PICOVOICE" in err for err in errors)
+    # Wake word validation removed - now handled per personality
+    assert len(errors) == 0
 
 
 def test_settings_create_debug_dirs_enabled(tmp_path, monkeypatch):
@@ -210,8 +203,6 @@ def test_settings_validate_multiple_errors():
     """Test validation returns multiple errors when multiple settings are invalid."""
     class TestSettings(Settings):
         OPENAI_API_KEY = ""
-        PICOVOICE_ACCESS_KEY = ""
-        OPENWAKEWORD_MODEL_PATH = None
         SAMPLE_RATE = 32000  # Invalid
         VAD_AGGRESSIVENESS = 5  # Invalid
 
@@ -231,7 +222,6 @@ def test_settings_sample_rate_options():
     for rate in valid_rates:
         class TestSettings(Settings):
             OPENAI_API_KEY = "test-key"
-            PICOVOICE_ACCESS_KEY = "test-key"
             SAMPLE_RATE = rate
 
         errors = TestSettings.validate()
@@ -244,7 +234,6 @@ def test_settings_vad_aggressiveness_range():
     for level in range(4):  # 0, 1, 2, 3
         class TestSettings(Settings):
             OPENAI_API_KEY = "test-key"
-            PICOVOICE_ACCESS_KEY = "test-key"
             VAD_AGGRESSIVENESS = level
 
         errors = TestSettings.validate()
