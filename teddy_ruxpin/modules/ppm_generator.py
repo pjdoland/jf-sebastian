@@ -140,6 +140,15 @@ class PPMGenerator:
         frames_generated = 0
         blink_count = 0
 
+        # Blink state tracking
+        blink_state = None  # None, 'closing', 'closed', 'opening'
+        blink_frame_counter = 0
+        blink_start_position = 0.0  # Store eye position when blink starts
+        blink_target_position = 0.0  # Store where eyes should return to
+        BLINK_CLOSE_FRAMES = 5   # Frames to close eyes (~83ms at 60Hz)
+        BLINK_HOLD_FRAMES = 2    # Frames to hold closed (~33ms)
+        BLINK_OPEN_FRAMES = 5    # Frames to reopen (~83ms)
+
         # Parse syllables from text for better lip sync timing
         syllable_values = self._calculate_syllable_mouth_values(audio, sample_rate, text)
 
@@ -185,28 +194,61 @@ class PPMGenerator:
             channel_values[frame_idx, 3] = int(mouth_value * 255)  # Ch3: Lower jaw/mouth
             channel_values[frame_idx, 2] = int(mouth_value * 0.7 * 255)  # Ch2: Upper jaw (70% of lower)
 
-            # Eye control based on sentiment
+            # Eye control based on sentiment (much more subtle)
             if frame_idx < settle_frames_start or frame_idx >= settle_end_start_idx:
                 # Force initial and final frames to the base position to reset between interactions
                 eye_position = base_eye_position
             else:
                 # Map sentiment from -1..1 to eye position 0..1 around the base
-                eye_position = base_eye_position + sentiment * 0.3  # Vary ±30% based on sentiment
+                # Reduced from ±30% to ±8% for much subtler movement
+                eye_position = base_eye_position + sentiment * 0.08
                 eye_position = np.clip(eye_position, 0, 1)
 
-            # Add occasional blinks (random drops) after the settle period
-            blink_triggered = False
+            # Multi-frame blink animation
+            # Check if we should start a new blink (only if not already blinking)
             if (
-                settle_frames_start <= frame_idx < settle_end_start_idx
-                and np.random.random() < 0.005  # 0.5% chance per frame (~once per 10 seconds at 50Hz)
+                blink_state is None
+                and settle_frames_start <= frame_idx < settle_end_start_idx
+                and np.random.random() < 0.008  # ~0.8% chance per frame (~once per 2 seconds at 60Hz)
             ):
-                blink_triggered = True
+                blink_state = 'closing'
+                blink_frame_counter = 0
+                blink_start_position = eye_position  # Save current position
                 blink_count += 1
-                eye_position *= 0.3  # Blink
 
-            # Keep a floor on eye openness unless we are explicitly blinking
-            if not blink_triggered:
-                min_eye_open = max(base_eye_position * 0.75, 0.65)  # Keep eyes mostly open
+            # Handle blink state machine
+            if blink_state == 'closing':
+                # Animate eyes closing from start position to fully closed
+                progress = blink_frame_counter / BLINK_CLOSE_FRAMES
+                eye_position = blink_start_position * (1.0 - progress)  # Gradually close to 0
+                blink_frame_counter += 1
+                if blink_frame_counter >= BLINK_CLOSE_FRAMES:
+                    blink_state = 'closed'
+                    blink_frame_counter = 0
+
+            elif blink_state == 'closed':
+                # Hold eyes fully closed
+                eye_position = 0.0  # Fully closed
+                blink_frame_counter += 1
+                if blink_frame_counter >= BLINK_HOLD_FRAMES:
+                    blink_state = 'opening'
+                    blink_frame_counter = 0
+                    # Calculate where eyes should return to
+                    blink_target_position = base_eye_position + sentiment * 0.08
+                    blink_target_position = np.clip(blink_target_position, 0, 1)
+
+            elif blink_state == 'opening':
+                # Animate eyes opening from closed to target position
+                progress = blink_frame_counter / BLINK_OPEN_FRAMES
+                eye_position = blink_target_position * progress  # Gradually open to target
+                blink_frame_counter += 1
+                if blink_frame_counter >= BLINK_OPEN_FRAMES:
+                    blink_state = None  # Blink complete
+                    blink_frame_counter = 0
+
+            # Keep a floor on eye openness when not blinking (relaxed from 75% to allow more range)
+            if blink_state is None:
+                min_eye_open = max(base_eye_position * 0.85, 0.75)  # Keep eyes mostly open
                 eye_position = max(eye_position, min_eye_open)
 
             # Hardware expects inverted polarity: higher command closes lids, so flip to keep
@@ -221,7 +263,8 @@ class PPMGenerator:
             channel_values = channel_values[:1]
 
         # Enforce base eye position on the true first/last frames (after trimming)
-        base_value = int(base_eye_position * 255)
+        # Invert since hardware expects inverted polarity (higher = more closed)
+        base_value = int((1.0 - base_eye_position) * 255)
         start_frames = min(settle_frames_start, len(channel_values))
         end_frames_start = max(len(channel_values) - settle_frames_end, 0)
         if start_frames > 0:
