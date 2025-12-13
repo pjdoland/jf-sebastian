@@ -219,7 +219,8 @@ class PPMGenerator:
             # Handle blink state machine
             if blink_state == 'closing':
                 # Animate eyes closing from start position to fully closed
-                progress = blink_frame_counter / BLINK_CLOSE_FRAMES
+                # Use (counter + 1) to reach 100% on last frame before state change
+                progress = (blink_frame_counter + 1) / BLINK_CLOSE_FRAMES
                 eye_position = blink_start_position * (1.0 - progress)  # Gradually close to 0
                 blink_frame_counter += 1
                 if blink_frame_counter >= BLINK_CLOSE_FRAMES:
@@ -239,7 +240,8 @@ class PPMGenerator:
 
             elif blink_state == 'opening':
                 # Animate eyes opening from closed to target position
-                progress = blink_frame_counter / BLINK_OPEN_FRAMES
+                # Use (counter + 1) to reach 100% on last frame before state change
+                progress = (blink_frame_counter + 1) / BLINK_OPEN_FRAMES
                 eye_position = blink_target_position * progress  # Gradually open to target
                 blink_frame_counter += 1
                 if blink_frame_counter >= BLINK_OPEN_FRAMES:
