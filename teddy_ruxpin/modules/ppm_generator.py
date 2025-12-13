@@ -155,6 +155,10 @@ class PPMGenerator:
         # Clamp inputs for eyes and sentiment
         base_eye_position = np.clip(eyes_base, 0, 1)
         sentiment = float(np.clip(sentiment, -1.0, 1.0))
+
+        # Eye smoothing for sentiment-based movement
+        current_eye_position = base_eye_position  # Start at base position
+        EYE_SMOOTHING = 0.92  # Higher = smoother (0.9-0.95 range works well)
         # Hold the eyes at the base position at the start and end of each clip so
         # every interaction begins and returns to a known open state.
         settle_frames_start = 3
@@ -194,14 +198,20 @@ class PPMGenerator:
             channel_values[frame_idx, 3] = int(mouth_value * 255)  # Ch3: Lower jaw/mouth
             channel_values[frame_idx, 2] = int(mouth_value * 0.7 * 255)  # Ch2: Upper jaw (70% of lower)
 
-            # Eye control based on sentiment (minimal movement, eyes stay mostly open)
+            # Eye control based on sentiment (smoothed over time to avoid jerky movement)
             if frame_idx < settle_frames_start or frame_idx >= settle_end_start_idx:
                 # Force initial and final frames to the base position to reset between interactions
                 eye_position = base_eye_position
+                current_eye_position = base_eye_position  # Reset smoothing
             else:
-                # Keep eyes at base position - sentiment has no effect on eye openness
-                # Only blinking will change eye position
-                eye_position = base_eye_position
+                # Calculate target position based on sentiment (very subtle ±3%)
+                target_eye_position = base_eye_position + sentiment * 0.03
+                target_eye_position = np.clip(target_eye_position, 0, 1)
+
+                # Smooth transition using exponential moving average
+                # This creates gradual movement instead of instant jumps
+                current_eye_position = EYE_SMOOTHING * current_eye_position + (1 - EYE_SMOOTHING) * target_eye_position
+                eye_position = current_eye_position
 
             # Multi-frame blink animation
             # Check if we should start a new blink (only if not already blinking)
@@ -233,8 +243,8 @@ class PPMGenerator:
                 if blink_frame_counter >= BLINK_HOLD_FRAMES:
                     blink_state = 'opening'
                     blink_frame_counter = 0
-                    # Eyes return to base position (no sentiment adjustment)
-                    blink_target_position = base_eye_position
+                    # Eyes return to current smoothed position (includes sentiment)
+                    blink_target_position = current_eye_position
 
             elif blink_state == 'opening':
                 # Animate eyes opening from closed to target position

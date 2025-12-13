@@ -149,7 +149,7 @@ def test_audio_to_channel_values_eye_starts_open(sample_audio):
 
 
 def test_audio_to_channel_values_sentiment_effect(sample_audio):
-    """Test that sentiment does not affect eye position (eyes controlled only by blinking)."""
+    """Test that sentiment affects eye position with smooth transitions."""
     audio, sample_rate = sample_audio
     gen = PPMGenerator(sample_rate=sample_rate)
     text = "Test"
@@ -166,12 +166,15 @@ def test_audio_to_channel_values_sentiment_effect(sample_audio):
         audio, sample_rate, text, sentiment=0.5
     )
 
-    # Eye positions should be identical (sentiment has no effect on eyes)
+    # Eye positions should differ based on sentiment (smoothed over time)
     eyes_neg = channel_values_neg[:, 1]
     eyes_pos = channel_values_pos[:, 1]
 
-    # With same random seed, blinks occur at same times, so eyes should be identical
-    assert np.array_equal(eyes_neg, eyes_pos)
+    # Due to smoothing, eyes gradually reach target position
+    # Positive sentiment should result in more open eyes (lower command value)
+    # Negative sentiment should result in more closed eyes (higher command value)
+    # Check the stabilized middle portion (skip first few frames where smoothing is ramping up)
+    assert np.median(eyes_neg[10:]) > np.median(eyes_pos[10:])
 
 
 def test_calculate_syllable_mouth_values_basic():
