@@ -149,28 +149,29 @@ def test_audio_to_channel_values_eye_starts_open(sample_audio):
 
 
 def test_audio_to_channel_values_sentiment_effect(sample_audio):
-    """Test that sentiment affects eye position."""
+    """Test that sentiment does not affect eye position (eyes controlled only by blinking)."""
     audio, sample_rate = sample_audio
     gen = PPMGenerator(sample_rate=sample_rate)
     text = "Test"
 
-    # Generate with negative sentiment
+    # Set random seed to avoid blink randomness affecting test
+    np.random.seed(42)
     channel_values_neg = gen.audio_to_channel_values(
         audio, sample_rate, text, sentiment=-0.5
     )
 
-    # Generate with positive sentiment
+    # Reset seed to get same blink pattern
+    np.random.seed(42)
     channel_values_pos = gen.audio_to_channel_values(
         audio, sample_rate, text, sentiment=0.5
     )
 
-    # Eye positions should differ on average
+    # Eye positions should be identical (sentiment has no effect on eyes)
     eyes_neg = channel_values_neg[:, 1]
     eyes_pos = channel_values_pos[:, 1]
 
-    # Due to random blinks, use median instead of mean
-    # Positive sentiment should result in different eye position
-    assert np.median(eyes_neg) != np.median(eyes_pos)
+    # With same random seed, blinks occur at same times, so eyes should be identical
+    assert np.array_equal(eyes_neg, eyes_pos)
 
 
 def test_calculate_syllable_mouth_values_basic():
