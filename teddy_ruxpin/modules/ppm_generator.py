@@ -145,9 +145,9 @@ class PPMGenerator:
         blink_frame_counter = 0
         blink_start_position = 0.0  # Store eye position when blink starts
         blink_target_position = 0.0  # Store where eyes should return to
-        BLINK_CLOSE_FRAMES = 5   # Frames to close eyes (~83ms at 60Hz)
-        BLINK_HOLD_FRAMES = 2    # Frames to hold closed (~33ms)
-        BLINK_OPEN_FRAMES = 5    # Frames to reopen (~83ms)
+        BLINK_CLOSE_FRAMES = 8   # Frames to close eyes (~133ms at 60Hz)
+        BLINK_HOLD_FRAMES = 3    # Frames to hold closed (~50ms)
+        BLINK_OPEN_FRAMES = 8    # Frames to reopen (~133ms)
 
         # Parse syllables from text for better lip sync timing
         syllable_values = self._calculate_syllable_mouth_values(audio, sample_rate, text)
@@ -194,14 +194,14 @@ class PPMGenerator:
             channel_values[frame_idx, 3] = int(mouth_value * 255)  # Ch3: Lower jaw/mouth
             channel_values[frame_idx, 2] = int(mouth_value * 0.7 * 255)  # Ch2: Upper jaw (70% of lower)
 
-            # Eye control based on sentiment (much more subtle)
+            # Eye control based on sentiment (extremely subtle)
             if frame_idx < settle_frames_start or frame_idx >= settle_end_start_idx:
                 # Force initial and final frames to the base position to reset between interactions
                 eye_position = base_eye_position
             else:
                 # Map sentiment from -1..1 to eye position 0..1 around the base
-                # Reduced from ±30% to ±8% for much subtler movement
-                eye_position = base_eye_position + sentiment * 0.08
+                # Reduced to ±1% for extremely subtle, barely perceptible movement
+                eye_position = base_eye_position + sentiment * 0.01
                 eye_position = np.clip(eye_position, 0, 1)
 
             # Multi-frame blink animation
@@ -234,7 +234,7 @@ class PPMGenerator:
                     blink_state = 'opening'
                     blink_frame_counter = 0
                     # Calculate where eyes should return to
-                    blink_target_position = base_eye_position + sentiment * 0.08
+                    blink_target_position = base_eye_position + sentiment * 0.01
                     blink_target_position = np.clip(blink_target_position, 0, 1)
 
             elif blink_state == 'opening':
