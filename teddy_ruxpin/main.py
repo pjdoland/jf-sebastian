@@ -9,9 +9,11 @@ import logging
 import sys
 import time
 import signal
+import os
 from pathlib import Path
 from typing import Optional
 import numpy as np
+import psutil
 
 from teddy_ruxpin.config import settings
 from personalities import get_personality
@@ -414,8 +416,51 @@ Now respond to their question naturally, as if your filler phrase was the beginn
             self._wake_paused_for_playback = False
 
 
+def kill_existing_instances():
+    """Kill any other running instances of this program."""
+    current_pid = os.getpid()
+    current_process = psutil.Process(current_pid)
+    current_cmdline = ' '.join(current_process.cmdline())
+
+    killed_count = 0
+    for process in psutil.process_iter(['pid', 'name', 'cmdline']):
+        try:
+            # Skip if it's the current process
+            if process.pid == current_pid:
+                continue
+
+            # Check if this is a python process running teddy_ruxpin.main
+            cmdline = process.cmdline()
+            if cmdline and 'python' in cmdline[0].lower():
+                cmdline_str = ' '.join(cmdline)
+                if 'teddy_ruxpin.main' in cmdline_str or 'teddy_ruxpin/main.py' in cmdline_str:
+                    logger.warning(f"Killing existing instance (PID {process.pid}): {cmdline_str}")
+                    process.terminate()
+
+                    # Wait up to 2 seconds for graceful termination
+                    try:
+                        process.wait(timeout=2)
+                    except psutil.TimeoutExpired:
+                        # Force kill if it doesn't terminate gracefully
+                        logger.warning(f"Force killing PID {process.pid}")
+                        process.kill()
+
+                    killed_count += 1
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            # Process may have already terminated or we don't have permission
+            pass
+
+    if killed_count > 0:
+        logger.info(f"Killed {killed_count} existing instance(s)")
+        # Brief pause to ensure resources are released
+        time.sleep(0.5)
+
+
 def main():
     """Main entry point."""
+    # Kill any existing instances before starting
+    kill_existing_instances()
+
     # Handle Ctrl+C gracefully
     def signal_handler(sig, frame):
         logger.info("Interrupt received, shutting down...")
