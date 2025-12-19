@@ -5,7 +5,7 @@ Based on the original Teddy Ruxpin tape format.
 
 import logging
 import numpy as np
-from teddy_ruxpin.config import settings
+from jf_sebastian.config import settings
 
 logger = logging.getLogger(__name__)
 

@@ -212,7 +212,7 @@ PERSONALITY=your_name
 Restart the application:
 
 ```bash
-python -m teddy_ruxpin.main
+python -m jf_sebastian.main
 ```
 
 ### Step 7: Test and Refine
@@ -463,7 +463,7 @@ Consider:
 
 1. **Start the system:**
    ```bash
-   python -m teddy_ruxpin.main
+   python -m jf_sebastian.main
    ```
 
 2. **Check startup:**

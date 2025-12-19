@@ -7,7 +7,7 @@ import time
 from unittest.mock import Mock, MagicMock, patch
 from collections import deque
 
-from teddy_ruxpin.modules.conversation import ConversationEngine, MockConversationEngine
+from jf_sebastian.modules.conversation import ConversationEngine, MockConversationEngine
 from openai import APIError, APIConnectionError, RateLimitError
 
 
@@ -107,8 +107,8 @@ def test_mock_conversation_engine_time_since_interaction():
 
 # ConversationEngine Tests with Mocking
 
-@patch('teddy_ruxpin.modules.conversation.OpenAI')
-@patch('teddy_ruxpin.modules.conversation.settings')
+@patch('jf_sebastian.modules.conversation.OpenAI')
+@patch('jf_sebastian.modules.conversation.settings')
 def test_conversation_engine_initialization(mock_settings, mock_openai):
     """Test ConversationEngine initialization."""
     mock_settings.OPENAI_API_KEY = "test-key"
@@ -123,7 +123,7 @@ def test_conversation_engine_initialization(mock_settings, mock_openai):
     assert engine._messages[0]["content"] == "Test system prompt"
 
 
-@patch('teddy_ruxpin.modules.conversation.settings')
+@patch('jf_sebastian.modules.conversation.settings')
 def test_conversation_engine_missing_api_key(mock_settings):
     """Test initialization fails without API key."""
     mock_settings.OPENAI_API_KEY = ""
@@ -132,8 +132,8 @@ def test_conversation_engine_missing_api_key(mock_settings):
         ConversationEngine("Test prompt")
 
 
-@patch('teddy_ruxpin.modules.conversation.OpenAI')
-@patch('teddy_ruxpin.modules.conversation.settings')
+@patch('jf_sebastian.modules.conversation.OpenAI')
+@patch('jf_sebastian.modules.conversation.settings')
 def test_conversation_engine_generate_response_success(mock_settings, mock_openai):
     """Test successful response generation."""
     mock_settings.OPENAI_API_KEY = "test-key"
@@ -158,8 +158,8 @@ def test_conversation_engine_generate_response_success(mock_settings, mock_opena
     mock_client.chat.completions.create.assert_called_once()
 
 
-@patch('teddy_ruxpin.modules.conversation.OpenAI')
-@patch('teddy_ruxpin.modules.conversation.settings')
+@patch('jf_sebastian.modules.conversation.OpenAI')
+@patch('jf_sebastian.modules.conversation.settings')
 def test_conversation_engine_empty_input(mock_settings, mock_openai):
     """Test response generation with empty input."""
     mock_settings.OPENAI_API_KEY = "test-key"
@@ -172,8 +172,8 @@ def test_conversation_engine_empty_input(mock_settings, mock_openai):
     assert response is None
 
 
-@patch('teddy_ruxpin.modules.conversation.OpenAI')
-@patch('teddy_ruxpin.modules.conversation.settings')
+@patch('jf_sebastian.modules.conversation.OpenAI')
+@patch('jf_sebastian.modules.conversation.settings')
 def test_conversation_engine_whitespace_input(mock_settings, mock_openai):
     """Test response generation with whitespace-only input."""
     mock_settings.OPENAI_API_KEY = "test-key"
@@ -186,8 +186,8 @@ def test_conversation_engine_whitespace_input(mock_settings, mock_openai):
     assert response is None
 
 
-@patch('teddy_ruxpin.modules.conversation.OpenAI')
-@patch('teddy_ruxpin.modules.conversation.settings')
+@patch('jf_sebastian.modules.conversation.OpenAI')
+@patch('jf_sebastian.modules.conversation.settings')
 def test_conversation_engine_with_context(mock_settings, mock_openai):
     """Test response generation with additional context."""
     mock_settings.OPENAI_API_KEY = "test-key"
@@ -213,8 +213,8 @@ def test_conversation_engine_with_context(mock_settings, mock_openai):
     assert "Question?" in user_message
 
 
-@patch('teddy_ruxpin.modules.conversation.OpenAI')
-@patch('teddy_ruxpin.modules.conversation.settings')
+@patch('jf_sebastian.modules.conversation.OpenAI')
+@patch('jf_sebastian.modules.conversation.settings')
 def test_conversation_engine_rate_limit_error(mock_settings, mock_openai):
     """Test handling of rate limit errors."""
     mock_settings.OPENAI_API_KEY = "test-key"
@@ -237,8 +237,8 @@ def test_conversation_engine_rate_limit_error(mock_settings, mock_openai):
     assert "trouble thinking" in response.lower()
 
 
-@patch('teddy_ruxpin.modules.conversation.OpenAI')
-@patch('teddy_ruxpin.modules.conversation.settings')
+@patch('jf_sebastian.modules.conversation.OpenAI')
+@patch('jf_sebastian.modules.conversation.settings')
 def test_conversation_engine_connection_error(mock_settings, mock_openai):
     """Test handling of connection errors."""
     mock_settings.OPENAI_API_KEY = "test-key"
@@ -257,8 +257,8 @@ def test_conversation_engine_connection_error(mock_settings, mock_openai):
     assert "reach my thoughts" in response.lower()
 
 
-@patch('teddy_ruxpin.modules.conversation.OpenAI')
-@patch('teddy_ruxpin.modules.conversation.settings')
+@patch('jf_sebastian.modules.conversation.OpenAI')
+@patch('jf_sebastian.modules.conversation.settings')
 def test_conversation_engine_api_error(mock_settings, mock_openai):
     """Test handling of generic API errors."""
     mock_settings.OPENAI_API_KEY = "test-key"
@@ -277,8 +277,8 @@ def test_conversation_engine_api_error(mock_settings, mock_openai):
     assert "not quite right" in response.lower()
 
 
-@patch('teddy_ruxpin.modules.conversation.OpenAI')
-@patch('teddy_ruxpin.modules.conversation.settings')
+@patch('jf_sebastian.modules.conversation.OpenAI')
+@patch('jf_sebastian.modules.conversation.settings')
 def test_conversation_engine_unknown_error(mock_settings, mock_openai):
     """Test handling of unknown errors."""
     mock_settings.OPENAI_API_KEY = "test-key"
@@ -297,8 +297,8 @@ def test_conversation_engine_unknown_error(mock_settings, mock_openai):
     assert "confused" in response.lower()
 
 
-@patch('teddy_ruxpin.modules.conversation.OpenAI')
-@patch('teddy_ruxpin.modules.conversation.settings')
+@patch('jf_sebastian.modules.conversation.OpenAI')
+@patch('jf_sebastian.modules.conversation.settings')
 def test_conversation_engine_clear_history(mock_settings, mock_openai):
     """Test clearing conversation history."""
     mock_settings.OPENAI_API_KEY = "test-key"
@@ -320,8 +320,8 @@ def test_conversation_engine_clear_history(mock_settings, mock_openai):
     assert engine._messages[0]["role"] == "system"
 
 
-@patch('teddy_ruxpin.modules.conversation.OpenAI')
-@patch('teddy_ruxpin.modules.conversation.settings')
+@patch('jf_sebastian.modules.conversation.OpenAI')
+@patch('jf_sebastian.modules.conversation.settings')
 def test_conversation_engine_get_history(mock_settings, mock_openai):
     """Test getting conversation history."""
     mock_settings.OPENAI_API_KEY = "test-key"
@@ -340,8 +340,8 @@ def test_conversation_engine_get_history(mock_settings, mock_openai):
     assert history[1]["role"] == "user"
 
 
-@patch('teddy_ruxpin.modules.conversation.OpenAI')
-@patch('teddy_ruxpin.modules.conversation.settings')
+@patch('jf_sebastian.modules.conversation.OpenAI')
+@patch('jf_sebastian.modules.conversation.settings')
 def test_conversation_engine_get_history_length(mock_settings, mock_openai):
     """Test getting history length."""
     mock_settings.OPENAI_API_KEY = "test-key"
@@ -357,8 +357,8 @@ def test_conversation_engine_get_history_length(mock_settings, mock_openai):
     assert engine.get_history_length() == 2
 
 
-@patch('teddy_ruxpin.modules.conversation.OpenAI')
-@patch('teddy_ruxpin.modules.conversation.settings')
+@patch('jf_sebastian.modules.conversation.OpenAI')
+@patch('jf_sebastian.modules.conversation.settings')
 def test_conversation_engine_timeout_clears_history(mock_settings, mock_openai):
     """Test that timeout clears conversation history."""
     mock_settings.OPENAI_API_KEY = "test-key"
@@ -390,8 +390,8 @@ def test_conversation_engine_timeout_clears_history(mock_settings, mock_openai):
     assert len(engine._messages) == 3
 
 
-@patch('teddy_ruxpin.modules.conversation.OpenAI')
-@patch('teddy_ruxpin.modules.conversation.settings')
+@patch('jf_sebastian.modules.conversation.OpenAI')
+@patch('jf_sebastian.modules.conversation.settings')
 def test_conversation_engine_time_since_interaction(mock_settings, mock_openai):
     """Test time since last interaction."""
     mock_settings.OPENAI_API_KEY = "test-key"
@@ -421,8 +421,8 @@ def test_conversation_engine_time_since_interaction(mock_settings, mock_openai):
     assert engine.time_since_last_interaction < 0.1
 
 
-@patch('teddy_ruxpin.modules.conversation.OpenAI')
-@patch('teddy_ruxpin.modules.conversation.settings')
+@patch('jf_sebastian.modules.conversation.OpenAI')
+@patch('jf_sebastian.modules.conversation.settings')
 def test_conversation_engine_generate_response_with_retry_success(mock_settings, mock_openai):
     """Test retry mechanism with eventual success."""
     mock_settings.OPENAI_API_KEY = "test-key"
@@ -453,8 +453,8 @@ def test_conversation_engine_generate_response_with_retry_success(mock_settings,
     assert response == "Success response"
 
 
-@patch('teddy_ruxpin.modules.conversation.OpenAI')
-@patch('teddy_ruxpin.modules.conversation.settings')
+@patch('jf_sebastian.modules.conversation.OpenAI')
+@patch('jf_sebastian.modules.conversation.settings')
 def test_conversation_engine_generate_response_with_retry_all_fail(mock_settings, mock_openai):
     """Test retry mechanism when all attempts fail."""
     mock_settings.OPENAI_API_KEY = "test-key"
@@ -478,8 +478,8 @@ def test_conversation_engine_generate_response_with_retry_all_fail(mock_settings
     assert "hard time responding" in response.lower()
 
 
-@patch('teddy_ruxpin.modules.conversation.OpenAI')
-@patch('teddy_ruxpin.modules.conversation.settings')
+@patch('jf_sebastian.modules.conversation.OpenAI')
+@patch('jf_sebastian.modules.conversation.settings')
 def test_conversation_engine_max_history_length(mock_settings, mock_openai):
     """Test that history respects max length."""
     mock_settings.OPENAI_API_KEY = "test-key"
@@ -496,8 +496,8 @@ def test_conversation_engine_max_history_length(mock_settings, mock_openai):
     assert len(engine._messages) <= 5
 
 
-@patch('teddy_ruxpin.modules.conversation.OpenAI')
-@patch('teddy_ruxpin.modules.conversation.settings')
+@patch('jf_sebastian.modules.conversation.OpenAI')
+@patch('jf_sebastian.modules.conversation.settings')
 def test_conversation_engine_error_response_types(mock_settings, mock_openai):
     """Test different error response types."""
     mock_settings.OPENAI_API_KEY = "test-key"

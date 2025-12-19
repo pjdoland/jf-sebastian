@@ -10,8 +10,8 @@ from typing import Optional
 from openai import OpenAI
 from openai import APIError, APIConnectionError, RateLimitError
 
-from teddy_ruxpin.config import settings
-from teddy_ruxpin.modules.audio_input import audio_data_to_wav_bytes
+from jf_sebastian.config import settings
+from jf_sebastian.modules.audio_input import audio_data_to_wav_bytes
 
 logger = logging.getLogger(__name__)
 

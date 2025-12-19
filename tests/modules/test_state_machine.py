@@ -5,7 +5,7 @@ Tests for state machine module.
 import pytest
 import time
 import threading
-from teddy_ruxpin.modules.state_machine import (
+from jf_sebastian.modules.state_machine import (
     StateMachine,
     ConversationState,
     StateTransition

@@ -3,7 +3,7 @@ Tests for audio device utility functions.
 """
 
 import pytest
-from teddy_ruxpin.utils.audio_device_utils import find_audio_device_by_name
+from jf_sebastian.utils.audio_device_utils import find_audio_device_by_name
 
 
 def test_find_input_device_by_exact_name(mock_pyaudio):

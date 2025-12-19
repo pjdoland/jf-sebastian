@@ -213,7 +213,7 @@ echo
 echo "======================================================================"
 echo "Listing available audio devices..."
 echo "======================================================================"
-python -m teddy_ruxpin.modules.audio_output 2>/dev/null || print_warning "Could not list audio devices"
+python -m jf_sebastian.modules.audio_output 2>/dev/null || print_warning "Could not list audio devices"
 
 # Final instructions
 echo
@@ -259,7 +259,7 @@ fi
 
 echo "4. Run the application:"
 echo "   ./run.sh"
-echo "   or: python3 -m teddy_ruxpin.main"
+echo "   or: python3 -m jf_sebastian.main"
 echo
 
 echo "For detailed documentation:"

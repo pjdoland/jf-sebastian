@@ -8,6 +8,12 @@ Comprehensive unit tests for the J.F. Sebastian animatronic AI conversation syst
 tests/
 ├── conftest.py              # Shared pytest fixtures
 ├── test_main.py             # Main application and state machine tests
+├── devices/                 # Output device tests
+│   ├── test_factory.py            # Device registry and factory tests
+│   ├── test_audio_processor.py    # Shared audio processor tests
+│   ├── test_sentiment_analyzer.py # Shared sentiment analyzer tests
+│   ├── test_teddy_ruxpin.py       # Teddy Ruxpin device tests
+│   └── test_squawkers_mccaw.py    # Squawkers McCaw device tests
 ├── modules/
 │   ├── test_ppm_generator.py      # PPM signal generation tests
 │   ├── test_filler_phrases.py     # Filler phrase management tests
@@ -54,7 +60,7 @@ pytest tests/test_main.py
 
 ```bash
 # Generate coverage report
-pytest --cov=teddy_ruxpin --cov-report=html --cov-report=term-missing
+pytest --cov=jf_sebastian --cov-report=html --cov-report=term-missing
 
 # View HTML report
 open htmlcov/index.html
@@ -89,6 +95,39 @@ pytest -vv
 ## Test Coverage
 
 The test suite covers:
+
+### Output Devices
+- **Device Factory** (test_factory.py)
+  - Device registration and listing
+  - Device creation by type
+  - Case-insensitive device names
+  - Invalid device error handling
+  - Interface validation
+
+- **Audio Processor** (test_audio_processor.py)
+  - MP3 to PCM conversion
+  - Custom sample rates
+  - FFmpeg error handling
+  - Default settings usage
+
+- **Sentiment Analyzer** (test_sentiment_analyzer.py)
+  - Positive/negative/neutral sentiment detection
+  - Edge cases (empty strings, special characters)
+  - Score range validation
+
+- **Teddy Ruxpin Device** (test_teddy_ruxpin.py)
+  - Device initialization and properties
+  - Settings validation
+  - PPM signal generation
+  - Stereo output creation
+  - Gain application
+  - Error handling
+
+- **Squawkers McCaw Device** (test_squawkers_mccaw.py)
+  - Device initialization
+  - Simple stereo output
+  - Channel duplication
+  - No PPM requirement validation
 
 ### Core Functionality
 - **PPM Generation** (test_ppm_generator.py)
@@ -153,7 +192,7 @@ Common fixtures are defined in `conftest.py`:
 ```python
 import pytest
 from unittest.mock import Mock, patch
-from teddy_ruxpin.modules.your_module import YourClass
+from jf_sebastian.modules.your_module import YourClass
 
 def test_basic_functionality():
     """Test basic functionality of YourClass."""
@@ -161,7 +200,7 @@ def test_basic_functionality():
     result = obj.do_something()
     assert result is not None
 
-@patch('teddy_ruxpin.modules.your_module.external_dependency')
+@patch('jf_sebastian.modules.your_module.external_dependency')
 def test_with_mock(mock_dependency):
     """Test with mocked external dependency."""
     mock_dependency.return_value = "mocked_value"
@@ -232,7 +271,7 @@ When adding new functionality:
 
 1. Write tests first (TDD approach)
 2. Ensure all tests pass: `pytest`
-3. Check coverage: `pytest --cov=teddy_ruxpin`
+3. Check coverage: `pytest --cov=jf_sebastian`
 4. Aim for >80% coverage on new code
 5. Document complex test scenarios
 

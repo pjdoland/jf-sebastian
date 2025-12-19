@@ -4,7 +4,7 @@ Tests for PPM (Pulse Position Modulation) generator.
 
 import pytest
 import numpy as np
-from teddy_ruxpin.modules.ppm_generator import PPMGenerator
+from jf_sebastian.modules.ppm_generator import PPMGenerator
 
 
 def test_ppm_generator_initialization():

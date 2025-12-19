@@ -12,10 +12,10 @@ from pathlib import Path
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from teddy_ruxpin.config import settings
+from jf_sebastian.config import settings
 from personalities import get_personality, list_personalities
-from teddy_ruxpin.modules.text_to_speech import TextToSpeech
-from teddy_ruxpin.modules.animatronic_control import AnimatronicControlGenerator, save_stereo_wav
+from jf_sebastian.modules.text_to_speech import TextToSpeech
+from jf_sebastian.modules.animatronic_control import AnimatronicControlGenerator, save_stereo_wav
 
 logging.basicConfig(
     level=logging.INFO,

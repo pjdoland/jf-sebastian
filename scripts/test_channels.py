@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import numpy as np
 from scipy.io import wavfile
-from teddy_ruxpin.modules.ppm_generator import PPMGenerator
+from jf_sebastian.modules.ppm_generator import PPMGenerator
 
 def generate_channel_test(channel_index, channel_name, sample_rate=44100):
     """

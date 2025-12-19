@@ -9,15 +9,15 @@ import time
 import signal
 from pathlib import Path
 
-from teddy_ruxpin.config import settings
-from teddy_ruxpin.modules.state_machine import StateMachine, ConversationState
-from teddy_ruxpin.modules.wake_word import MockWakeWordDetector  # Use mock detector
-from teddy_ruxpin.modules.audio_input import AudioRecorder, save_audio_to_wav
-from teddy_ruxpin.modules.speech_to_text import SpeechToText
-from teddy_ruxpin.modules.conversation import ConversationEngine
-from teddy_ruxpin.modules.text_to_speech import TextToSpeech
-from teddy_ruxpin.modules.animatronic_control import AnimatronicControlGenerator, save_stereo_wav
-from teddy_ruxpin.modules.audio_output import AudioPlayer
+from jf_sebastian.config import settings
+from jf_sebastian.modules.state_machine import StateMachine, ConversationState
+from jf_sebastian.modules.wake_word import MockWakeWordDetector  # Use mock detector
+from jf_sebastian.modules.audio_input import AudioRecorder, save_audio_to_wav
+from jf_sebastian.modules.speech_to_text import SpeechToText
+from jf_sebastian.modules.conversation import ConversationEngine
+from jf_sebastian.modules.text_to_speech import TextToSpeech
+from jf_sebastian.modules.animatronic_control import AnimatronicControlGenerator, save_stereo_wav
+from jf_sebastian.modules.audio_output import AudioPlayer
 
 # Configure logging
 logging.basicConfig(
@@ -25,7 +25,7 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
         logging.StreamHandler(sys.stdout),
-        logging.FileHandler('teddy_ruxpin_test.log')
+        logging.FileHandler('jf_sebastian_test.log')
     ]
 )
 

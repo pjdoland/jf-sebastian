@@ -1,8 +1,8 @@
-# Teddy Ruxpin AI Conversation System - Architecture
+# J.F. Sebastian AI Conversation System - Architecture
 
 ## System Overview
 
-This application enables real-time voice conversations with ChatGPT through a 1985 Teddy Ruxpin animatronic using wake word activation.
+This application enables real-time voice conversations with ChatGPT through vintage animatronic toys using wake word activation. Built with a modular device architecture, it supports multiple output devices including the 1985 Teddy Ruxpin (with full PPM motor control) and Squawkers McCaw (simple audio output).
 
 ## Component Architecture
 
@@ -38,22 +38,31 @@ This application enables real-time voice conversations with ChatGPT through a 19
         │   - Voice audio generation
         │   - Audio format handling
         │
-        ├─► PPM Generator
-        │   - 60Hz frame rate (16.6ms periods)
-        │   - 8-channel PPM encoding (400µs pulses, 630-1590µs gaps)
-        │   - Syllable-based mouth value calculation
-        │   - Generated at 44.1kHz for precision
-        │
-        ├─► Animatronic Control Generator
-        │   - Mouth control (syllable-based lip sync with PPM)
-        │   - Eye control (sentiment-based positioning)
-        │   - Stereo channel mixing (LEFT=voice, RIGHT=PPM)
+        ├─► Output Device (Modular Architecture)
+        │   │
+        │   ├─► Device Registry & Factory
+        │   │   - Device selection via OUTPUT_DEVICE_TYPE config
+        │   │   - Plugin-style device registration
+        │   │
+        │   ├─► Teddy Ruxpin Device
+        │   │   - PPM Generator (60Hz, 8-channel, 44.1kHz)
+        │   │   - Syllable-based lip sync
+        │   │   - Sentiment-based eye control
+        │   │   - Stereo: LEFT=voice, RIGHT=PPM
+        │   │
+        │   ├─► Squawkers McCaw Device
+        │   │   - Simple stereo output
+        │   │   - No PPM generation
+        │   │   - Stereo: LEFT=voice, RIGHT=voice (duplicate)
+        │   │
+        │   └─► Shared Components
+        │       - MP3→PCM conversion (FFmpeg)
+        │       - Sentiment analysis (VADER)
         │
         └─► Audio Output Pipeline
-            - Stereo output routing at 44.1kHz
-            - LEFT: Voice audio to Teddy speaker
-            - RIGHT: PPM control signals to motors
-            - Automatic device sample rate handling
+            - Stereo playback via PyAudio
+            - Device-specific sample rates
+            - Automatic resampling if needed
 ```
 
 ## State Machine

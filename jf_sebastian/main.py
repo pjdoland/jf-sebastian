@@ -15,17 +15,18 @@ from typing import Optional
 import numpy as np
 import psutil
 
-from teddy_ruxpin.config import settings
+from jf_sebastian.config import settings
 from personalities import get_personality
-from teddy_ruxpin.modules.state_machine import StateMachine, ConversationState
-from teddy_ruxpin.modules.wake_word import WakeWordDetector
-from teddy_ruxpin.modules.audio_input import AudioRecorder, save_audio_to_wav
-from teddy_ruxpin.modules.speech_to_text import SpeechToText
-from teddy_ruxpin.modules.conversation import ConversationEngine
-from teddy_ruxpin.modules.text_to_speech import TextToSpeech
-from teddy_ruxpin.modules.animatronic_control import AnimatronicControlGenerator, save_stereo_wav
-from teddy_ruxpin.modules.audio_output import AudioPlayer
-from teddy_ruxpin.modules.filler_phrases import FillerPhraseManager
+from jf_sebastian.modules.state_machine import StateMachine, ConversationState
+from jf_sebastian.modules.wake_word import WakeWordDetector
+from jf_sebastian.modules.audio_input import AudioRecorder, save_audio_to_wav
+from jf_sebastian.modules.speech_to_text import SpeechToText
+from jf_sebastian.modules.conversation import ConversationEngine
+from jf_sebastian.modules.text_to_speech import TextToSpeech
+from jf_sebastian.devices import DeviceRegistry
+from jf_sebastian.modules.animatronic_control import save_stereo_wav
+from jf_sebastian.modules.audio_output import AudioPlayer
+from jf_sebastian.modules.filler_phrases import FillerPhraseManager
 
 # Configure logging
 logging.basicConfig(
@@ -33,7 +34,7 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
         logging.StreamHandler(sys.stdout),
-        logging.FileHandler('teddy_ruxpin.log')
+        logging.FileHandler('jf_sebastian.log')
     ]
 )
 
@@ -91,7 +92,16 @@ class TeddyRuxpinApp:
             speed=self.personality.tts_speed,
             style_instruction=self.personality.tts_style
         )
-        self.control_generator = AnimatronicControlGenerator()
+        self.output_device = DeviceRegistry.create(settings.OUTPUT_DEVICE_TYPE)
+        logger.info(f"Output device: {self.output_device.device_name}")
+
+        # Validate device-specific settings
+        device_errors = self.output_device.validate_settings()
+        if device_errors:
+            logger.error("Device configuration errors:")
+            for error in device_errors:
+                logger.error(f"  - {error}")
+            raise ValueError("Invalid device configuration")
         self.audio_player = AudioPlayer(on_playback_complete=self._on_playback_complete)
 
         # Initialize filler phrase manager with personality-specific directory and phrases
@@ -320,9 +330,9 @@ Now respond to their question naturally, as if your filler phrase was the beginn
                 self.state_machine.transition_to(ConversationState.IDLE, trigger="synthesis_failed")
                 return
 
-            # Step 4: Generate control signals and create stereo output
-            logger.info("Step 4/4: Generating animatronic control signals...")
-            result = self.control_generator.create_stereo_output(voice_audio_mp3, response_text)
+            # Step 4: Generate device-specific output
+            logger.info(f"Step 4/4: Generating {self.output_device.device_name} output...")
+            result = self.output_device.create_output(voice_audio_mp3, response_text)
 
             if not result:
                 logger.warning("Control signal generation failed")
@@ -429,11 +439,11 @@ def kill_existing_instances():
             if process.pid == current_pid:
                 continue
 
-            # Check if this is a python process running teddy_ruxpin.main
+            # Check if this is a python process running jf_sebastian.main
             cmdline = process.cmdline()
             if cmdline and 'python' in cmdline[0].lower():
                 cmdline_str = ' '.join(cmdline)
-                if 'teddy_ruxpin.main' in cmdline_str or 'teddy_ruxpin/main.py' in cmdline_str:
+                if 'jf_sebastian.main' in cmdline_str or 'jf_sebastian/main.py' in cmdline_str:
                     logger.warning(f"Killing existing instance (PID {process.pid}): {cmdline_str}")
                     process.terminate()
 

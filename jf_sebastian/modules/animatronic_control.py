@@ -15,8 +15,8 @@ from scipy import signal as scipy_signal
 from scipy.io import wavfile
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
-from teddy_ruxpin.config import settings
-from teddy_ruxpin.modules.ppm_generator import PPMGenerator
+from jf_sebastian.config import settings
+from jf_sebastian.modules.ppm_generator import PPMGenerator
 
 logger = logging.getLogger(__name__)
 

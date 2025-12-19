@@ -10,7 +10,7 @@ from typing import Optional
 from openai import OpenAI
 from openai import APIError, APIConnectionError, RateLimitError
 
-from teddy_ruxpin.config import settings
+from jf_sebastian.config import settings
 
 logger = logging.getLogger(__name__)
 

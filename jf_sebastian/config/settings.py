@@ -28,6 +28,7 @@ class Settings:
     # Audio Configuration
     INPUT_DEVICE_NAME: Optional[str] = os.getenv("INPUT_DEVICE_NAME")
     OUTPUT_DEVICE_NAME: Optional[str] = os.getenv("OUTPUT_DEVICE_NAME")
+    OUTPUT_DEVICE_TYPE: str = os.getenv("OUTPUT_DEVICE_TYPE", "teddy_ruxpin")
     SAMPLE_RATE: int = int(os.getenv("SAMPLE_RATE", "44100"))
     CHUNK_SIZE: int = int(os.getenv("CHUNK_SIZE", "1024"))
 
@@ -81,6 +82,15 @@ class Settings:
 
         if not 0 <= cls.VAD_AGGRESSIVENESS <= 3:
             errors.append(f"VAD_AGGRESSIVENESS must be 0-3, got {cls.VAD_AGGRESSIVENESS}")
+
+        # Validate device type
+        from jf_sebastian.devices import DeviceRegistry
+        available_devices = DeviceRegistry.list_devices()
+        if cls.OUTPUT_DEVICE_TYPE.lower() not in available_devices:
+            errors.append(
+                f"Invalid OUTPUT_DEVICE_TYPE: '{cls.OUTPUT_DEVICE_TYPE}'. "
+                f"Available devices: {', '.join(available_devices)}"
+            )
 
         return errors
 

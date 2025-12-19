@@ -7,7 +7,7 @@ import numpy as np
 from unittest.mock import Mock, MagicMock, patch
 import subprocess
 
-from teddy_ruxpin.modules.animatronic_control import (
+from jf_sebastian.modules.animatronic_control import (
     AnimatronicControlGenerator,
     save_stereo_wav
 )
@@ -22,9 +22,9 @@ def test_animatronic_control_initialization():
     assert generator.sentiment_analyzer is not None
 
 
-@patch('teddy_ruxpin.modules.animatronic_control.settings')
+@patch('jf_sebastian.modules.animatronic_control.settings')
 @patch('subprocess.run')
-@patch('teddy_ruxpin.modules.animatronic_control.PPMGenerator')
+@patch('jf_sebastian.modules.animatronic_control.PPMGenerator')
 def test_create_stereo_output_success(mock_ppm_generator_class, mock_subprocess, mock_settings):
     """Test successful stereo output creation."""
     mock_settings.SAMPLE_RATE = 16000
@@ -58,7 +58,7 @@ def test_create_stereo_output_success(mock_ppm_generator_class, mock_subprocess,
     assert stereo_audio.dtype == np.float64 or stereo_audio.dtype == np.float32
 
 
-@patch('teddy_ruxpin.modules.animatronic_control.settings')
+@patch('jf_sebastian.modules.animatronic_control.settings')
 @patch('subprocess.run')
 def test_mp3_to_pcm_success(mock_subprocess, mock_settings):
     """Test MP3 to PCM conversion."""
@@ -84,7 +84,7 @@ def test_mp3_to_pcm_success(mock_subprocess, mock_settings):
     assert np.all(result <= 1.0)
 
 
-@patch('teddy_ruxpin.modules.animatronic_control.settings')
+@patch('jf_sebastian.modules.animatronic_control.settings')
 @patch('subprocess.run')
 def test_mp3_to_pcm_ffmpeg_error(mock_subprocess, mock_settings):
     """Test MP3 to PCM conversion with FFmpeg error."""
@@ -105,7 +105,7 @@ def test_mp3_to_pcm_ffmpeg_error(mock_subprocess, mock_settings):
     assert result is None
 
 
-@patch('teddy_ruxpin.modules.animatronic_control.settings')
+@patch('jf_sebastian.modules.animatronic_control.settings')
 @patch('subprocess.run')
 def test_mp3_to_pcm_exception(mock_subprocess, mock_settings):
     """Test MP3 to PCM conversion with general exception."""
@@ -161,9 +161,9 @@ def test_analyze_sentiment_empty():
     assert isinstance(sentiment, float)
 
 
-@patch('teddy_ruxpin.modules.animatronic_control.settings')
+@patch('jf_sebastian.modules.animatronic_control.settings')
 @patch('subprocess.run')
-@patch('teddy_ruxpin.modules.animatronic_control.PPMGenerator')
+@patch('jf_sebastian.modules.animatronic_control.PPMGenerator')
 def test_create_stereo_output_mp3_conversion_failure(mock_ppm_generator_class, mock_subprocess, mock_settings):
     """Test stereo output creation when MP3 conversion fails."""
     mock_settings.SAMPLE_RATE = 16000
@@ -186,9 +186,9 @@ def test_create_stereo_output_mp3_conversion_failure(mock_ppm_generator_class, m
     assert result is None
 
 
-@patch('teddy_ruxpin.modules.animatronic_control.settings')
+@patch('jf_sebastian.modules.animatronic_control.settings')
 @patch('subprocess.run')
-@patch('teddy_ruxpin.modules.animatronic_control.PPMGenerator')
+@patch('jf_sebastian.modules.animatronic_control.PPMGenerator')
 def test_create_stereo_output_general_exception(mock_ppm_generator_class, mock_subprocess, mock_settings):
     """Test stereo output creation with general exception."""
     mock_settings.SAMPLE_RATE = 16000
@@ -212,9 +212,9 @@ def test_create_stereo_output_general_exception(mock_ppm_generator_class, mock_s
     assert result is None
 
 
-@patch('teddy_ruxpin.modules.animatronic_control.settings')
+@patch('jf_sebastian.modules.animatronic_control.settings')
 @patch('subprocess.run')
-@patch('teddy_ruxpin.modules.animatronic_control.PPMGenerator')
+@patch('jf_sebastian.modules.animatronic_control.PPMGenerator')
 def test_create_stereo_output_channel_structure(mock_ppm_generator_class, mock_subprocess, mock_settings):
     """Test that stereo output has correct channel structure."""
     mock_settings.SAMPLE_RATE = 16000
@@ -245,9 +245,9 @@ def test_create_stereo_output_channel_structure(mock_ppm_generator_class, mock_s
     assert stereo_audio.shape[0] > 0  # Has samples
 
 
-@patch('teddy_ruxpin.modules.animatronic_control.settings')
+@patch('jf_sebastian.modules.animatronic_control.settings')
 @patch('subprocess.run')
-@patch('teddy_ruxpin.modules.animatronic_control.PPMGenerator')
+@patch('jf_sebastian.modules.animatronic_control.PPMGenerator')
 def test_create_stereo_output_applies_gains(mock_ppm_generator_class, mock_subprocess, mock_settings):
     """Test that gains are applied to voice and control channels."""
     mock_settings.SAMPLE_RATE = 16000
@@ -313,9 +313,9 @@ def test_animatronic_control_generator_sample_rate():
     assert generator.ppm_sample_rate == 44100
 
 
-@patch('teddy_ruxpin.modules.animatronic_control.settings')
+@patch('jf_sebastian.modules.animatronic_control.settings')
 @patch('subprocess.run')
-@patch('teddy_ruxpin.modules.animatronic_control.PPMGenerator')
+@patch('jf_sebastian.modules.animatronic_control.PPMGenerator')
 def test_create_stereo_output_length_matching(mock_ppm_generator_class, mock_subprocess, mock_settings):
     """Test that voice and PPM signals are matched in length."""
     mock_settings.SAMPLE_RATE = 16000
@@ -345,9 +345,9 @@ def test_create_stereo_output_length_matching(mock_ppm_generator_class, mock_sub
     assert stereo_audio.shape[1] == 2
 
 
-@patch('teddy_ruxpin.modules.animatronic_control.settings')
+@patch('jf_sebastian.modules.animatronic_control.settings')
 @patch('subprocess.run')
-@patch('teddy_ruxpin.modules.animatronic_control.PPMGenerator')
+@patch('jf_sebastian.modules.animatronic_control.PPMGenerator')
 def test_create_stereo_output_uses_sentiment(mock_ppm_generator_class, mock_subprocess, mock_settings):
     """Test that sentiment is passed to PPM generator."""
     mock_settings.SAMPLE_RATE = 16000

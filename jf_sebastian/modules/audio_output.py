@@ -11,8 +11,8 @@ from typing import Optional, Callable
 import numpy as np
 import pyaudio
 
-from teddy_ruxpin.config import settings
-from teddy_ruxpin.utils import find_audio_device_by_name
+from jf_sebastian.config import settings
+from jf_sebastian.utils import find_audio_device_by_name
 
 logger = logging.getLogger(__name__)
 

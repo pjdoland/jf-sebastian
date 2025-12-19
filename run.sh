@@ -14,4 +14,4 @@ if [ ! -f ".env" ]; then
 fi
 
 # Run the application
-python -m teddy_ruxpin.main
+python -m jf_sebastian.main

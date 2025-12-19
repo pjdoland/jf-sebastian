@@ -3,7 +3,7 @@
 > *"I make friends. They're toys. My friends are toys. I make them. It's a hobby."*
 > — J.F. Sebastian, Blade Runner
 
-An AI conversation system that brings life to vintage animatronic toys. Built for the 1985 Teddy Ruxpin, this system enables real-time voice conversations with ChatGPT, featuring a modular personality system with unique wake words, voices, and conversational styles.
+An AI conversation system that brings life to vintage animatronic toys. Built with a modular device architecture, this system supports multiple output devices including the 1985 Teddy Ruxpin and Squawkers McCaw. Features real-time voice conversations with ChatGPT, a modular personality system with unique wake words, voices, and conversational styles.
 
 Includes three distinct personalities: a tiki bartender, Abraham Lincoln (a homage to Disney's pioneering animatronics), and an eccentric conspiracy theorist. Add your own personalities using simple YAML files - no programming required!
 
@@ -82,6 +82,10 @@ Includes three distinct personalities: a tiki bartender, Abraham Lincoln (a homa
 
 ## Features
 
+- **Modular Device Architecture**: Supports multiple output devices with simple configuration
+  - **Teddy Ruxpin**: Full animatronic control with PPM signals for mouth and eyes
+  - **Squawkers McCaw**: Simple stereo audio output without PPM
+  - Easy to extend for additional devices
 - **Modular Personality System**: Switch between different AI personalities with unique voices and behaviors
   - **Johnny**: Tiki bartender with deep knowledge of tiki culture ("Hey, Johnny")
   - **Mr. Lincoln**: Abraham Lincoln, 16th President - homage to Disney's animatronics ("Hey, Mr. Lincoln")
@@ -91,8 +95,8 @@ Includes three distinct personalities: a tiki bartender, Abraham Lincoln (a homa
 - **Speech Recognition**: OpenAI Whisper API for accurate speech-to-text transcription
 - **AI Conversation**: GPT-4o-mini powers personality-driven responses with conversation context
 - **Natural Voice**: OpenAI TTS (gpt-4o-mini-tts) generates speech with personality-specific voices, speeds, and tones
-- **Animatronic Control**: Generates PPM control signals for mouth (syllable-based lip sync) and eyes (sentiment-based)
-- **Stereo Output**: LEFT channel = voice audio, RIGHT channel = PPM motor control signals (60Hz, 16.6ms frames)
+- **Animatronic Control** (Teddy Ruxpin): Generates PPM control signals for mouth (syllable-based lip sync) and eyes (sentiment-based)
+- **Flexible Output**: Device-specific audio processing (stereo with PPM for Teddy, simple stereo for Squawkers)
 
 ## Quick Start
 
@@ -106,8 +110,11 @@ Includes three distinct personalities: a tiki bartender, Abraham Lincoln (a homa
 - Internet connection for OpenAI APIs
 
 ### Hardware
-- **1985 Teddy Ruxpin doll** (cassette-based model)
-- **Bluetooth cassette adapter** (recommended: [Arsvita Car Audio Bluetooth Wireless Cassette Receiver](https://www.amazon.com/dp/B085C7GTBD))
+- **Supported Devices**:
+  - **1985 Teddy Ruxpin doll** (cassette-based model) - full animatronic control
+  - **Squawkers McCaw** - simple audio output
+  - Other animatronics can be added via the modular device architecture
+- **Bluetooth cassette adapter** (for Teddy Ruxpin, recommended: [Arsvita Car Audio Bluetooth Wireless Cassette Receiver](https://www.amazon.com/dp/B085C7GTBD))
 - Microphone for voice input
 
 ## Hardware Setup
@@ -269,7 +276,7 @@ To create a custom wake word for a new personality:
 Run the audio output utility to list all devices:
 
 ```bash
-python -m teddy_ruxpin.modules.audio_output
+python -m jf_sebastian.modules.audio_output
 ```
 
 This will display:
@@ -382,7 +389,7 @@ Personalities are simple YAML files - no coding required! Just copy an existing 
 ### Starting the Application
 
 ```bash
-python -m teddy_ruxpin.main
+python -m jf_sebastian.main
 ```
 
 You should see (example with Johnny personality):
@@ -469,6 +476,7 @@ Leopold: "Just reviewing my notes from the second abduction... Twice, actually. 
 |---------|-------------|---------|
 | `INPUT_DEVICE_NAME` | Microphone device name | - |
 | `OUTPUT_DEVICE_NAME` | Speaker device name | - |
+| `OUTPUT_DEVICE_TYPE` | Output device type ('teddy_ruxpin', 'squawkers_mccaw') | teddy_ruxpin |
 | `SAMPLE_RATE` | Audio sample rate (Hz) - must be 16000, 22050, 44100, or 48000 | 16000 |
 | `CHUNK_SIZE` | Audio chunk size for processing | 1024 |
 
@@ -583,7 +591,7 @@ See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed system design, componen
 
 - **Issue**: No audio output or "Device not found"
 - **Solutions**:
-  - Run `python -m teddy_ruxpin.modules.audio_output` to list devices
+  - Run `python -m jf_sebastian.modules.audio_output` to list devices
   - Verify device indices in `.env`
   - Check Bluetooth connection to cassette adapter
   - Try `-1` for default device first
@@ -595,7 +603,7 @@ See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed system design, componen
   - Verify `OPENAI_API_KEY` is correct and has credits
   - Check internet connection
   - Wait if rate limited (free tier limits)
-  - Review logs in `teddy_ruxpin.log`
+  - Review logs in `jf_sebastian.log`
 
 ### Teddy Not Moving
 
@@ -631,7 +639,7 @@ DEBUG_AUDIO_PATH=./debug_audio/
 This will:
 - Save input audio as `input_YYYYMMDD_HHMMSS.wav`
 - Save stereo output as `output_YYYYMMDD_HHMMSS.wav`
-- Enable verbose logging to console and `teddy_ruxpin.log`
+- Enable verbose logging to console and `jf_sebastian.log`
 
 Inspect stereo output in Audacity:
 1. Open output WAV file
@@ -645,12 +653,22 @@ Inspect stereo output in Audacity:
 
 ```
 jf-sebastian/
-├── teddy_ruxpin/            # Main application package
+├── jf_sebastian/            # Main application package
 │   ├── __init__.py
 │   ├── main.py              # Main application
 │   ├── config/
 │   │   ├── __init__.py
 │   │   └── settings.py      # Configuration management
+│   ├── devices/             # Modular output device architecture
+│   │   ├── __init__.py
+│   │   ├── base.py          # OutputDevice abstract class
+│   │   ├── factory.py       # Device registry and factory
+│   │   ├── teddy_ruxpin.py  # Teddy Ruxpin device (with PPM)
+│   │   ├── squawkers_mccaw.py  # Squawkers McCaw device (simple stereo)
+│   │   └── shared/          # Shared utilities for all devices
+│   │       ├── __init__.py
+│   │       ├── audio_processor.py     # MP3→PCM conversion
+│   │       └── sentiment_analyzer.py  # Sentiment analysis
 │   ├── modules/
 │   │   ├── __init__.py
 │   │   ├── state_machine.py           # State management
@@ -661,7 +679,7 @@ jf-sebastian/
 │   │   ├── text_to_speech.py          # TTS API
 │   │   ├── filler_phrases.py          # Filler phrase manager
 │   │   ├── ppm_generator.py           # PPM signal generation (60Hz)
-│   │   ├── animatronic_control.py     # Syllable-based lip sync + sentiment
+│   │   ├── animatronic_control.py     # Legacy (deprecated)
 │   │   └── audio_output.py            # Stereo playback
 │   └── utils/
 │       └── audio_device_utils.py
@@ -765,10 +783,10 @@ Teddy Ruxpin is a trademark of Wicked Cool Toys. This project is not affiliated 
 
 Contributions welcome! Areas for improvement:
 - Additional personalities (scientists, artists, historians, etc.)
+- New output device types (Cricket, Grubby, other animatronics)
 - Local wake word detection (OpenWakeWord)
 - Local Whisper (whisper.cpp)
 - Phoneme-based lip sync (more precise than syllables)
-- Support for other animatronics (Cricket, Grubby, etc.)
 - Web interface for monitoring conversations
 - Real-time PPM waveform visualization
 - Multi-language support
@@ -777,7 +795,7 @@ Contributions welcome! Areas for improvement:
 
 For issues or questions:
 1. Check the Troubleshooting section
-2. Review logs in `teddy_ruxpin.log`
+2. Review logs in `jf_sebastian.log`
 3. Enable debug mode for detailed diagnostics
 4. Open an issue on GitHub
 

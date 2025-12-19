@@ -6,7 +6,7 @@ import pytest
 import numpy as np
 from pathlib import Path
 from unittest.mock import Mock, MagicMock, patch
-from teddy_ruxpin.modules.filler_phrases import FillerPhraseManager
+from jf_sebastian.modules.filler_phrases import FillerPhraseManager
 
 
 def test_filler_manager_initialization(tmp_path):

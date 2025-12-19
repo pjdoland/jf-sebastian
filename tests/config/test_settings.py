@@ -6,7 +6,7 @@ import pytest
 import os
 from pathlib import Path
 from unittest.mock import patch
-from teddy_ruxpin.config.settings import Settings
+from jf_sebastian.config.settings import Settings
 
 
 def test_settings_default_values():
