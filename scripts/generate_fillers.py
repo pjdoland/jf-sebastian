@@ -15,7 +15,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from jf_sebastian.config import settings
 from personalities import get_personality, list_personalities
 from jf_sebastian.modules.text_to_speech import TextToSpeech
-from jf_sebastian.modules.animatronic_control import AnimatronicControlGenerator, save_stereo_wav
+from jf_sebastian.devices import DeviceRegistry
+from jf_sebastian.utils.audio_utils import save_stereo_wav
 
 logging.basicConfig(
     level=logging.INFO,
@@ -28,56 +29,83 @@ logger = logging.getLogger(__name__)
 def generate_filler_files(personality, output_dir: Path):
     """
     Generate all filler phrase WAV files for a personality.
+    Generates device-specific versions for each registered device type.
 
     Args:
         personality: Personality instance with filler phrases and voice
-        output_dir: Directory to save filler WAV files
+        output_dir: Base directory for filler WAV files (device subdirectories created within)
     """
-    # Create output directory
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    # Get filler phrases and voice from personality
+    # Get filler phrases from personality
     filler_phrases = personality.filler_phrases
-    voice = personality.tts_voice
 
-    # Initialize TTS and control generator with personality's TTS settings
-    logger.info("Initializing TTS and animatronic control...")
+    # Initialize TTS with personality's TTS settings
+    logger.info("Initializing TTS...")
     tts = TextToSpeech(
-        voice=voice,
+        voice=personality.tts_voice,
         speed=personality.tts_speed,
         style_instruction=personality.tts_style
     )
-    control_gen = AnimatronicControlGenerator()
 
-    # Generate each filler phrase
-    for idx, phrase in enumerate(filler_phrases, start=1):
-        logger.info(f"Generating filler {idx}/{len(filler_phrases)}: '{phrase[:60]}...'")
+    # Get all registered device types
+    device_types = DeviceRegistry.list_devices()
+    logger.info(f"Generating fillers for {len(device_types)} device types: {', '.join(device_types)}")
+    logger.info("")
 
+    # Generate fillers for each device type
+    for device_type in device_types:
+        logger.info("-" * 60)
+        logger.info(f"Device Type: {device_type}")
+        logger.info("-" * 60)
+
+        # Create device instance
         try:
-            # Generate TTS audio
-            voice_audio_mp3 = tts.synthesize(phrase)
-            if not voice_audio_mp3:
-                logger.error(f"Failed to generate TTS for phrase {idx}")
-                continue
-
-            # Create stereo output with PPM control
-            result = control_gen.create_stereo_output(voice_audio_mp3, phrase)
-            if not result:
-                logger.error(f"Failed to create stereo output for phrase {idx}")
-                continue
-
-            stereo_audio, sample_rate = result
-
-            # Save to WAV file
-            output_file = output_dir / f"filler_{idx:02d}.wav"
-            save_stereo_wav(stereo_audio, sample_rate, str(output_file))
-            logger.info(f"Saved: {output_file.name}")
-
+            device = DeviceRegistry.create(device_type)
+            logger.info(f"Device: {device.device_name}")
         except Exception as e:
-            logger.error(f"Error generating filler {idx}: {e}", exc_info=True)
+            logger.error(f"Failed to create device '{device_type}': {e}")
             continue
 
-    logger.info(f"Filler generation complete! {len(list(output_dir.glob('filler_*.wav')))} files created")
+        # Create device-specific output directory
+        device_output_dir = output_dir / device_type
+        device_output_dir.mkdir(parents=True, exist_ok=True)
+        logger.info(f"Output directory: {device_output_dir}")
+        logger.info("")
+
+        # Generate each filler phrase for this device
+        for idx, phrase in enumerate(filler_phrases, start=1):
+            logger.info(f"Generating filler {idx}/{len(filler_phrases)}: '{phrase[:60]}...'")
+
+            try:
+                # Generate TTS audio
+                voice_audio_mp3 = tts.synthesize(phrase)
+                if not voice_audio_mp3:
+                    logger.error(f"Failed to generate TTS for phrase {idx}")
+                    continue
+
+                # Create device-specific output
+                result = device.create_output(voice_audio_mp3, phrase)
+                if not result:
+                    logger.error(f"Failed to create {device_type} output for phrase {idx}")
+                    continue
+
+                stereo_audio, sample_rate = result
+
+                # Save to device-specific WAV file
+                output_file = device_output_dir / f"filler_{idx:02d}.wav"
+                save_stereo_wav(stereo_audio, sample_rate, str(output_file))
+                logger.info(f"Saved: {device_type}/{output_file.name}")
+
+            except Exception as e:
+                logger.error(f"Error generating filler {idx} for {device_type}: {e}", exc_info=True)
+                continue
+
+        filler_count = len(list(device_output_dir.glob('filler_*.wav')))
+        logger.info(f"Device complete! {filler_count} files created in {device_type}/")
+        logger.info("")
+
+    logger.info("-" * 60)
+    logger.info("All device types complete!")
+    logger.info("-" * 60)
 
 
 def main():

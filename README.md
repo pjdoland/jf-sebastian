@@ -315,15 +315,20 @@ Generate the filler audio for all personalities:
 python scripts/generate_fillers.py
 ```
 
-This creates 30 WAV files in each personality's `filler_audio/` directory. Each file contains:
+This creates device-specific filler audio for each registered output device. For each personality, it generates:
+- `filler_audio/teddy_ruxpin/` - Filler audio with PPM control signals for mouth and eyes
+- `filler_audio/squawkers_mccaw/` - Filler audio with simple stereo (no PPM)
+
+Each device-specific directory contains 30 WAV files with:
 - Voice audio synthesized with the personality's configured voice, speed, and tone
-- PPM control signals for animatronic movement (mouth and eyes)
+- Device-appropriate audio processing (PPM signals for Teddy Ruxpin, simple stereo for Squawkers McCaw)
 
 **When to regenerate filler audio:**
 - After creating a new personality
 - After switching to a different personality (if fillers don't exist yet)
 - After modifying a personality's `tts_voice`, `tts_speed`, or `tts_style` settings
 - After editing the `filler_phrases` list in the personality YAML file
+- After adding support for a new output device type
 
 **Note:** By default, the script generates fillers for **all** personalities. To generate for just one personality, use:
 ```bash
@@ -690,18 +695,23 @@ jf-sebastian/
 │   ├── johnny/              # Johnny personality (drop-in folder)
 │   │   ├── personality.yaml # Personality definition
 │   │   ├── hey_johnny.onnx  # Wake word model
-│   │   └── filler_audio/
-│   │       ├── filler_01.wav
-│   │       ├── filler_02.wav
-│   │       └── ...
+│   │   └── filler_audio/    # Device-specific filler audio
+│   │       ├── teddy_ruxpin/
+│   │       │   ├── filler_01.wav
+│   │       │   ├── filler_02.wav
+│   │       │   └── ...
+│   │       └── squawkers_mccaw/
+│   │           ├── filler_01.wav
+│   │           ├── filler_02.wav
+│   │           └── ...
 │   ├── mr_lincoln/          # Mr. Lincoln personality (drop-in folder)
 │   │   ├── personality.yaml
 │   │   ├── hey_mr_lincoln.onnx
-│   │   └── filler_audio/
+│   │   └── filler_audio/    # Device-specific filler audio
 │   └── leopold/             # Leopold personality (drop-in folder)
 │       ├── personality.yaml
 │       ├── hey_leopold.onnx
-│       └── filler_audio/
+│       └── filler_audio/    # Device-specific filler audio
 ├── tests/                   # Unit tests
 │   ├── personalities/
 │   ├── modules/

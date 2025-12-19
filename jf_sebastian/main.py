@@ -24,7 +24,7 @@ from jf_sebastian.modules.speech_to_text import SpeechToText
 from jf_sebastian.modules.conversation import ConversationEngine
 from jf_sebastian.modules.text_to_speech import TextToSpeech
 from jf_sebastian.devices import DeviceRegistry
-from jf_sebastian.modules.animatronic_control import save_stereo_wav
+from jf_sebastian.utils.audio_utils import save_stereo_wav
 from jf_sebastian.modules.audio_output import AudioPlayer
 from jf_sebastian.modules.filler_phrases import FillerPhraseManager
 
@@ -104,10 +104,11 @@ class TeddyRuxpinApp:
             raise ValueError("Invalid device configuration")
         self.audio_player = AudioPlayer(on_playback_complete=self._on_playback_complete)
 
-        # Initialize filler phrase manager with personality-specific directory and phrases
+        # Initialize filler phrase manager with personality-specific directory, phrases, and device type
         self.filler_manager = FillerPhraseManager(
             self.personality.filler_audio_dir,
-            self.personality.filler_phrases
+            self.personality.filler_phrases,
+            settings.OUTPUT_DEVICE_TYPE
         )
         if self.filler_manager.has_fillers:
             logger.info(f"Filler phrases enabled ({len(self.filler_manager.filler_files)} phrases)")

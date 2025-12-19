@@ -15,30 +15,34 @@ logger = logging.getLogger(__name__)
 class FillerPhraseManager:
     """
     Manages pre-generated filler phrases for low-latency responses.
+    Loads device-specific filler audio based on output device type.
     """
 
-    def __init__(self, filler_dir: Path, filler_phrases: list[str]):
+    def __init__(self, filler_dir: Path, filler_phrases: list[str], device_type: str):
         """
         Initialize filler phrase manager.
 
         Args:
-            filler_dir: Directory containing pre-generated filler WAV files
+            filler_dir: Base directory containing device-specific filler subdirectories
             filler_phrases: List of filler phrase texts for this personality
+            device_type: Output device type (e.g., 'teddy_ruxpin', 'squawkers_mccaw')
         """
-        self.filler_dir = Path(filler_dir)
+        self.filler_base_dir = Path(filler_dir)
+        self.device_type = device_type
+        self.filler_dir = self.filler_base_dir / device_type
         self.filler_phrases = filler_phrases
         self.filler_files = []
         self._load_filler_files()
 
     def _load_filler_files(self):
-        """Load list of available filler files."""
+        """Load list of available device-specific filler files."""
         if not self.filler_dir.exists():
-            logger.warning(f"Filler directory does not exist: {self.filler_dir}")
-            logger.warning("Run generate_fillers.py to create filler phrases")
+            logger.warning(f"Device-specific filler directory does not exist: {self.filler_dir}")
+            logger.warning(f"Run scripts/generate_fillers.py to create filler phrases for {self.device_type}")
             return
 
         self.filler_files = sorted(self.filler_dir.glob("filler_*.wav"))
-        logger.info(f"Loaded {len(self.filler_files)} filler phrases from {self.filler_dir}")
+        logger.info(f"Loaded {len(self.filler_files)} filler phrases for {self.device_type} from {self.filler_dir}")
 
     def get_random_filler(self) -> Optional[Tuple[np.ndarray, int, str]]:
         """

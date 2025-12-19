@@ -118,10 +118,15 @@ Each personality is fully self-contained in its own directory:
 yourname/
 ├── personality.yaml               # Personality definition (YAML - easy to edit!)
 ├── hey_yourname.onnx              # Wake word model
-└── filler_audio/                  # Pre-generated filler audio
-    ├── filler_01.wav
-    ├── filler_02.wav
-    └── ...
+└── filler_audio/                  # Device-specific pre-generated filler audio
+    ├── teddy_ruxpin/              # Filler audio with PPM control signals
+    │   ├── filler_01.wav
+    │   ├── filler_02.wav
+    │   └── ...
+    └── squawkers_mccaw/           # Filler audio with simple stereo
+        ├── filler_01.wav
+        ├── filler_02.wav
+        └── ...
 ```
 
 **Everything for a personality stays in its folder:**
@@ -149,6 +154,8 @@ Filler phrases play immediately after speech detection while the real response i
 - End with a transition like "Now...", "So...", "Alright..."
 - Reflect the character's activities and personality
 - Give enough time for API processing (Whisper + GPT + TTS)
+
+**Note:** When you run `python scripts/generate_fillers.py`, the system automatically generates device-specific versions of each filler phrase for all supported output devices (Teddy Ruxpin with PPM signals, Squawkers McCaw with simple stereo, etc.). The appropriate version is loaded based on your `OUTPUT_DEVICE_TYPE` setting.
 
 ## Technical Details
 
