@@ -354,11 +354,13 @@ Now respond to their question naturally, as if your filler phrase was the beginn
                 save_stereo_wav(stereo_audio, sample_rate, str(filename))
 
             # Wait for filler to finish if still playing (with timeout)
+            had_filler = False
             if self._filler_playing:
                 logger.info("Waiting for filler to complete...")
+                had_filler = True
                 timeout = 10.0  # Maximum 10 seconds to wait for filler
                 elapsed = 0.0
-                poll_interval = 0.05
+                poll_interval = 0.01  # 10ms polling for faster transition detection
 
                 while self._filler_playing and self.audio_player.is_playing and elapsed < timeout:
                     time.sleep(poll_interval)
@@ -372,10 +374,11 @@ Now respond to their question naturally, as if your filler phrase was the beginn
             # Transition to SPEAKING state
             self.state_machine.transition_to(ConversationState.SPEAKING, trigger="response_ready")
 
-            # Play stereo audio
+            # Play stereo audio with no preroll if following filler (device already warmed up)
             logger.info("Playing response audio...")
             self._pause_wake_for_playback()
-            self.audio_player.play_stereo(stereo_audio, sample_rate, blocking=True)
+            preroll = 0 if had_filler else None  # Skip preroll after filler for seamless transition
+            self.audio_player.play_stereo(stereo_audio, sample_rate, blocking=True, preroll_ms=preroll)
 
         except Exception as e:
             logger.error(f"Error in processing pipeline: {e}", exc_info=True)
