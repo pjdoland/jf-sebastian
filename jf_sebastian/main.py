@@ -196,8 +196,8 @@ class TeddyRuxpinApp:
         logger.info("Wake word detected!")
 
         # Only respond to wake word when in IDLE state (ignore if already in an interaction)
-        if self.state_machine.current_state != ConversationState.IDLE:
-            logger.warning(f"Ignoring wake word - already in {self.state_machine.current_state.name} state")
+        if self.state_machine.state != ConversationState.IDLE:
+            logger.warning(f"Ignoring wake word - already in {self.state_machine.state.name} state")
             return
 
         # Transition to LISTENING state
