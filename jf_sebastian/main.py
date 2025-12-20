@@ -348,11 +348,20 @@ Now respond to their question naturally, as if your filler phrase was the beginn
                 filename = settings.DEBUG_AUDIO_PATH / f"output_{timestamp}.wav"
                 save_stereo_wav(stereo_audio, sample_rate, str(filename))
 
-            # Wait for filler to finish if still playing
+            # Wait for filler to finish if still playing (with timeout)
             if self._filler_playing:
                 logger.info("Waiting for filler to complete...")
-                while self._filler_playing and self.audio_player.is_playing:
-                    time.sleep(0.05)  # Poll every 50ms
+                timeout = 10.0  # Maximum 10 seconds to wait for filler
+                elapsed = 0.0
+                poll_interval = 0.05
+
+                while self._filler_playing and self.audio_player.is_playing and elapsed < timeout:
+                    time.sleep(poll_interval)
+                    elapsed += poll_interval
+
+                if elapsed >= timeout:
+                    logger.warning(f"Filler playback timeout after {timeout}s - forcing continuation")
+                    self._filler_playing = False
                 # No pause - immediate seamless transition to real response
 
             # Transition to SPEAKING state
@@ -384,8 +393,13 @@ Now respond to their question naturally, as if your filler phrase was the beginn
             logger.info("Playing filler phrase (non-blocking)...")
             self._filler_playing = True
             self._pause_wake_for_playback()
+
             # Play in non-blocking mode so processing can continue
-            self.audio_player.play_stereo(stereo_audio, sample_rate, blocking=False)
+            success = self.audio_player.play_stereo(stereo_audio, sample_rate, blocking=False)
+
+            if not success:
+                logger.warning("Failed to start filler playback")
+                self._filler_playing = False
 
         except Exception as e:
             logger.error(f"Error playing filler: {e}", exc_info=True)
