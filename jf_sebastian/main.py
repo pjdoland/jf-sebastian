@@ -195,6 +195,11 @@ class TeddyRuxpinApp:
         """Handle wake word detection."""
         logger.info("Wake word detected!")
 
+        # Only respond to wake word when in IDLE state (ignore if already in an interaction)
+        if self.state_machine.current_state != ConversationState.IDLE:
+            logger.warning(f"Ignoring wake word - already in {self.state_machine.current_state.name} state")
+            return
+
         # Transition to LISTENING state
         self.state_machine.transition_to(ConversationState.LISTENING, trigger="wake_word")
 
@@ -206,8 +211,8 @@ class TeddyRuxpinApp:
         """Handle entering LISTENING state."""
         logger.info("Entering LISTENING state - recording audio...")
 
-        # Pause wake word detector while listening to user
-        self.wake_word_detector.pause()
+        # Pause wake word detector while listening to user (and for rest of interaction)
+        self._pause_wake_for_playback()
 
         # Start recording
         self.audio_recorder.start_recording()
