@@ -214,8 +214,11 @@ class TeddyRuxpinApp:
         # Pause wake word detector while listening to user (and for rest of interaction)
         self._pause_wake_for_playback()
 
-        # Start recording
-        self.audio_recorder.start_recording()
+        # Get post-wake-word audio buffer to capture immediate speech after wake word
+        post_wake_audio = self.wake_word_detector.get_post_wake_audio()
+
+        # Start recording with post-wake-word buffer prepended
+        self.audio_recorder.start_recording(initial_audio=post_wake_audio)
 
     def _on_enter_processing(self):
         """Handle entering PROCESSING state."""

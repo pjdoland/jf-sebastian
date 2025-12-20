@@ -58,8 +58,14 @@ class AudioRecorder:
 
         logger.info("Audio recorder initialized")
 
-    def start_recording(self):
-        """Start recording audio in background thread."""
+    def start_recording(self, initial_audio: Optional[bytes] = None):
+        """
+        Start recording audio in background thread.
+
+        Args:
+            initial_audio: Optional audio bytes to prepend to recording (e.g., post-wake-word buffer)
+                          Should be int16 audio at 16kHz
+        """
         if self._recording:
             logger.warning("Audio recorder already running")
             return
@@ -108,6 +114,18 @@ class AudioRecorder:
 
             # Clear buffer
             self._frames.clear()
+
+            # If initial audio provided, resample from 16kHz to 44.1kHz and add to buffer
+            if initial_audio:
+                initial_array = np.frombuffer(initial_audio, dtype=np.int16)
+                # Resample from 16kHz to 44.1kHz
+                from scipy import signal as scipy_signal
+                num_samples = int(len(initial_array) * settings.SAMPLE_RATE / 16000)
+                resampled = scipy_signal.resample(initial_array, num_samples)
+                resampled_bytes = resampled.astype(np.int16).tobytes()
+                self._frames.append(resampled_bytes)
+                logger.info(f"Prepended {len(initial_array)} samples (16kHz) -> {num_samples} samples ({settings.SAMPLE_RATE}Hz) to recording")
+
             self._speech_active = False
             self._silence_start_time = None
 

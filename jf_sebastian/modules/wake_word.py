@@ -57,6 +57,13 @@ class WakeWordDetector:
         self._debounce_seconds: float = 2.0  # Minimum time between detections
         self._detection_threshold: float = settings.WAKE_WORD_THRESHOLD
 
+        # Post-wake-word buffer to capture immediate speech after detection
+        # Keeps last 800ms of audio to pass to audio recorder
+        self._post_wake_buffer: deque = deque(maxlen=12800)  # 800ms at 16kHz
+        self._capture_post_wake = False
+        self._post_wake_start_time: float = 0.0
+        self._post_wake_duration = 0.8  # seconds
+
         if not OPENWAKEWORD_AVAILABLE:
             raise RuntimeError("openwakeword library not installed")
 
@@ -199,11 +206,19 @@ class WakeWordDetector:
 
         logger.debug("Resuming wake word detector")
         self._paused = False
-        # Clear buffer when resuming to avoid detecting old audio
-        if self._audio_buffer:
-            self._audio_buffer.clear()
-        if self._model:
-            self._model.reset()
+
+    def get_post_wake_audio(self) -> Optional[bytes]:
+        """
+        Get captured post-wake-word audio buffer.
+        Returns audio as bytes (int16) at 16kHz, or None if no buffer available.
+        This buffer contains ~800ms of audio captured immediately after wake word detection.
+        """
+        if not self._post_wake_buffer or len(self._post_wake_buffer) == 0:
+            return None
+
+        # Convert deque to numpy array then to bytes
+        audio_array = np.array(list(self._post_wake_buffer), dtype=np.int16)
+        return audio_array.tobytes()
 
     def _detection_loop(self):
         """Main detection loop running in background thread."""
@@ -239,6 +254,14 @@ class WakeWordDetector:
                 # Add to rolling buffer
                 self._audio_buffer.extend(audio_data)
 
+                # If capturing post-wake-word audio, add to that buffer too
+                if self._capture_post_wake:
+                    self._post_wake_buffer.extend(audio_data)
+                    # Stop capturing after duration elapsed
+                    if time.time() - self._post_wake_start_time >= self._post_wake_duration:
+                        self._capture_post_wake = False
+                        logger.debug(f"Post-wake-word buffer captured: {len(self._post_wake_buffer)} samples")
+
                 # Only process when buffer is full (have enough context)
                 if len(self._audio_buffer) < self._audio_buffer.maxlen:
                     continue
@@ -268,6 +291,12 @@ class WakeWordDetector:
                                 f">= threshold {self._detection_threshold:.2f})"
                             )
                             self._last_detection_time = current_time
+
+                            # Start capturing post-wake-word audio
+                            self._post_wake_buffer.clear()
+                            self._capture_post_wake = True
+                            self._post_wake_start_time = current_time
+                            logger.debug("Started capturing post-wake-word audio")
 
                             try:
                                 self.on_wake_word()
