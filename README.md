@@ -307,7 +307,33 @@ INPUT_DEVICE_NAME=MacBook Air Microphone
 OUTPUT_DEVICE_NAME=Arsvita
 ```
 
-#### 9. Generate Filler Audio
+#### 9. Optional: Install RVC for Custom Voice Models
+
+**RVC (Retrieval-based Voice Conversion) is optional.** The system works perfectly with OpenAI TTS voices alone. Install RVC only if you want to use custom trained voice models for unique character voices.
+
+**Known Issue:** RVC has complex dependencies that may require pip downgrade on some systems.
+
+```bash
+# Downgrade pip if needed (recommended for RVC compatibility)
+pip install pip==24.0
+
+# Install RVC and dependencies
+pip install rvc-python torch torchaudio fairseq librosa
+
+# Upgrade pip back after installation (optional)
+pip install --upgrade pip
+```
+
+**Troubleshooting RVC Installation:**
+- If you get dependency conflicts, try: `pip install rvc-python --no-deps` then install dependencies manually
+- For Apple Silicon (M1/M2/M3): Ensure you have the MPS-enabled torch version
+- For CUDA: Install CUDA-enabled torch first: `pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118`
+
+**To skip RVC:** The system will automatically detect RVC availability and work without it.
+
+See [docs/CREATING_PERSONALITIES.md](docs/CREATING_PERSONALITIES.md#advanced-rvc-voice-conversion) for RVC configuration and usage.
+
+#### 10. Generate Filler Audio
 
 **This step is required before running the application.** Filler phrases are pre-recorded audio clips that play immediately when you speak, creating a natural conversational feel while the system processes your question in the background.
 

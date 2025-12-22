@@ -1,0 +1,34 @@
+# RVC (Voice Conversion) Dependencies
+# Install these ONLY if you want custom voice models (optional)
+#
+# Installation instructions:
+# 1. Downgrade pip for compatibility: pip install pip==24.0
+# 2. Install this file: pip install -r requirements-rvc.txt
+# 3. Optionally upgrade pip back: pip install --upgrade pip
+#
+# Known issues:
+# - Fairseq requires torch.load with weights_only=False (handled in code)
+# - Complex dependency tree may cause conflicts with pip 24.1+
+# - Downgrading to pip 24.0 resolves most issues
+
+# Core RVC library
+rvc-python>=0.1.0
+
+# PyTorch (required by RVC)
+# For CPU or Apple Silicon (MPS):
+torch>=2.0.0
+torchaudio>=2.0.0
+
+# For NVIDIA CUDA, use instead:
+# torch>=2.0.0+cu118
+# torchaudio>=2.0.0+cu118
+# Install with: pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu118
+
+# Fairseq (required by RVC models)
+fairseq>=0.12.0
+
+# Audio processing for RVC
+librosa>=0.10.0
+resampy>=0.4.0
+
+# Note: soundfile is already in main requirements.txt

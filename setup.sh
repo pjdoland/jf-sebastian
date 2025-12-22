@@ -257,13 +257,18 @@ if [ "$needs_models" = true ]; then
     echo
 fi
 
-echo "4. Run the application:"
+echo "4. ${YELLOW}Optional${NC}: Install RVC for custom voice models"
+echo "   (Not required - system works with OpenAI TTS only)"
+echo "   ./scripts/install_rvc.sh"
+echo
+echo "5. Run the application:"
 echo "   ./run.sh"
 echo "   or: python3 -m jf_sebastian.main"
 echo
 
 echo "For detailed documentation:"
 echo "  - README.md - Complete guide and setup instructions"
+echo "  - docs/CREATING_PERSONALITIES.md - RVC configuration guide"
 echo "  - personalities/README.md - How to create personalities"
 echo
 

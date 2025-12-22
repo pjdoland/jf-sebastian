@@ -10,10 +10,16 @@ soundfile>=0.12.1
 webrtcvad>=2.0.10
 pydub>=0.25.1
 
-# RVC Voice Conversion (optional - for custom voice personalities)
-# NOTE: RVC has complex dependencies. Install manually if needed:
-#   pip install rvc-python
-# The system will work without RVC (using OpenAI TTS voices only)
+# RVC Voice Conversion (OPTIONAL - for custom voice personalities)
+# RVC enables custom trained voice models beyond OpenAI TTS voices
+#
+# Installation (if desired):
+#   1. pip install pip==24.0  # Downgrade pip for compatibility
+#   2. pip install -r requirements-rvc.txt
+#   3. pip install --upgrade pip  # Optional: upgrade back
+#
+# The system works perfectly without RVC (using OpenAI TTS voices only)
+# RVC is auto-detected - if not installed, it will be skipped gracefully
 
 # Wake Word Detection
 # OpenWakeWord (open source, flexible, easy custom wake word creation)
