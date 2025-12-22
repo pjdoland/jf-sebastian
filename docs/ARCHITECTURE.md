@@ -28,15 +28,22 @@ This application enables real-time voice conversations with ChatGPT through vint
         │   - Error handling
         │
         ├─► Conversation Engine
-        │   - OpenAI GPT-4o API
+        │   - OpenAI GPT-4o API with streaming
+        │   - Word-based sentence chunking (MIN_CHUNK_WORDS)
         │   - Context management
         │   - System prompt injection
-        │   - Response generation
+        │   - Parallel chunk processing
         │
         ├─► Text-to-Speech Module
         │   - OpenAI TTS API
         │   - Voice audio generation
         │   - Audio format handling
+        │
+        ├─► RVC Voice Converter (Optional)
+        │   - Retrieval-based Voice Conversion
+        │   - Custom trained voice models
+        │   - 16kHz input → 48kHz output
+        │   - Per-personality configuration
         │
         ├─► Output Device (Modular Architecture)
         │   │
@@ -117,12 +124,42 @@ This application enables real-time voice conversations with ChatGPT through vint
 
 ## Audio Signal Architecture
 
-### Stereo Channel Design
+### Streaming Response Pipeline
+
+```
+LLM Stream ──► [Word-based Chunking] ──► Text Chunks (≥15 words)
+                                              │
+                        ┌─────────────────────┴──────────────────────┐
+                        ▼                                             ▼
+                  [TTS Chunk 1]                                 [TTS Chunk N]
+                        │                                             │
+                        ▼                                             ▼
+                [Optional RVC Conversion]                    [Optional RVC Conversion]
+                 16kHz → 48kHz                               16kHz → 48kHz
+                        │                                             │
+                        └─────────────────┬───────────────────────────┘
+                                          ▼
+                                   [Device Processing]
+                                   (PPM Gen / Stereo)
+                                          │
+                                          ▼
+                                    [Audio Queue]
+                                          │
+                                          ▼
+                              Playback while processing next chunk
+```
+
+### Stereo Channel Design (Teddy Ruxpin)
 
 ```
 TTS Audio (MP3) ──► [FFmpeg Decode] ──► PCM Audio @ 16kHz
                             │
-                            ├──► [Resample to 44.1kHz] ──► LEFT CHANNEL (Voice)
+                            ├──► [Optional RVC @ 16kHz → 48kHz] ──┐
+                            │                                      │
+                            ├──► [Resample to 44.1kHz] ────────────┤
+                            │                                      │
+                            │                                      ▼
+                            │                            LEFT CHANNEL (Voice)
                             │
                             ├──► [Syllable Parser] ──► [Mouth Values per Syllable]
                             │                                     │
@@ -191,22 +228,35 @@ The original mechanism uses:
 
 ### Sample Rate Architecture
 
-- **Processing**: 16kHz (WebRTC VAD compatibility, efficient Whisper input)
+- **Processing**: 16kHz (WebRTC VAD compatibility, efficient Whisper input, RVC input)
+- **RVC Conversion**: 16kHz → 48kHz (when RVC enabled)
 - **PPM Generation**: 44.1kHz (precise pulse timing, no resampling artifacts)
-- **Voice Resampling**: Voice audio resampled from 16kHz to 44.1kHz to match PPM
-- **Output**: 44.1kHz stereo (native device rate, no additional resampling)
+- **Voice Resampling**: Voice audio resampled to output sample rate:
+  - With RVC: 48kHz → 44.1kHz or 48kHz (device dependent)
+  - Without RVC: 16kHz → 44.1kHz or 48kHz (device dependent)
+- **Output**: Device-specific sample rate (Teddy: 44.1kHz, Squawkers: 48kHz)
 
 **Why resample voice and not PPM?**
 - PPM pulses are 400µs (17.6 samples at 44.1kHz)
 - FFT resampling introduces ringing around sharp edges
 - Resampling voice audio preserves PPM signal integrity
 
+**RVC Integration:**
+- RVC processes at 16kHz input for efficiency
+- Outputs at 48kHz (RVC model native rate)
+- Device-specific resampling handles final output rate
+- When RVC disabled, audio stays at source rate until device processing
+
 ## Latency Targets
 
 - Wake word → Acknowledgment: <500ms
-- Speech end → GPT request: <200ms
-- GPT → TTS → Playback start: <2 seconds
-- Total: User stops speaking → Teddy starts: <2.5 seconds
+- Speech end → Filler playback: <1 second (with 0.5s natural pause)
+- First chunk processing:
+  - LLM first chunk (15+ words): 1-2 seconds
+  - TTS chunk 1: 1-2 seconds (parallel with LLM chunks 2+)
+  - RVC chunk 1 (if enabled): 0.5-1 second (parallel with chunk playback)
+- Subsequent chunks: Processed in parallel with playback (zero perceived latency)
+- Total: User stops speaking → First response audio: <2 seconds (filler) + seamless continuation
 
 ## Error Handling Strategy
 
@@ -253,6 +303,14 @@ Core libraries:
 - `vaderSentiment` - Sentiment analysis for eye control
 - `python-dotenv` - Configuration management
 - `threading` / `queue` - Concurrent processing
+
+RVC (Optional - for voice conversion):
+- `rvc-python` - RVC voice conversion library
+- `torch` - PyTorch for RVC model inference
+- `fairseq` - Required by RVC models
+- `librosa` - Audio processing for RVC
+- `soundfile` - Audio I/O for RVC
+- `resampy` - High-quality resampling for RVC
 
 ## Threading Model
 

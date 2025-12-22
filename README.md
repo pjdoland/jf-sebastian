@@ -94,7 +94,9 @@ Includes three distinct personalities: a tiki bartender, Abraham Lincoln (a homa
 - **Low-Latency Fillers**: Pre-generated personality-specific phrases play immediately while processing
 - **Speech Recognition**: OpenAI Whisper API for accurate speech-to-text transcription
 - **AI Conversation**: GPT-4o-mini powers personality-driven responses with conversation context
+- **Streaming Response Pipeline**: Word-based sentence chunking enables parallel TTS/RVC processing while LLM generates
 - **Natural Voice**: OpenAI TTS (gpt-4o-mini-tts) generates speech with personality-specific voices, speeds, and tones
+- **RVC Voice Conversion** (Optional): Transform TTS output with custom trained voice models for unique character voices beyond OpenAI TTS
 - **Animatronic Control** (Teddy Ruxpin): Generates PPM control signals for mouth (syllable-based lip sync) and eyes (sentiment-based)
 - **Flexible Output**: Device-specific audio processing (stereo with PPM for Teddy, simple stereo for Squawkers)
 
@@ -500,6 +502,9 @@ Leopold: "Just reviewing my notes from the second abduction... Twice, actually. 
 |---------|-------------|---------|
 | `CONVERSATION_TIMEOUT` | Clear history after idle (seconds) | 120.0 |
 | `MAX_HISTORY_LENGTH` | Maximum conversation history messages to maintain | 20 |
+| `MIN_CHUNK_WORDS` | Minimum word count per streaming chunk (word-based sentence chunking) | 15 |
+| `MAX_TOKENS` | Maximum tokens for non-streaming GPT responses | 300 |
+| `MAX_TOKENS_STREAMING` | Maximum tokens for streaming GPT responses | 200 |
 
 #### OpenAI Models
 
@@ -526,6 +531,15 @@ Leopold: "Just reviewing my notes from the second abduction... Twice, actually. 
 | Setting | Description | Default |
 |---------|-------------|---------|
 | `WAKE_WORD_THRESHOLD` | Wake word detection threshold (0.0 to 1.0, higher = more strict) | 0.99 |
+
+#### RVC (Voice Conversion) Settings
+
+| Setting | Description | Default |
+|---------|-------------|---------|
+| `RVC_ENABLED` | Global enable/disable for RVC voice conversion | true |
+| `RVC_DEVICE` | Device for RVC inference (cpu/mps/cuda) - mps for Apple Silicon GPU | mps |
+
+**Note**: RVC is configured per-personality in `personality.yaml`. See [docs/CREATING_PERSONALITIES.md](docs/CREATING_PERSONALITIES.md) for RVC setup details. When enabled, RVC transforms TTS output to create unique character voices that go beyond what OpenAI TTS can provide alone.
 
 #### Debug Settings
 
@@ -572,14 +586,15 @@ See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed system design, componen
 ### Key Components
 
 1. **State Machine**: Manages conversation flow (IDLE → LISTENING → PROCESSING → SPEAKING)
-2. **Wake Word Detector**: Always-on "Hey, Teddy" detection
+2. **Wake Word Detector**: Always-on personality-specific wake word detection (OpenWakeWord)
 3. **Audio Input Pipeline**: Microphone capture with voice activity detection
 4. **Speech-to-Text**: OpenAI Whisper transcription
-5. **Conversation Engine**: GPT-4o integration with context management
-6. **Text-to-Speech**: OpenAI TTS synthesis
-7. **PPM Generator**: Creates precise PPM control signals (60Hz, 400µs pulses, 630-1590µs gaps)
-8. **Animatronic Control Generator**: Syllable-based lip sync and sentiment-based eye control
-9. **Audio Output Pipeline**: Stereo playback to Teddy (44.1kHz native for PPM precision)
+5. **Conversation Engine**: GPT-4o integration with word-based streaming chunking (MIN_CHUNK_WORDS configurable)
+6. **Text-to-Speech**: OpenAI TTS synthesis with personality-specific voices and styles
+7. **RVC Voice Converter** (Optional): Transforms TTS output with trained voice models for unique character voices
+8. **PPM Generator**: Creates precise PPM control signals (60Hz, 400µs pulses, 630-1590µs gaps)
+9. **Device Output Processors**: Device-specific audio processing (Teddy Ruxpin with PPM, Squawkers McCaw simple stereo)
+10. **Audio Output Pipeline**: Stereo playback with parallel chunk processing for minimal latency
 
 ## Troubleshooting
 

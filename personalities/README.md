@@ -74,6 +74,14 @@ tts_style: "Speak warmly and conversationally"
 # Wake word model filename (in this same directory)
 wake_word_model: hey_yourname.onnx
 
+# Optional: RVC voice conversion for custom voice models
+# rvc_enabled: true
+# rvc_model: yourname_voice.pth
+# rvc_index_file: yourname_voice.index  # Optional
+# rvc_pitch_shift: 0  # Semitones, -12 to 12
+# rvc_index_rate: 0.75  # Index influence, 0.0 to 1.0
+# rvc_f0_method: rmvpe  # Pitch detection method
+
 # System prompt defining the character
 system_prompt: |
   You are YourName, describe the character here...
@@ -173,6 +181,19 @@ Personalities are defined in `personality.yaml` files with these fields:
 **Optional TTS settings (for gpt-4o-mini-tts model):**
 - **`tts_speed`**: Speech speed from 0.25 to 4.0 (default: 1.0). Adjust to match character energy - slower for dignified characters (0.9), faster for manic ones (1.1)
 - **`tts_style`**: Style instruction to control tone, emotional range, intonation, and speaking style (e.g., "Speak warmly and casually" or "Use a dignified, authoritative tone")
+
+**Optional RVC (voice conversion) settings:**
+- **`rvc_enabled`**: Enable RVC voice conversion (default: false)
+- **`rvc_model`**: RVC model filename (.pth format)
+- **`rvc_index_file`**: Optional index file for improved quality
+- **`rvc_pitch_shift`**: Pitch adjustment in semitones, -12 to +12 (default: 0)
+- **`rvc_index_rate`**: Index influence, 0.0 to 1.0 (default: 0.75)
+- **`rvc_f0_method`**: Pitch detection method - rmvpe, crepe, harvest, or pm (default: rmvpe)
+- **`rvc_filter_radius`**: Median filtering radius, 0-7 (default: 3)
+- **`rvc_rms_mix_rate`**: Volume envelope mixing, 0.0-1.0 (default: 0.25)
+- **`rvc_protect`**: Protect voiceless consonants, 0.0-0.5 (default: 0.33)
+
+**Note:** RVC transforms TTS output with custom trained voice models for unique character voices beyond OpenAI TTS alone. See [docs/CREATING_PERSONALITIES.md](../../docs/CREATING_PERSONALITIES.md) for detailed RVC setup guide.
 
 ### Auto-Discovery
 

@@ -88,7 +88,7 @@ class ConversationEngine:
                 model=settings.GPT_MODEL,
                 messages=list(self._messages),
                 temperature=0.8,  # Slightly creative for personality
-                max_tokens=300,  # Longer responses now that we have streaming playback
+                max_tokens=settings.MAX_TOKENS,
             )
 
             # Extract assistant response
@@ -148,9 +148,12 @@ class ConversationEngine:
 
     def generate_response_streaming(self, user_input: str, additional_context: Optional[str] = None) -> Generator[Tuple[str, bool], None, None]:
         """
-        Generate response with streaming - yields first sentence ASAP, then continues.
+        Generate response with streaming - yields chunks based on word count threshold.
 
         This enables starting TTS/RVC while the LLM is still generating the rest.
+        Each chunk contains the minimum number of complete sentences that exceeds
+        the MIN_CHUNK_WORDS threshold (configurable in .env), except the last chunk
+        which contains the remainder regardless of word count.
 
         Args:
             user_input: User's message text
@@ -158,14 +161,15 @@ class ConversationEngine:
 
         Yields:
             Tuples of (text_chunk, is_final):
-            - First yield: (first_complete_sentence, False)
-            - Subsequent yields: (remaining_text_chunks, False)
+            - First yield: (first_chunk, False) - minimum sentences exceeding word threshold
+            - Subsequent yields: (remaining_chunks, False) - each exceeding word threshold
+            - Last text chunk: (remainder, False) - final sentences regardless of length
             - Final yield: ("", True) when complete
 
         Example:
             for chunk, is_final in engine.generate_response_streaming("Hello"):
                 if not is_final:
-                    process_chunk(chunk)  # Start TTS on first sentence
+                    process_chunk(chunk)  # Start TTS on chunk
                 else:
                     finish_up()  # LLM is done
         """
@@ -198,7 +202,7 @@ class ConversationEngine:
                 model=settings.GPT_MODEL,
                 messages=list(self._messages),
                 temperature=0.8,
-                max_tokens=200,  # Doubled for longer responses now that we have streaming playback
+                max_tokens=settings.MAX_TOKENS_STREAMING,
                 stream=True  # Enable streaming!
             )
 
@@ -207,12 +211,13 @@ class ConversationEngine:
             full_response = ""
             chunk_count = 0
             sentences_in_chunk = []
-            SENTENCES_PER_CHUNK = 2
+            current_chunk_word_count = 0
+            MIN_CHUNK_WORDS = settings.MIN_CHUNK_WORDS
 
             # Regex to detect sentence endings (. ! ? followed by space or end)
             sentence_end_pattern = re.compile(r'[.!?]+(?:\s|$)')
 
-            # Stream tokens and yield chunks of 2 sentences each
+            # Stream tokens and yield chunks based on word count threshold
             for chunk in stream:
                 if chunk.choices[0].delta.content:
                     token = chunk.choices[0].delta.content
@@ -231,24 +236,29 @@ class ConversationEngine:
 
                         if sentence:
                             sentences_in_chunk.append(sentence)
+                            # Count words in this sentence
+                            word_count = len(sentence.split())
+                            current_chunk_word_count += word_count
 
-                            # When we have 2 sentences, yield them as a chunk
-                            if len(sentences_in_chunk) >= SENTENCES_PER_CHUNK:
+                            # When we exceed minimum word count, yield the chunk
+                            if current_chunk_word_count >= MIN_CHUNK_WORDS:
                                 chunk_text = " ".join(sentences_in_chunk)
                                 chunk_count += 1
-                                logger.info(f"Chunk {chunk_count} ready ({len(sentences_in_chunk)} sentences): \"{chunk_text[:80]}...\"")
+                                logger.info(f"Chunk {chunk_count} ready ({len(sentences_in_chunk)} sentences, {current_chunk_word_count} words): \"{chunk_text[:80]}...\"")
                                 yield (chunk_text, False)
                                 sentences_in_chunk = []
+                                current_chunk_word_count = 0
 
-            # Yield any remaining sentences (1 sentence or incomplete)
+            # Yield any remaining sentences (last chunk, regardless of word count)
             if sentences_in_chunk or buffer.strip():
                 remaining = " ".join(sentences_in_chunk)
                 if buffer.strip():
                     remaining = (remaining + " " + buffer.strip()).strip()
 
                 if remaining:
+                    remaining_word_count = len(remaining.split())
                     chunk_count += 1
-                    logger.info(f"Final chunk {chunk_count} ({len(sentences_in_chunk)} sentences + fragment): \"{remaining[:80]}...\"")
+                    logger.info(f"Final chunk {chunk_count} ({len(sentences_in_chunk)} sentences, {remaining_word_count} words): \"{remaining[:80]}...\"")
                     yield (remaining, False)
 
             # Add complete response to history

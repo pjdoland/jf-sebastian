@@ -6,6 +6,7 @@ Simple stereo audio output without PPM control signals.
 import logging
 from typing import Optional, Tuple, TYPE_CHECKING
 import numpy as np
+from scipy import signal as scipy_signal
 
 from jf_sebastian.devices.base import OutputDevice
 from jf_sebastian.devices.factory import register_device
@@ -81,11 +82,21 @@ class SquawkersMcCawDevice(OutputDevice):
 
             # Apply RVC voice conversion if enabled for this personality
             # RVC will output at 48kHz (model's native rate) regardless of input
-            if personality:
+            rvc_applied = False
+            if personality and personality.rvc_enabled and settings.RVC_ENABLED:
                 voice_audio = self.audio_processor.apply_rvc_conversion(
                     voice_audio, self.rvc_input_sample_rate, personality
                 )
                 # After RVC, audio is at 48kHz (RVC model's output rate)
+                rvc_applied = True
+
+            # If RVC was not applied, resample from 16kHz to 48kHz
+            if not rvc_applied:
+                # Calculate duration and resample to output sample rate
+                voice_duration = len(voice_audio) / self.rvc_input_sample_rate
+                voice_samples_needed = int(voice_duration * self.output_sample_rate)
+                voice_audio = scipy_signal.resample(voice_audio, voice_samples_needed)
+                logger.debug(f"Resampled audio from {self.rvc_input_sample_rate}Hz to {self.output_sample_rate}Hz")
 
             # Analyze sentiment (for logging/future use)
             sentiment = self.sentiment_analyzer.analyze(response_text)
@@ -93,7 +104,7 @@ class SquawkersMcCawDevice(OutputDevice):
 
             # RVC output is already properly leveled - don't apply gain
             # (Only apply gain if RVC was not used)
-            if not personality or not personality.rvc_enabled:
+            if not rvc_applied:
                 voice_audio = voice_audio * settings.VOICE_GAIN
 
             # Create stereo: duplicate voice on both channels

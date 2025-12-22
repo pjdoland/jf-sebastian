@@ -41,6 +41,9 @@ class Settings:
     # Conversation Settings
     CONVERSATION_TIMEOUT: float = float(os.getenv("CONVERSATION_TIMEOUT", "120.0"))
     MAX_HISTORY_LENGTH: int = int(os.getenv("MAX_HISTORY_LENGTH", "20"))
+    MIN_CHUNK_WORDS: int = int(os.getenv("MIN_CHUNK_WORDS", "15"))
+    MAX_TOKENS: int = int(os.getenv("MAX_TOKENS", "300"))
+    MAX_TOKENS_STREAMING: int = int(os.getenv("MAX_TOKENS_STREAMING", "200"))
 
     # OpenAI Models
     WHISPER_MODEL: str = os.getenv("WHISPER_MODEL", "whisper-1")

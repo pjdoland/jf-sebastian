@@ -75,24 +75,29 @@ class TeddyRuxpinDevice(OutputDevice):
                 return None
 
             # Apply RVC voice conversion if enabled for this personality
-            if personality:
+            # Track current sample rate (changes to 48kHz if RVC is applied)
+            current_sample_rate = settings.SAMPLE_RATE
+            rvc_applied = False
+            if personality and personality.rvc_enabled and settings.RVC_ENABLED:
                 voice_audio = self.audio_processor.apply_rvc_conversion(
                     voice_audio, settings.SAMPLE_RATE, personality
                 )
+                current_sample_rate = 48000  # RVC outputs at 48kHz
+                rvc_applied = True
 
             # Analyze sentiment for eye control
             sentiment = self.sentiment_analyzer.analyze(response_text)
             logger.info(f"Eye sentiment driver: compound={sentiment:+.2f}")
 
             # Calculate duration and resample voice to match PPM sample rate
-            voice_duration = len(voice_audio) / settings.SAMPLE_RATE
+            voice_duration = len(voice_audio) / current_sample_rate
             voice_samples_needed = int(voice_duration * self.ppm_sample_rate)
             voice_resampled = scipy_signal.resample(voice_audio, voice_samples_needed)
 
             # Generate PPM channel values using syllable-based lip sync
             channel_values = self.ppm_generator.audio_to_channel_values(
                 voice_audio,
-                settings.SAMPLE_RATE,
+                current_sample_rate,
                 text=response_text,
                 eyes_base=0.9,
                 sentiment=sentiment
@@ -107,7 +112,9 @@ class TeddyRuxpinDevice(OutputDevice):
             ppm_signal = ppm_signal[:min_length]
 
             # Apply channel-specific gains
-            voice_resampled = voice_resampled * settings.VOICE_GAIN
+            # RVC output is already properly leveled - don't apply gain if RVC was used
+            if not rvc_applied:
+                voice_resampled = voice_resampled * settings.VOICE_GAIN
             ppm_signal = ppm_signal * settings.CONTROL_GAIN
 
             # Create stereo: LEFT=voice, RIGHT=PPM control

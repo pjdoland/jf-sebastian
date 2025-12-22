@@ -132,6 +132,15 @@ tts_style: "Speak gruffly like a weathered sea captain"
 
 # Wake word filename (you'll create this later)
 wake_word_model: hey_captain.onnx
+
+# RVC Voice Conversion (Optional - for custom voice models)
+# Transform TTS output with a trained voice model for unique character voices
+# rvc_enabled: true
+# rvc_model: captain_voice.pth
+# rvc_index_file: captain_voice.index  # Optional - improves quality
+# rvc_pitch_shift: 0  # Semitones, -12 to 12
+# rvc_index_rate: 0.75  # Index influence, 0.0 to 1.0
+# rvc_f0_method: rmvpe  # Pitch detection: rmvpe, crepe, harvest, pm
 ```
 
 #### Write the System Prompt
@@ -608,6 +617,143 @@ Keep responses brief (1-2 sentences maximum unless specifically asked for more d
 You enjoy sharing stories and explaining your knowledge in detail.
 Feel free to elaborate with examples and anecdotes.
 ```
+
+---
+
+## Advanced: RVC Voice Conversion
+
+RVC (Retrieval-based Voice Conversion) is an optional feature that transforms TTS output with custom trained voice models, creating unique character voices that go beyond what OpenAI TTS alone can provide.
+
+### When to Use RVC
+
+**Use RVC when:**
+- You want a specific character voice not available in OpenAI TTS
+- You need to match an existing voice (celebrity, character, etc.)
+- You want maximum control over voice characteristics
+- You're willing to train or obtain voice models
+
+**Stick with OpenAI TTS when:**
+- You're just getting started
+- OpenAI voices are close enough to your vision
+- You want simplicity and ease of setup
+- You don't need extreme voice customization
+
+### RVC Configuration
+
+Add RVC settings to your `personality.yaml`:
+
+```yaml
+# Enable RVC voice conversion
+rvc_enabled: true
+
+# RVC model file (.pth format)
+# Place in your personality directory or global rvc_models/ folder
+rvc_model: captain_voice.pth
+
+# Optional: Index file for improved quality
+rvc_index_file: captain_voice.index
+
+# Pitch shift in semitones (-12 to +12)
+# Negative = lower pitch, Positive = higher pitch
+rvc_pitch_shift: -2
+
+# Index influence (0.0 to 1.0)
+# Higher = more faithful to trained voice, may introduce artifacts
+# Lower = cleaner but less accurate to trained voice
+rvc_index_rate: 0.75
+
+# Pitch detection method (rmvpe, crepe, harvest, pm)
+# rmvpe: Best quality (recommended)
+# crepe: Good quality, faster
+# harvest: Fast, lower quality
+# pm: Fastest, lowest quality
+rvc_f0_method: rmvpe
+
+# Optional: Additional RVC parameters
+rvc_filter_radius: 3  # Median filtering (0-7, higher = smoother)
+rvc_rms_mix_rate: 0.25  # Volume envelope mixing (0.0-1.0)
+rvc_protect: 0.33  # Protect voiceless consonants (0.0-0.5)
+```
+
+### Getting RVC Models
+
+**Option 1: Train Your Own**
+- Requires audio samples of target voice (10+ minutes recommended)
+- Use RVC training tools (see RVC documentation)
+- Most control but most effort
+
+**Option 2: Use Pre-trained Models**
+- Community-trained models available online
+- Faster but limited selection
+- Verify licensing for your use case
+
+**Option 3: Commission Training**
+- Hire someone to train a model for you
+- Good middle ground
+
+### Model File Locations
+
+Place RVC model files in either:
+
+**Per-personality (recommended):**
+```
+personalities/your_name/
+├── personality.yaml
+├── captain_voice.pth        # Model file
+├── captain_voice.index      # Index file (optional)
+└── hey_captain.onnx
+```
+
+**Global directory:**
+```
+rvc_models/
+├── captain_voice.pth
+└── captain_voice.index
+```
+
+### RVC System Requirements
+
+- **CPU:** Works but slow (30-60s per chunk)
+- **Apple Silicon (M1/M2/M3):** Fast with MPS device (5-10s per chunk)
+- **NVIDIA GPU:** Fastest with CUDA (3-5s per chunk)
+
+Set in `.env`:
+```bash
+RVC_DEVICE=mps  # or cpu, cuda
+```
+
+### Testing RVC
+
+1. Enable RVC in personality.yaml
+2. Add your model files
+3. Generate filler audio:
+   ```bash
+   python scripts/generate_fillers.py --personality your_name
+   ```
+4. Test conversation and listen to voice quality
+5. Adjust parameters (pitch_shift, index_rate) as needed
+
+### Troubleshooting RVC
+
+**Problem:** RVC audio sounds robotic or distorted
+**Fix:**
+- Lower `rvc_index_rate` (try 0.5)
+- Increase `rvc_protect` (try 0.4)
+- Try different `rvc_f0_method` (rmvpe usually best)
+
+**Problem:** Voice pitch is wrong
+**Fix:** Adjust `rvc_pitch_shift`:
+- Too high → decrease (negative values)
+- Too low → increase (positive values)
+
+**Problem:** RVC is too slow
+**Fix:**
+- Use `RVC_DEVICE=mps` or `cuda` instead of `cpu`
+- Lower `rvc_filter_radius`
+- Use faster f0_method (crepe or pm)
+
+**Problem:** Model file not found
+**Fix:** Verify file path and filename exactly match personality.yaml
 
 ---
 
