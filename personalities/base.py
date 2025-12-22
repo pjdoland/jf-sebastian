@@ -40,6 +40,34 @@ class Personality:
     tts_style: Optional[str] = None
     """Optional style instruction for gpt-4o-mini-tts model (e.g., 'Speak warmly and casually')"""
 
+    # RVC Voice Conversion (optional)
+    rvc_enabled: bool = False
+    """Enable RVC voice conversion for this personality"""
+
+    rvc_model: Optional[str] = None
+    """RVC model filename (.pth) - looked up in personality dir, then global rvc_models/"""
+
+    rvc_index_file: Optional[str] = None
+    """RVC index filename (.index) - optional, looked up in personality dir"""
+
+    rvc_pitch_shift: int = 0
+    """RVC pitch shift in semitones (-12 to +12)"""
+
+    rvc_index_rate: float = 0.5
+    """RVC feature retrieval influence (0.0 to 1.0)"""
+
+    rvc_f0_method: str = "harvest"
+    """RVC pitch extraction method (harvest/crepe/pm/dio/rmvpe)"""
+
+    rvc_filter_radius: int = 3
+    """RVC median filtering radius for pitch (0-7, lower = faster)"""
+
+    rvc_rms_mix_rate: float = 0.25
+    """RVC volume envelope mix rate (0.0 to 1.0, lower = faster)"""
+
+    rvc_protect: float = 0.33
+    """RVC voiceless consonant protection (0.0 to 0.5, lower = faster)"""
+
     @property
     def wake_word_model_paths(self) -> List[Path]:
         """Get full paths to wake word model files"""
@@ -49,6 +77,46 @@ class Personality:
     def filler_audio_dir(self) -> Path:
         """Directory containing pre-generated filler audio files"""
         return self.personality_dir / "filler_audio"
+
+    @property
+    def rvc_model_path(self) -> Optional[Path]:
+        """
+        Get full path to RVC model file.
+        Checks personality directory first, then global rvc_models/ directory.
+        Returns None if model not specified or not found.
+        """
+        if not self.rvc_model:
+            return None
+
+        # Check personality directory first
+        personality_model = self.personality_dir / self.rvc_model
+        if personality_model.exists():
+            return personality_model
+
+        # Check global RVC models directory
+        from jf_sebastian.config import settings
+        global_model = settings.RVC_MODEL_DIR / self.rvc_model
+        if global_model.exists():
+            return global_model
+
+        # Model not found in either location
+        return None
+
+    @property
+    def rvc_index_path(self) -> Optional[Path]:
+        """
+        Get full path to RVC index file.
+        Only checks personality directory (index files are model-specific).
+        Returns None if index not specified or not found.
+        """
+        if not self.rvc_index_file:
+            return None
+
+        index_path = self.personality_dir / self.rvc_index_file
+        if index_path.exists():
+            return index_path
+
+        return None
 
     def get_description(self) -> str:
         """Get a human-readable description of this personality"""
@@ -104,6 +172,37 @@ def load_personality_from_yaml(personality_dir: Path) -> Personality:
             f"personality.yaml in {personality_dir}: 'tts_speed' must be between 0.25 and 4.0"
         )
 
+    # Get optional RVC settings with defaults
+    rvc_enabled = data.get('rvc_enabled', False)
+    rvc_model = data.get('rvc_model', None)
+    rvc_index_file = data.get('rvc_index_file', None)
+    rvc_pitch_shift = data.get('rvc_pitch_shift', 0)
+    rvc_index_rate = data.get('rvc_index_rate', 0.5)
+    rvc_f0_method = data.get('rvc_f0_method', 'harvest')
+
+    # Validate RVC settings if enabled
+    if rvc_enabled:
+        if not rvc_model:
+            raise ValueError(
+                f"personality.yaml in {personality_dir}: 'rvc_model' is required when rvc_enabled=true"
+            )
+
+        if not isinstance(rvc_pitch_shift, int) or rvc_pitch_shift < -12 or rvc_pitch_shift > 12:
+            raise ValueError(
+                f"personality.yaml in {personality_dir}: 'rvc_pitch_shift' must be an integer between -12 and 12"
+            )
+
+        if not isinstance(rvc_index_rate, (int, float)) or rvc_index_rate < 0.0 or rvc_index_rate > 1.0:
+            raise ValueError(
+                f"personality.yaml in {personality_dir}: 'rvc_index_rate' must be between 0.0 and 1.0"
+            )
+
+        valid_f0_methods = ['harvest', 'crepe', 'pm', 'dio', 'rmvpe']
+        if rvc_f0_method not in valid_f0_methods:
+            raise ValueError(
+                f"personality.yaml in {personality_dir}: 'rvc_f0_method' must be one of {valid_f0_methods}"
+            )
+
     # Create Personality instance
     return Personality(
         name=data['name'],
@@ -113,7 +212,13 @@ def load_personality_from_yaml(personality_dir: Path) -> Personality:
         filler_phrases=data['filler_phrases'],
         personality_dir=personality_dir,
         tts_speed=tts_speed,
-        tts_style=tts_style
+        tts_style=tts_style,
+        rvc_enabled=rvc_enabled,
+        rvc_model=rvc_model,
+        rvc_index_file=rvc_index_file,
+        rvc_pitch_shift=rvc_pitch_shift,
+        rvc_index_rate=rvc_index_rate,
+        rvc_f0_method=rvc_f0_method
     )
 
 

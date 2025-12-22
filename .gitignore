@@ -22,6 +22,7 @@ wheels/
 
 # Virtual Environment
 venv/
+venv_backup_*/
 env/
 ENV/
 
@@ -58,6 +59,11 @@ Thumbs.db
 # Keep these in version control by default so personalities work out of the box
 # Uncomment if you want to exclude custom wake word models:
 # personalities/*/*.onnx
+
+# RVC voice models (stored in personality directories)
+# These are large files and should not be committed to git
+*.pth
+*.index
 
 # Testing
 .pytest_cache/

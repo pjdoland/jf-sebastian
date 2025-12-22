@@ -123,20 +123,28 @@ class AudioPlayer:
             # Resample if needed
             if sample_rate != device_sample_rate:
                 logger.info(f"Resampling audio from {sample_rate}Hz to {device_sample_rate}Hz")
-                from scipy import signal as scipy_signal
+                import librosa
 
-                # Calculate new length
-                num_samples = int(len(stereo_audio) * device_sample_rate / sample_rate)
-
-                # Resample each channel
-                left_resampled = scipy_signal.resample(stereo_audio[:, 0], num_samples)
-                right_resampled = scipy_signal.resample(stereo_audio[:, 1], num_samples)
+                # Resample each channel using high-quality resampling
+                left_resampled = librosa.resample(
+                    stereo_audio[:, 0].astype(np.float32),
+                    orig_sr=sample_rate,
+                    target_sr=device_sample_rate,
+                    res_type='kaiser_best'
+                )
+                right_resampled = librosa.resample(
+                    stereo_audio[:, 1].astype(np.float32),
+                    orig_sr=sample_rate,
+                    target_sr=device_sample_rate,
+                    res_type='kaiser_best'
+                )
 
                 # Combine back to stereo
                 stereo_audio = np.column_stack((left_resampled, right_resampled))
                 sample_rate = device_sample_rate
 
-            # Convert to int16
+            # Clip to valid range and convert to int16
+            stereo_audio = np.clip(stereo_audio, -1.0, 1.0)
             audio_int16 = (stereo_audio * 32767).astype(np.int16)
 
             # Open output stream with retry logic for macOS CoreAudio issues

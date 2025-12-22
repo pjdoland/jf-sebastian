@@ -14,4 +14,4 @@ if [ ! -f ".env" ]; then
 fi
 
 # Run the application
-python -m jf_sebastian.main
+python3 -m jf_sebastian.main

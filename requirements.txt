@@ -6,8 +6,14 @@ scipy>=1.11.0
 # Audio Processing
 pyaudio>=0.2.13
 sounddevice>=0.4.6
+soundfile>=0.12.1
 webrtcvad>=2.0.10
 pydub>=0.25.1
+
+# RVC Voice Conversion (optional - for custom voice personalities)
+# NOTE: RVC has complex dependencies. Install manually if needed:
+#   pip install rvc-python
+# The system will work without RVC (using OpenAI TTS voices only)
 
 # Wake Word Detection
 # OpenWakeWord (open source, flexible, easy custom wake word creation)

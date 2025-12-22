@@ -26,7 +26,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def generate_filler_files(personality, output_dir: Path):
+def generate_filler_files(personality, output_dir: Path, device_filter: str = None):
     """
     Generate all filler phrase WAV files for a personality.
     Generates device-specific versions for each registered device type.
@@ -34,6 +34,7 @@ def generate_filler_files(personality, output_dir: Path):
     Args:
         personality: Personality instance with filler phrases and voice
         output_dir: Base directory for filler WAV files (device subdirectories created within)
+        device_filter: Optional device type to generate for (e.g., 'squawkers_mccaw', 'teddy_ruxpin')
     """
     # Get filler phrases from personality
     filler_phrases = personality.filler_phrases
@@ -47,8 +48,18 @@ def generate_filler_files(personality, output_dir: Path):
     )
 
     # Get all registered device types
-    device_types = DeviceRegistry.list_devices()
-    logger.info(f"Generating fillers for {len(device_types)} device types: {', '.join(device_types)}")
+    all_device_types = DeviceRegistry.list_devices()
+
+    # Filter to specific device if requested
+    if device_filter:
+        if device_filter not in all_device_types:
+            logger.error(f"Device '{device_filter}' not found. Available: {', '.join(all_device_types)}")
+            return
+        device_types = [device_filter]
+        logger.info(f"Generating fillers for device: {device_filter}")
+    else:
+        device_types = all_device_types
+        logger.info(f"Generating fillers for {len(device_types)} device types: {', '.join(device_types)}")
     logger.info("")
 
     # Generate fillers for each device type
@@ -82,8 +93,8 @@ def generate_filler_files(personality, output_dir: Path):
                     logger.error(f"Failed to generate TTS for phrase {idx}")
                     continue
 
-                # Create device-specific output
-                result = device.create_output(voice_audio_mp3, phrase)
+                # Create device-specific output (pass personality for RVC conversion)
+                result = device.create_output(voice_audio_mp3, phrase, personality)
                 if not result:
                     logger.error(f"Failed to create {device_type} output for phrase {idx}")
                     continue
@@ -128,6 +139,13 @@ def main():
         "--all",
         action="store_true",
         help="Generate fillers for all available personalities (same as not specifying --personality)"
+    )
+    parser.add_argument(
+        "--device",
+        type=str,
+        default=None,
+        help="Generate fillers for only this device type (e.g., 'squawkers_mccaw', 'teddy_ruxpin'). "
+             "If not specified, generates for all devices."
     )
     args = parser.parse_args()
 
@@ -176,7 +194,7 @@ def main():
         logger.info("")
 
         # Generate fillers
-        generate_filler_files(personality, output_dir)
+        generate_filler_files(personality, output_dir, device_filter=args.device)
 
         logger.info("")
 
