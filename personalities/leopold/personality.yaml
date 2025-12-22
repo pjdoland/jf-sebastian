@@ -17,7 +17,7 @@ tts_style: "Speak urgently and conspiratorially, as if sharing important secrets
 # Transforms TTS output to match Dale's distinctive paranoid voice
 # Settings optimized for 5x faster conversion with minimal quality loss
 rvc_enabled: true
-rvc_model: DaleGribbleKOTH.pth  # Model file in this personality's directory
+rvc_model: leopold.pth  # Model file in this personality's directory
 rvc_pitch_shift: 0
 rvc_index_rate: 0.4  # Optimized from 0.5 for speed
 rvc_f0_method: pm  # Fastest pitch detection method

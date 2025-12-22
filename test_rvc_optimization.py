@@ -66,7 +66,7 @@ TEST_CONFIGS = [
 ]
 
 # Model paths
-MODEL_PATH = Path('personalities/leopold/DaleGribbleKOTH.pth')
+MODEL_PATH = Path('personalities/leopold/leopold.pth')
 INDEX_PATH = None  # Add if you have an index file
 
 
@@ -159,7 +159,7 @@ def main():
     # Check if model exists
     if not MODEL_PATH.exists():
         logger.error(f"Model not found: {MODEL_PATH}")
-        logger.info("Please ensure DaleGribbleKOTH.pth is in personalities/leopold/")
+        logger.info("Please ensure leopold.pth is in personalities/leopold/")
         return
 
     # Create output directory
