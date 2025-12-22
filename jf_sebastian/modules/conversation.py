@@ -88,7 +88,7 @@ class ConversationEngine:
                 model=settings.GPT_MODEL,
                 messages=list(self._messages),
                 temperature=0.8,  # Slightly creative for personality
-                max_tokens=200,  # Longer responses now that we have streaming playback
+                max_tokens=300,  # Longer responses now that we have streaming playback
             )
 
             # Extract assistant response
