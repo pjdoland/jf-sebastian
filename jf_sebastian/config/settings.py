@@ -57,6 +57,11 @@ class Settings:
     # Wake Word Detection
     WAKE_WORD_THRESHOLD: float = float(os.getenv("WAKE_WORD_THRESHOLD", "0.99"))  # Detection threshold (0.0 to 1.0)
 
+    # RVC Voice Conversion (optional - per personality)
+    RVC_ENABLED: bool = os.getenv("RVC_ENABLED", "true").lower() == "true"  # Global override to disable RVC
+    RVC_DEVICE: str = os.getenv("RVC_DEVICE", "mps")  # Device for RVC inference (cpu/mps/cuda)
+    RVC_MODEL_DIR: Path = Path(os.getenv("RVC_MODEL_DIR", "./rvc_models/"))  # Global RVC model directory
+
     # Debug Settings
     DEBUG_MODE: bool = os.getenv("DEBUG_MODE", "false").lower() == "true"
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")

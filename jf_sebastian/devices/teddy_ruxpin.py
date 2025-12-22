@@ -4,7 +4,7 @@ Generates PPM control signals with syllable-based lip sync.
 """
 
 import logging
-from typing import Optional, Tuple
+from typing import Optional, Tuple, TYPE_CHECKING
 import numpy as np
 from scipy import signal as scipy_signal
 
@@ -14,6 +14,9 @@ from jf_sebastian.devices.shared.audio_processor import AudioProcessor
 from jf_sebastian.devices.shared.sentiment_analyzer import SentimentAnalyzer
 from jf_sebastian.modules.ppm_generator import PPMGenerator
 from jf_sebastian.config import settings
+
+if TYPE_CHECKING:
+    from personalities.base import Personality
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +53,8 @@ class TeddyRuxpinDevice(OutputDevice):
     def create_output(
         self,
         voice_audio_mp3: bytes,
-        response_text: str
+        response_text: str,
+        personality: Optional['Personality'] = None
     ) -> Optional[Tuple[np.ndarray, int]]:
         """
         Create stereo output with voice and PPM control signals.
@@ -58,6 +62,7 @@ class TeddyRuxpinDevice(OutputDevice):
         Args:
             voice_audio_mp3: Voice audio from TTS (MP3 format)
             response_text: Original text for sentiment/syllable analysis
+            personality: Optional personality configuration (for RVC, etc.)
 
         Returns:
             Tuple of (stereo_audio, sample_rate) where stereo_audio shape is (N, 2)
@@ -68,6 +73,12 @@ class TeddyRuxpinDevice(OutputDevice):
             if voice_audio is None:
                 logger.error("Failed to convert MP3 to PCM")
                 return None
+
+            # Apply RVC voice conversion if enabled for this personality
+            if personality:
+                voice_audio = self.audio_processor.apply_rvc_conversion(
+                    voice_audio, settings.SAMPLE_RATE, personality
+                )
 
             # Analyze sentiment for eye control
             sentiment = self.sentiment_analyzer.analyze(response_text)

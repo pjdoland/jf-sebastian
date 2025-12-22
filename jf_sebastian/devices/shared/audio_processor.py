@@ -7,15 +7,22 @@ import logging
 import tempfile
 import subprocess
 import os
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 import numpy as np
 from jf_sebastian.config import settings
+
+if TYPE_CHECKING:
+    from personalities.base import Personality
 
 logger = logging.getLogger(__name__)
 
 
 class AudioProcessor:
     """Shared audio processing utilities."""
+
+    def __init__(self):
+        """Initialize audio processor."""
+        self._rvc_processor = None  # Lazy-loaded when needed
 
     @staticmethod
     def mp3_to_pcm(mp3_data: bytes, target_sample_rate: Optional[int] = None) -> Optional[np.ndarray]:
@@ -67,3 +74,87 @@ class AudioProcessor:
         except Exception as e:
             logger.error(f"Error converting MP3 to PCM: {e}", exc_info=True)
             return None
+
+    def apply_rvc_conversion(
+        self,
+        audio: np.ndarray,
+        sample_rate: int,
+        personality: 'Personality'
+    ) -> np.ndarray:
+        """
+        Apply RVC voice conversion to audio if enabled for the personality.
+
+        Args:
+            audio: Input audio array (float32, -1.0 to 1.0)
+            sample_rate: Audio sample rate (Hz)
+            personality: Personality configuration
+
+        Returns:
+            Converted audio array (or original if RVC disabled/failed)
+        """
+        # Check if RVC enabled for this personality
+        if not personality.rvc_enabled:
+            logger.debug("RVC not enabled for this personality")
+            return audio
+
+        # Check if global RVC is disabled
+        if not settings.RVC_ENABLED:
+            logger.debug("RVC globally disabled in settings")
+            return audio
+
+        # Lazy-load RVC processor
+        if self._rvc_processor is None:
+            try:
+                from jf_sebastian.modules.rvc_processor import RVCProcessor
+                # Get device from settings (don't import torch here - only in RVC service)
+                # RVC server will validate device availability and fallback if needed
+                device = settings.RVC_DEVICE
+                self._rvc_processor = RVCProcessor(device=device)
+                logger.info(f"RVC processor initialized (device={device})")
+            except Exception as e:
+                logger.error(f"Failed to initialize RVC processor: {e}", exc_info=True)
+                return audio
+
+        # Check if RVC is available
+        if not self._rvc_processor.available:
+            logger.warning("RVC processor not available, using original audio")
+            return audio
+
+        # Get model path
+        model_path = personality.rvc_model_path
+        if model_path is None:
+            logger.error(f"RVC model not found: {personality.rvc_model}")
+            return audio
+
+        # Get index path (optional)
+        index_path = personality.rvc_index_path
+        if personality.rvc_index_file and index_path is None:
+            logger.warning(f"RVC index file not found: {personality.rvc_index_file}")
+
+        # Convert audio through RVC
+        try:
+            logger.info(f"Applying RVC conversion: {personality.rvc_model}")
+            converted = self._rvc_processor.convert_audio(
+                audio=audio,
+                sample_rate=sample_rate,
+                model_path=str(model_path),
+                index_path=str(index_path) if index_path else None,
+                pitch_shift=personality.rvc_pitch_shift,
+                index_rate=personality.rvc_index_rate,
+                f0_method=personality.rvc_f0_method,
+                filter_radius=personality.rvc_filter_radius,
+                rms_mix_rate=personality.rvc_rms_mix_rate,
+                protect=personality.rvc_protect
+            )
+
+            # If conversion failed, return original
+            if converted is None:
+                logger.warning("RVC conversion failed, using original audio")
+                return audio
+
+            logger.info("RVC conversion successful")
+            return converted
+
+        except Exception as e:
+            logger.error(f"Error during RVC conversion: {e}", exc_info=True)
+            return audio

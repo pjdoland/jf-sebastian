@@ -4,8 +4,11 @@ Defines the interface all animatronic output devices must implement.
 """
 
 from abc import ABC, abstractmethod
-from typing import Optional, Tuple
+from typing import Optional, Tuple, TYPE_CHECKING
 import numpy as np
+
+if TYPE_CHECKING:
+    from personalities.base import Personality
 
 
 class OutputDevice(ABC):
@@ -32,7 +35,8 @@ class OutputDevice(ABC):
     def create_output(
         self,
         voice_audio_mp3: bytes,
-        response_text: str
+        response_text: str,
+        personality: Optional['Personality'] = None
     ) -> Optional[Tuple[np.ndarray, int]]:
         """
         Create device-specific audio output from TTS.
@@ -40,6 +44,7 @@ class OutputDevice(ABC):
         Args:
             voice_audio_mp3: Voice audio from TTS (MP3 format)
             response_text: Original text for sentiment/syllable analysis
+            personality: Optional personality configuration (for RVC, etc.)
 
         Returns:
             Tuple of (audio_array, sample_rate), or None on error

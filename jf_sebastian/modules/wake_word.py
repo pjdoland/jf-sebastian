@@ -7,18 +7,16 @@ import logging
 import threading
 import struct
 import time
-from typing import Optional, Callable
+from typing import Optional, Callable, TYPE_CHECKING
 from pathlib import Path
 from collections import deque
 import pyaudio
 import numpy as np
 
-try:
+# Lazy import of openwakeword to avoid slow startup
+# Will be imported when WakeWordDetector is actually instantiated
+if TYPE_CHECKING:
     from openwakeword.model import Model
-    OPENWAKEWORD_AVAILABLE = True
-except ImportError:
-    OPENWAKEWORD_AVAILABLE = False
-    logging.warning("openwakeword not installed. Wake word detection will not work.")
 
 from jf_sebastian.config import settings
 from jf_sebastian.utils import find_audio_device_by_name
@@ -64,8 +62,7 @@ class WakeWordDetector:
         self._post_wake_start_time: float = 0.0
         self._post_wake_duration = 0.8  # seconds
 
-        if not OPENWAKEWORD_AVAILABLE:
-            raise RuntimeError("openwakeword library not installed")
+        # Note: openwakeword availability is checked lazily in start() to avoid slow imports
 
     def start(self):
         """Start wake word detection in background thread."""
@@ -76,6 +73,12 @@ class WakeWordDetector:
         logger.info("Initializing wake word detector...")
 
         try:
+            # Lazy import of openwakeword (heavy ML library - only load when needed)
+            try:
+                from openwakeword.model import Model
+            except ImportError as e:
+                raise RuntimeError(f"openwakeword library not installed: {e}")
+
             # Initialize OpenWakeWord model
             # Convert Path objects to strings for OpenWakeWord
             model_paths = [str(path) for path in self.wake_word_model_paths]

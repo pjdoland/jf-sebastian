@@ -25,6 +25,7 @@ from jf_sebastian.modules.conversation import ConversationEngine
 from jf_sebastian.modules.text_to_speech import TextToSpeech
 from jf_sebastian.devices import DeviceRegistry
 from jf_sebastian.utils.audio_utils import save_stereo_wav
+from jf_sebastian.utils.async_file_utils import save_async
 from jf_sebastian.modules.audio_output import AudioPlayer
 from jf_sebastian.modules.filler_phrases import FillerPhraseManager
 
@@ -117,6 +118,25 @@ class TeddyRuxpinApp:
 
         # Register state callbacks
         self._register_state_callbacks()
+
+        # Pre-warm RVC model if enabled (loads model into memory for faster first response)
+        # TEMPORARILY DISABLED: Heavy torch/rvc imports cause slow startup
+        # TODO: Re-enable with lazy imports or background thread
+        # if self.personality.rvc_enabled:
+        #     logger.info("Pre-warming RVC model...")
+        #     try:
+        #         from jf_sebastian.modules.rvc_processor import RVCProcessor
+        #         self._rvc_processor = RVCProcessor(device=settings.RVC_DEVICE)
+        #         if self._rvc_processor.available:
+        #             model_path = self.personality.rvc_model_path
+        #             if model_path:
+        #                 logger.info(f"RVC model pre-warmed: {model_path}")
+        #             else:
+        #                 logger.warning("RVC model path not found, skipping pre-warm")
+        #         else:
+        #             logger.warning("RVC processor not available, skipping pre-warm")
+        #     except Exception as e:
+        #         logger.warning(f"Failed to pre-warm RVC model: {e}")
 
         # Running flag
         self._running = False
@@ -261,11 +281,11 @@ class TeddyRuxpinApp:
         """
         logger.info(f"Speech ended, captured {len(audio_data)} bytes")
 
-        # Save debug audio if enabled
+        # Save debug audio if enabled (async - non-blocking)
         if settings.SAVE_DEBUG_AUDIO:
             timestamp = time.strftime("%Y%m%d_%H%M%S")
             filename = settings.DEBUG_AUDIO_PATH / f"input_{timestamp}.wav"
-            save_audio_to_wav(audio_data, str(filename))
+            save_async(save_audio_to_wav, audio_data, str(filename))
 
         # Select filler FIRST (before state transition) so we can pass its context to the LLM
         filler_context = None
@@ -284,7 +304,7 @@ class TeddyRuxpinApp:
 
     def _process_and_speak(self, audio_data: bytes, filler_context: Optional[str] = None):
         """
-        Process audio and generate response.
+        Process audio and generate response with sentence-by-sentence streaming.
 
         Args:
             audio_data: Recorded audio data
@@ -292,7 +312,7 @@ class TeddyRuxpinApp:
         """
         try:
             # Step 1: Transcribe audio
-            logger.info("Step 1/4: Transcribing speech...")
+            logger.info("Step 1: Transcribing speech...")
             transcript = self.speech_to_text.transcribe_with_retry(audio_data)
 
             if not transcript:
@@ -302,10 +322,11 @@ class TeddyRuxpinApp:
 
             logger.info(f"Transcript: \"{transcript}\"")
 
-            # Step 2: Generate GPT response with filler context for seamless transition
-            logger.info("Step 2/4: Generating response...")
+            # Step 2-4: Stream LLM → process each sentence through TTS+RVC → queue for playback
+            logger.info("Step 2: Streaming response with sentence-by-sentence pipeline...")
+
+            # Build context prompt if we have filler
             if filler_context:
-                # Add filler context as a system message for smooth transition
                 context_prompt = f"""[IMPORTANT CONTEXT: You just said this to the customer while thinking: "{filler_context}"]
 
 Your response must create a seamless, natural continuation. Follow these guidelines:
@@ -316,72 +337,148 @@ Your response must create a seamless, natural continuation. Follow these guideli
 5. Make it sound like one continuous thought, not two separate statements
 
 Now respond to their question naturally, as if your filler phrase was the beginning of this same thought."""
-                response_text = self.conversation_engine.generate_response_with_retry(
-                    transcript,
-                    additional_context=context_prompt
-                )
             else:
-                response_text = self.conversation_engine.generate_response_with_retry(transcript)
+                context_prompt = None
 
-            if not response_text:
-                logger.warning("Response generation failed")
-                self.state_machine.transition_to(ConversationState.IDLE, trigger="response_failed")
+            # Stream audio chunks with true async processing
+            # Process chunks in parallel with playback to eliminate gaps
+            import threading
+            import queue
+
+            full_response_text = ""
+            chunk_num = 0
+            first_chunk = True
+
+            # Save all chunks for debug
+            debug_chunks = []
+
+            # Queue for chunks ready to play
+            playback_queue = queue.Queue()
+            playback_done = threading.Event()
+            playback_error = None
+
+            def playback_worker():
+                """Background thread that plays chunks as they become available."""
+                nonlocal playback_error
+                try:
+                    chunk_count = 0
+                    while True:
+                        # Get next chunk from queue (blocks until available)
+                        item = playback_queue.get()
+
+                        if item is None:  # Sentinel to stop
+                            logger.info("Playback worker finishing")
+                            break
+
+                        stereo_audio, sample_rate, chunk_id = item
+                        chunk_count += 1
+
+                        logger.info(f"Chunk {chunk_id}: Playing NOW (queued playback)...")
+                        self.audio_player.play_stereo(stereo_audio, sample_rate, blocking=True, preroll_ms=0)
+                        logger.info(f"Chunk {chunk_id}: Playback complete")
+
+                        playback_queue.task_done()
+
+                    logger.info(f"All {chunk_count} chunks played successfully")
+                except Exception as e:
+                    playback_error = e
+                    logger.error(f"Playback worker error: {e}", exc_info=True)
+                finally:
+                    playback_done.set()
+
+            # Start playback worker thread
+            playback_thread = threading.Thread(target=playback_worker, daemon=True)
+            playback_thread.start()
+
+            # Stream LLM response and process each sentence
+            for sentence_text, is_final in self.conversation_engine.generate_response_streaming(
+                transcript,
+                additional_context=context_prompt
+            ):
+                if is_final:
+                    logger.info("LLM streaming complete")
+                    break
+
+                if not sentence_text.strip():
+                    continue
+
+                chunk_num += 1
+                full_response_text += sentence_text + " "
+                logger.info(f"Chunk {chunk_num}: Processing sentence: \"{sentence_text}\"")
+
+                # Process this sentence through TTS
+                logger.info(f"Chunk {chunk_num}: Synthesizing speech...")
+                voice_audio_mp3 = self.text_to_speech.synthesize_with_retry(sentence_text)
+
+                if not voice_audio_mp3:
+                    logger.warning(f"Chunk {chunk_num}: TTS failed, skipping")
+                    continue
+
+                # Process through RVC (happens in parallel with playback of previous chunk!)
+                logger.info(f"Chunk {chunk_num}: Converting with RVC...")
+                result = self.output_device.create_output(voice_audio_mp3, sentence_text, self.personality)
+
+                if not result:
+                    logger.warning(f"Chunk {chunk_num}: RVC failed, skipping")
+                    continue
+
+                stereo_audio, sample_rate = result
+                logger.info(f"Chunk {chunk_num}: Ready! ({len(stereo_audio)} samples @ {sample_rate}Hz)")
+
+                # Save for debug
+                if settings.SAVE_DEBUG_AUDIO:
+                    debug_chunks.append((stereo_audio.copy(), sample_rate))
+
+                # Handle first chunk specially - wait for filler
+                if first_chunk:
+                    if self._filler_playing:
+                        logger.info(f"Chunk {chunk_num}: Waiting for filler to complete...")
+                        timeout = 10.0
+                        elapsed = 0.0
+                        poll_interval = 0.01
+
+                        while self._filler_playing and self.audio_player.is_playing and elapsed < timeout:
+                            time.sleep(poll_interval)
+                            elapsed += poll_interval
+
+                        if elapsed >= timeout:
+                            logger.warning(f"Filler playback timeout after {timeout}s - forcing continuation")
+                            self._filler_playing = False
+                            self.audio_player.stop()
+
+                    # Transition to SPEAKING state
+                    self.state_machine.transition_to(ConversationState.SPEAKING, trigger="response_ready")
+                    self._pause_wake_for_playback()
+                    first_chunk = False
+
+                # Queue chunk for playback (non-blocking - processing continues!)
+                logger.info(f"Chunk {chunk_num}: Queuing for playback...")
+                playback_queue.put((stereo_audio, sample_rate, chunk_num))
+
+            # Signal playback worker to finish after all chunks
+            playback_queue.put(None)
+
+            # Wait for all chunks to finish playing
+            logger.info("Waiting for all chunks to finish playing...")
+            playback_done.wait()
+
+            if playback_error:
+                raise playback_error
+
+            if chunk_num == 0:
+                logger.warning("No audio chunks generated")
+                self.state_machine.transition_to(ConversationState.IDLE, trigger="generation_failed")
                 return
 
-            logger.info(f"Response: \"{response_text}\"")
+            logger.info(f"Streaming playback complete: {chunk_num} chunks, full text: \"{full_response_text.strip()}\"")
 
-            # Step 3: Synthesize speech
-            logger.info("Step 3/4: Synthesizing speech...")
-            voice_audio_mp3 = self.text_to_speech.synthesize_with_retry(response_text)
-
-            if not voice_audio_mp3:
-                logger.warning("Speech synthesis failed")
-                self.state_machine.transition_to(ConversationState.IDLE, trigger="synthesis_failed")
-                return
-
-            # Step 4: Generate device-specific output
-            logger.info(f"Step 4/4: Generating {self.output_device.device_name} output...")
-            result = self.output_device.create_output(voice_audio_mp3, response_text)
-
-            if not result:
-                logger.warning("Control signal generation failed")
-                self.state_machine.transition_to(ConversationState.IDLE, trigger="control_failed")
-                return
-
-            stereo_audio, sample_rate = result
-
-            # Save debug audio if enabled
-            if settings.SAVE_DEBUG_AUDIO:
+            # Save debug audio (concatenated version for comparison)
+            if settings.SAVE_DEBUG_AUDIO and debug_chunks:
                 timestamp = time.strftime("%Y%m%d_%H%M%S")
                 filename = settings.DEBUG_AUDIO_PATH / f"output_{timestamp}.wav"
-                save_stereo_wav(stereo_audio, sample_rate, str(filename))
-
-            # Wait for filler to finish if still playing (with timeout)
-            had_filler = False
-            if self._filler_playing:
-                logger.info("Waiting for filler to complete...")
-                had_filler = True
-                timeout = 10.0  # Maximum 10 seconds to wait for filler
-                elapsed = 0.0
-                poll_interval = 0.01  # 10ms polling for faster transition detection
-
-                while self._filler_playing and self.audio_player.is_playing and elapsed < timeout:
-                    time.sleep(poll_interval)
-                    elapsed += poll_interval
-
-                if elapsed >= timeout:
-                    logger.warning(f"Filler playback timeout after {timeout}s - forcing continuation")
-                    self._filler_playing = False
-                # No pause - immediate seamless transition to real response
-
-            # Transition to SPEAKING state
-            self.state_machine.transition_to(ConversationState.SPEAKING, trigger="response_ready")
-
-            # Play stereo audio with no preroll if following filler (device already warmed up)
-            logger.info("Playing response audio...")
-            self._pause_wake_for_playback()
-            preroll = 0 if had_filler else None  # Skip preroll after filler for seamless transition
-            self.audio_player.play_stereo(stereo_audio, sample_rate, blocking=True, preroll_ms=preroll)
+                sample_rate = debug_chunks[0][1]
+                concatenated = np.concatenate([chunk[0] for chunk in debug_chunks], axis=0)
+                save_async(save_stereo_wav, concatenated, sample_rate, str(filename))
 
         except Exception as e:
             logger.error(f"Error in processing pipeline: {e}", exc_info=True)

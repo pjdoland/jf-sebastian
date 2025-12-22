@@ -5,7 +5,8 @@ Maintains conversation history and generates responses.
 
 import logging
 import time
-from typing import Optional
+import re
+from typing import Optional, Generator, Tuple
 from collections import deque
 
 from openai import OpenAI
@@ -87,7 +88,7 @@ class ConversationEngine:
                 model=settings.GPT_MODEL,
                 messages=list(self._messages),
                 temperature=0.8,  # Slightly creative for personality
-                max_tokens=150,  # Keep responses concise
+                max_tokens=200,  # Longer responses now that we have streaming playback
             )
 
             # Extract assistant response
@@ -144,6 +145,130 @@ class ConversationEngine:
 
         logger.error(f"Response generation failed after {max_retries} attempts")
         return self._get_error_response("max_retries")
+
+    def generate_response_streaming(self, user_input: str, additional_context: Optional[str] = None) -> Generator[Tuple[str, bool], None, None]:
+        """
+        Generate response with streaming - yields first sentence ASAP, then continues.
+
+        This enables starting TTS/RVC while the LLM is still generating the rest.
+
+        Args:
+            user_input: User's message text
+            additional_context: Optional context to prepend (e.g., filler phrase)
+
+        Yields:
+            Tuples of (text_chunk, is_final):
+            - First yield: (first_complete_sentence, False)
+            - Subsequent yields: (remaining_text_chunks, False)
+            - Final yield: ("", True) when complete
+
+        Example:
+            for chunk, is_final in engine.generate_response_streaming("Hello"):
+                if not is_final:
+                    process_chunk(chunk)  # Start TTS on first sentence
+                else:
+                    finish_up()  # LLM is done
+        """
+        if not user_input or not user_input.strip():
+            logger.warning("Empty user input provided")
+            return
+
+        # Check conversation timeout
+        if time.time() - self._last_interaction_time > settings.CONVERSATION_TIMEOUT:
+            logger.info("Conversation timeout reached, clearing history")
+            self.clear_history()
+
+        try:
+            # Build user message with optional context
+            user_message = user_input
+            if additional_context:
+                user_message = f"{additional_context}\n\nUser question: {user_input}"
+                logger.info(f"Adding context for seamless transition: {additional_context[:50]}...")
+
+            # Add user message to history
+            self._messages.append({
+                "role": "user",
+                "content": user_message
+            })
+
+            logger.info(f"Generating streaming response to: \"{user_input}\"")
+
+            # Call GPT-4o API with streaming
+            stream = self.client.chat.completions.create(
+                model=settings.GPT_MODEL,
+                messages=list(self._messages),
+                temperature=0.8,
+                max_tokens=200,  # Doubled for longer responses now that we have streaming playback
+                stream=True  # Enable streaming!
+            )
+
+            # Buffer for accumulating tokens
+            buffer = ""
+            full_response = ""
+            chunk_count = 0
+            sentences_in_chunk = []
+            SENTENCES_PER_CHUNK = 2
+
+            # Regex to detect sentence endings (. ! ? followed by space or end)
+            sentence_end_pattern = re.compile(r'[.!?]+(?:\s|$)')
+
+            # Stream tokens and yield chunks of 2 sentences each
+            for chunk in stream:
+                if chunk.choices[0].delta.content:
+                    token = chunk.choices[0].delta.content
+                    buffer += token
+                    full_response += token
+
+                    # Check for complete sentences in buffer
+                    while True:
+                        match = sentence_end_pattern.search(buffer)
+                        if not match:
+                            break  # No complete sentence yet
+
+                        # Extract complete sentence
+                        sentence = buffer[:match.end()].strip()
+                        buffer = buffer[match.end():]  # Keep remainder
+
+                        if sentence:
+                            sentences_in_chunk.append(sentence)
+
+                            # When we have 2 sentences, yield them as a chunk
+                            if len(sentences_in_chunk) >= SENTENCES_PER_CHUNK:
+                                chunk_text = " ".join(sentences_in_chunk)
+                                chunk_count += 1
+                                logger.info(f"Chunk {chunk_count} ready ({len(sentences_in_chunk)} sentences): \"{chunk_text[:80]}...\"")
+                                yield (chunk_text, False)
+                                sentences_in_chunk = []
+
+            # Yield any remaining sentences (1 sentence or incomplete)
+            if sentences_in_chunk or buffer.strip():
+                remaining = " ".join(sentences_in_chunk)
+                if buffer.strip():
+                    remaining = (remaining + " " + buffer.strip()).strip()
+
+                if remaining:
+                    chunk_count += 1
+                    logger.info(f"Final chunk {chunk_count} ({len(sentences_in_chunk)} sentences + fragment): \"{remaining[:80]}...\"")
+                    yield (remaining, False)
+
+            # Add complete response to history
+            self._messages.append({
+                "role": "assistant",
+                "content": full_response.strip()
+            })
+
+            self._last_interaction_time = time.time()
+            logger.info(f"Streaming complete. Full response: \"{full_response.strip()}\"")
+
+            # Signal completion
+            yield ("", True)
+
+        except Exception as e:
+            logger.error(f"Error in streaming response: {e}", exc_info=True)
+            # Yield error response
+            error_msg = self._get_error_response("unknown")
+            yield (error_msg, False)
+            yield ("", True)
 
     def clear_history(self):
         """Clear conversation history, keeping only system prompt."""
