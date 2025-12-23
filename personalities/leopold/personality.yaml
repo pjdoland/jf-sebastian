@@ -7,7 +7,7 @@ name: Leopold
 tts_voice: onyx
 
 # TTS speed (0.25 to 4.0, default 1.0) - optimized for faster response
-tts_speed: 1.2
+tts_speed: 1.0
 
 # TTS style instruction (for gpt-4o-mini-tts model)
 # Controls tone, emotional range, and speaking style
