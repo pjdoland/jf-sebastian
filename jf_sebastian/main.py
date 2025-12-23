@@ -143,6 +143,7 @@ class TeddyRuxpinApp:
         self._running = False
         self._selected_filler = None  # Store pre-selected filler for playback
         self._wake_paused_for_playback = False
+        self._sequential_playback_active = False  # Track if we're playing queued chunks
 
         logger.info("Application initialized successfully")
 
@@ -418,6 +419,9 @@ Now respond to their question naturally, as if your filler phrase was the beginn
                 finally:
                     playback_done.set()
 
+            # Mark sequential playback as active (disables premature IDLE transitions)
+            self._sequential_playback_active = True
+
             # Start playback worker thread
             playback_thread = threading.Thread(target=playback_worker, daemon=True)
             playback_thread.start()
@@ -505,10 +509,16 @@ Now respond to their question naturally, as if your filler phrase was the beginn
 
             if chunk_num == 0:
                 logger.warning("No audio chunks generated")
+                self._sequential_playback_active = False
                 self.state_machine.transition_to(ConversationState.IDLE, trigger="generation_failed")
                 return
 
             logger.info(f"Streaming playback complete: {chunk_num} chunks, full text: \"{full_response_text.strip()}\"")
+
+            # All chunks done - transition to IDLE
+            self._sequential_playback_active = False
+            self._resume_wake_after_playback()
+            self.state_machine.transition_to(ConversationState.IDLE, trigger="playback_complete")
 
             # Save debug audio (concatenated version for comparison)
             if settings.SAVE_DEBUG_AUDIO and debug_chunks:
@@ -520,6 +530,7 @@ Now respond to their question naturally, as if your filler phrase was the beginn
 
         except Exception as e:
             logger.error(f"Error in processing pipeline: {e}", exc_info=True)
+            self._sequential_playback_active = False
             self.state_machine.transition_to(ConversationState.IDLE, trigger="error")
 
     def _play_filler(self):
@@ -565,6 +576,11 @@ Now respond to their question naturally, as if your filler phrase was the beginn
     def _on_playback_complete(self):
         """Handle playback completion."""
         logger.info("Playback complete callback called")
+
+        # Ignore this callback during sequential playback - the main thread handles IDLE transition
+        if self._sequential_playback_active:
+            logger.debug("Sequential playback active, ignoring premature callback")
+            return
 
         # Resume wake word detector after all playback finishes
         self._resume_wake_after_playback()
