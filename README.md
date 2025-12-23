@@ -107,7 +107,7 @@ Includes three distinct personalities: a tiki bartender, Abraham Lincoln (a homa
 ## System Requirements
 
 ### Software
-- Python 3.10 or higher
+- Python 3.10.x (specifically - RVC dependencies are not compatible with 3.11+)
 - macOS (currently configured for Mac audio devices)
 - Internet connection for OpenAI APIs
 

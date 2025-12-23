@@ -22,6 +22,20 @@ if [ -z "$VIRTUAL_ENV" ]; then
     exit 1
 fi
 
+# Check Python version - RVC requires 3.10 specifically
+python_version=$(python3 --version 2>&1 | awk '{print $2}')
+python_major=$(echo "$python_version" | cut -d. -f1)
+python_minor=$(echo "$python_version" | cut -d. -f2)
+
+if [ "$python_major" != "3" ] || [ "$python_minor" != "10" ]; then
+    echo "Error: Python 3.10.x required for RVC (found $python_version)"
+    echo "Python 3.11+ is not compatible with RVC dependencies"
+    echo "Please recreate your virtual environment with Python 3.10"
+    exit 1
+fi
+echo "✓ Python version: $python_version"
+echo ""
+
 # Get current pip version
 current_pip=$(pip --version | awk '{print $2}')
 echo "Current pip version: $current_pip"
