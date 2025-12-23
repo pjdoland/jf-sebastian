@@ -546,11 +546,16 @@ Now respond to their question naturally, as if your filler phrase was the beginn
             logger.warning("RECOVERY: Audio playing in IDLE state - stopping")
             self.audio_player.stop()
 
-        # Check 3: Stuck in PROCESSING (15 second timeout)
+        # Check 3: Stuck in PROCESSING (30 second timeout)
+        # Normal processing with filler can take 20+ seconds:
+        # - Transcription: 1-2s
+        # - Filler playback: 10-20s
+        # - LLM streaming: 2-5s
+        # - TTS + RVC for first chunk: 3-5s
         if self.state_machine.state == ConversationState.PROCESSING:
             # Calculate time in state
             time_in_state = time.time() - getattr(self.state_machine, '_last_transition_time', time.time())
-            if time_in_state > 15.0:
+            if time_in_state > 30.0:
                 logger.error(f"RECOVERY: Stuck in PROCESSING for {time_in_state:.1f}s - forcing IDLE")
                 self.audio_player.stop()
                 self.state_machine.transition_to(ConversationState.IDLE, trigger="recovery_timeout")
