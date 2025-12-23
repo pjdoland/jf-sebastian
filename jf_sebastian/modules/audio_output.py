@@ -175,15 +175,29 @@ class AudioPlayer:
                     else:
                         raise  # Final attempt failed, raise the error
 
-            # Play audio
-            stream.write(audio_int16.tobytes())
+            # Play audio in chunks to allow interruption
+            # Write in 0.1 second chunks so we can check stop flag
+            chunk_size = int(sample_rate * 0.1 * 2)  # 0.1s * 2 channels
+            audio_bytes = audio_int16.tobytes()
+            total_bytes = len(audio_bytes)
+            bytes_per_frame = 4  # 2 bytes per sample * 2 channels
 
-            # Wait for playback to complete
+            offset = 0
+            while offset < total_bytes and self._playing:
+                # Write next chunk
+                chunk_end = min(offset + chunk_size * bytes_per_frame, total_bytes)
+                stream.write(audio_bytes[offset:chunk_end])
+                offset = chunk_end
+
+            # Wait for stream to drain
             stream.stop_stream()
             stream.close()
             stream = None
 
-            logger.info("Audio playback completed")
+            if self._playing:
+                logger.info("Audio playback completed")
+            else:
+                logger.info("Audio playback stopped (interrupted)")
 
         except Exception as e:
             logger.error(f"Error during audio playback: {e}", exc_info=True)
