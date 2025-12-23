@@ -106,13 +106,14 @@ class TeddyRuxpinApp:
         self.audio_player = AudioPlayer(on_playback_complete=self._on_playback_complete)
 
         # Initialize filler phrase manager with personality-specific directory, phrases, and device type
+        # This pre-loads all filler audio into memory for instant access
         self.filler_manager = FillerPhraseManager(
             self.personality.filler_audio_dir,
             self.personality.filler_phrases,
             settings.OUTPUT_DEVICE_TYPE
         )
         if self.filler_manager.has_fillers:
-            logger.info(f"Filler phrases enabled ({len(self.filler_manager.filler_files)} phrases)")
+            logger.info(f"Filler phrases ready ({len(self.filler_manager.filler_cache)} phrases pre-loaded)")
         else:
             logger.warning("No filler phrases found - run scripts/generate_fillers.py to create them")
 
