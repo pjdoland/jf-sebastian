@@ -99,6 +99,7 @@ class StateMachine:
             # Perform transition
             self._state = new_state
             self._last_activity_time = time.time()
+            self._last_transition_time = time.time()  # Track transition time for recovery
 
             # Track conversation session
             if new_state == ConversationState.LISTENING and old_state == ConversationState.IDLE:

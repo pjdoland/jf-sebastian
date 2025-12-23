@@ -95,6 +95,11 @@ class AudioPlayer:
         stream = None
 
         try:
+            # Re-initialize PyAudio if it was terminated
+            if self._pyaudio is None:
+                logger.warning("PyAudio was terminated, re-initializing...")
+                self._pyaudio = pyaudio.PyAudio()
+
             # Get output device by name (None = system default)
             device_index = None
 
@@ -184,15 +189,18 @@ class AudioPlayer:
             logger.error(f"Error during audio playback: {e}", exc_info=True)
 
         finally:
-            # Clean up stream if it's still open
-            if stream:
-                try:
-                    stream.stop_stream()
-                    stream.close()
-                except:
-                    pass
-
-            self._playing = False
+            try:
+                # Clean up stream if it's still open
+                if stream:
+                    try:
+                        stream.stop_stream()
+                        stream.close()
+                    except Exception as cleanup_error:
+                        logger.error(f"Stream cleanup error: {cleanup_error}")
+            finally:
+                # GUARANTEE flag is cleared (nested finally)
+                self._playing = False
+                logger.debug(f"Playback flag cleared")
 
             # Call completion callback
             if self.on_playback_complete:
@@ -202,15 +210,8 @@ class AudioPlayer:
                     logger.error(f"Error in playback complete callback: {e}", exc_info=True)
 
     def stop(self):
-        """Stop playback (if playing in background) and cleanup resources."""
+        """Stop playback (if playing in background)."""
         if not self._playing:
-            # Still cleanup even if not playing
-            if self._pyaudio:
-                try:
-                    self._pyaudio.terminate()
-                    self._pyaudio = None
-                except Exception as e:
-                    logger.error(f"Error terminating PyAudio: {e}")
             return
 
         logger.info("Stopping audio playback...")
@@ -219,13 +220,29 @@ class AudioPlayer:
         if self._thread:
             self._thread.join(timeout=2.0)
 
-        # Cleanup PyAudio on stop
+    def cleanup(self):
+        """Cleanup resources - call this when shutting down the application."""
+        logger.info("Cleaning up AudioPlayer resources...")
+
+        # Stop any active playback first
+        self.stop()
+
+        # Terminate PyAudio
         if self._pyaudio:
             try:
                 self._pyaudio.terminate()
                 self._pyaudio = None
+                logger.info("PyAudio terminated successfully")
             except Exception as e:
                 logger.error(f"Error terminating PyAudio: {e}")
+
+    def __del__(self):
+        """Destructor - ensure PyAudio is terminated."""
+        if self._pyaudio:
+            try:
+                self._pyaudio.terminate()
+            except:
+                pass  # Ignore errors during cleanup
 
     @property
     def is_playing(self) -> bool:

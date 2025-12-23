@@ -275,6 +275,15 @@ class ConversationEngine:
 
         except Exception as e:
             logger.error(f"Error in streaming response: {e}", exc_info=True)
+
+            # Clean up partial user message if present
+            if len(self._messages) > 0 and self._messages[-1]["role"] == "user":
+                logger.warning("Removing partial user message due to streaming error")
+                self._messages.pop()
+
+            # Update interaction time even on error
+            self._last_interaction_time = time.time()
+
             # Yield error response
             error_msg = self._get_error_response("unknown")
             yield (error_msg, False)

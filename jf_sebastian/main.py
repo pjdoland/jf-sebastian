@@ -140,7 +140,6 @@ class TeddyRuxpinApp:
 
         # Running flag
         self._running = False
-        self._filler_playing = False
         self._selected_filler = None  # Store pre-selected filler for playback
         self._wake_paused_for_playback = False
 
@@ -184,8 +183,14 @@ class TeddyRuxpinApp:
 
         # Main loop
         try:
+            loop_iterations = 0
             while self._running:
                 time.sleep(0.1)
+                loop_iterations += 1
+
+                # Validate state every 5 seconds (50 iterations * 0.1s)
+                if loop_iterations % 50 == 0:
+                    self._validate_and_recover_state()
 
         except KeyboardInterrupt:
             logger.info("Shutdown requested by user")
@@ -204,6 +209,9 @@ class TeddyRuxpinApp:
         # Stop modules
         self.wake_word_detector.stop()
         self.audio_player.stop()
+
+        # Cleanup audio resources
+        self.audio_player.cleanup()
 
         logger.info("Application stopped")
 
@@ -244,9 +252,8 @@ class TeddyRuxpinApp:
         """Handle entering PROCESSING state."""
         logger.info("Entering PROCESSING state - transcribing and generating response...")
 
-        # Play filler immediately for low-latency response
-        if self.filler_manager.has_fillers:
-            self._play_filler()
+        # Filler will be added to playback queue in _process_and_speak
+        # (no longer playing it separately to avoid race conditions)
 
         # Processing will be handled by _on_speech_end callback
 
@@ -348,6 +355,7 @@ Now respond to their question naturally, as if your filler phrase was the beginn
             full_response_text = ""
             chunk_num = 0
             first_chunk = True
+            chunks_attempted = 0  # Track chunk attempts for recovery
 
             # Save all chunks for debug
             debug_chunks = []
@@ -358,10 +366,12 @@ Now respond to their question naturally, as if your filler phrase was the beginn
             playback_error = None
 
             def playback_worker():
-                """Background thread that plays chunks as they become available."""
+                """Background thread that plays chunks sequentially from the queue."""
                 nonlocal playback_error
                 try:
                     chunk_count = 0
+                    is_first_real_chunk = True  # Track first non-filler chunk
+
                     while True:
                         # Get next chunk from queue (blocks until available)
                         item = playback_queue.get()
@@ -370,16 +380,37 @@ Now respond to their question naturally, as if your filler phrase was the beginn
                             logger.info("Playback worker finishing")
                             break
 
-                        stereo_audio, sample_rate, chunk_id = item
+                        # Unpack with optional chunk_type
+                        if len(item) == 4:
+                            stereo_audio, sample_rate, chunk_id, chunk_type = item
+                        else:
+                            stereo_audio, sample_rate, chunk_id = item
+                            chunk_type = "chunk"
+
                         chunk_count += 1
 
-                        logger.info(f"Chunk {chunk_id}: Playing NOW (queued playback)...")
-                        self.audio_player.play_stereo(stereo_audio, sample_rate, blocking=True, preroll_ms=0)
-                        logger.info(f"Chunk {chunk_id}: Playback complete")
+                        # Transition to SPEAKING state before first real chunk (after filler)
+                        if chunk_type == "chunk" and is_first_real_chunk:
+                            logger.info(f"First response chunk ready, transitioning to SPEAKING state")
+                            self.state_machine.transition_to(ConversationState.SPEAKING, trigger="response_ready")
+                            is_first_real_chunk = False
+
+                        # Play this item (blocks until complete)
+                        logger.info(f"{chunk_type.capitalize()} {chunk_id}: Playing NOW...")
+
+                        # Use preroll only for first item (filler)
+                        preroll = 0 if chunk_type == "chunk" else None
+
+                        success = self.audio_player.play_stereo(stereo_audio, sample_rate, blocking=True, preroll_ms=preroll)
+
+                        if not success:
+                            logger.warning(f"{chunk_type.capitalize()} {chunk_id}: Playback failed - DROPPING")
+                        else:
+                            logger.info(f"{chunk_type.capitalize()} {chunk_id}: Playback complete")
 
                         playback_queue.task_done()
 
-                    logger.info(f"All {chunk_count} chunks played successfully")
+                    logger.info(f"Playback complete: {chunk_count} items played")
                 except Exception as e:
                     playback_error = e
                     logger.error(f"Playback worker error: {e}", exc_info=True)
@@ -389,6 +420,18 @@ Now respond to their question naturally, as if your filler phrase was the beginn
             # Start playback worker thread
             playback_thread = threading.Thread(target=playback_worker, daemon=True)
             playback_thread.start()
+
+            # Add filler to queue FIRST (before any chunks) if available
+            if self._selected_filler:
+                stereo_audio, sample_rate, _ = self._selected_filler
+                logger.info("Adding filler to playback queue (will play before response chunks)")
+                # Wait 0.5 seconds before adding filler for natural pause
+                time.sleep(0.5)
+                playback_queue.put((stereo_audio, sample_rate, "filler", "filler"))
+                self._pause_wake_for_playback()  # Pause wake detection during entire playback sequence
+            else:
+                # No filler, transition to SPEAKING immediately when first chunk plays
+                pass
 
             # Stream LLM response and process each sentence
             for sentence_text, is_final in self.conversation_engine.generate_response_streaming(
@@ -412,6 +455,12 @@ Now respond to their question naturally, as if your filler phrase was the beginn
 
                 if not voice_audio_mp3:
                     logger.warning(f"Chunk {chunk_num}: TTS failed, skipping")
+                    chunks_attempted += 1
+                    # Force transition after 3 failures to avoid 10-second silence
+                    if chunks_attempted >= 3 and first_chunk:
+                        logger.warning("Multiple TTS failures, transitioning to SPEAKING anyway")
+                        self.state_machine.transition_to(ConversationState.SPEAKING, trigger="response_partial")
+                        first_chunk = False
                     continue
 
                 # Process through RVC (happens in parallel with playback of previous chunk!)
@@ -419,7 +468,13 @@ Now respond to their question naturally, as if your filler phrase was the beginn
                 result = self.output_device.create_output(voice_audio_mp3, sentence_text, self.personality)
 
                 if not result:
-                    logger.warning(f"Chunk {chunk_num}: RVC failed, skipping")
+                    logger.warning(f"Chunk {chunk_num}: RVC processing failed, skipping")
+                    chunks_attempted += 1
+                    # Force transition after 3 failures to avoid 10-second silence
+                    if chunks_attempted >= 3 and first_chunk:
+                        logger.warning("Multiple RVC failures, transitioning to SPEAKING anyway")
+                        self.state_machine.transition_to(ConversationState.SPEAKING, trigger="response_partial")
+                        first_chunk = False
                     continue
 
                 stereo_audio, sample_rate = result
@@ -429,31 +484,13 @@ Now respond to their question naturally, as if your filler phrase was the beginn
                 if settings.SAVE_DEBUG_AUDIO:
                     debug_chunks.append((stereo_audio.copy(), sample_rate))
 
-                # Handle first chunk specially - wait for filler
                 if first_chunk:
-                    if self._filler_playing:
-                        logger.info(f"Chunk {chunk_num}: Waiting for filler to complete...")
-                        timeout = 10.0
-                        elapsed = 0.0
-                        poll_interval = 0.01
-
-                        while self._filler_playing and self.audio_player.is_playing and elapsed < timeout:
-                            time.sleep(poll_interval)
-                            elapsed += poll_interval
-
-                        if elapsed >= timeout:
-                            logger.warning(f"Filler playback timeout after {timeout}s - forcing continuation")
-                            self._filler_playing = False
-                            self.audio_player.stop()
-
-                    # Transition to SPEAKING state
-                    self.state_machine.transition_to(ConversationState.SPEAKING, trigger="response_ready")
-                    self._pause_wake_for_playback()
+                    logger.info(f"Chunk {chunk_num}: First chunk ready")
                     first_chunk = False
 
-                # Queue chunk for playback (non-blocking - processing continues!)
+                # Queue chunk for playback (will play in sequence after filler)
                 logger.info(f"Chunk {chunk_num}: Queuing for playback...")
-                playback_queue.put((stereo_audio, sample_rate, chunk_num))
+                playback_queue.put((stereo_audio, sample_rate, chunk_num, "chunk"))
 
             # Signal playback worker to finish after all chunks
             playback_queue.put(None)
@@ -485,49 +522,48 @@ Now respond to their question naturally, as if your filler phrase was the beginn
             self.state_machine.transition_to(ConversationState.IDLE, trigger="error")
 
     def _play_filler(self):
-        """Play the pre-selected filler phrase for low-latency response."""
-        try:
-            # Use pre-selected filler (already chosen in _on_speech_end)
-            if not self._selected_filler:
-                logger.warning("No filler selected")
-                return
+        """DEPRECATED - Filler is now added to playback queue instead."""
+        # This method is no longer used - filler is added directly to the playback queue
+        # in _process_and_speak to ensure sequential playback without race conditions
+        pass
 
-            stereo_audio, sample_rate, _ = self._selected_filler  # Unpack (ignore text here)
+    def _validate_and_recover_state(self) -> bool:
+        """
+        Validate system state and attempt recovery if stuck.
+        Called periodically (every 5 seconds) to detect and fix inconsistencies.
 
-            # Wait 0.5 seconds before playing filler (gives natural pause + extra processing time)
-            logger.debug("Pausing 0.5 seconds before filler...")
-            time.sleep(0.5)
+        Returns:
+            True if state is valid or was recovered
+        """
+        # Check 1: Wake paused in IDLE state
+        if self._wake_paused_for_playback and self.state_machine.state == ConversationState.IDLE:
+            logger.warning("RECOVERY: Wake detector stuck paused in IDLE")
+            self._resume_wake_after_playback()
 
-            logger.info("Playing filler phrase (non-blocking)...")
-            self._filler_playing = True
-            self._pause_wake_for_playback()
+        # Check 2: Audio playing in IDLE state
+        if self.audio_player.is_playing and self.state_machine.state == ConversationState.IDLE:
+            logger.warning("RECOVERY: Audio playing in IDLE state - stopping")
+            self.audio_player.stop()
 
-            # Play in non-blocking mode so processing can continue
-            success = self.audio_player.play_stereo(stereo_audio, sample_rate, blocking=False)
+        # Check 3: Stuck in PROCESSING (15 second timeout)
+        if self.state_machine.state == ConversationState.PROCESSING:
+            # Calculate time in state
+            time_in_state = time.time() - getattr(self.state_machine, '_last_transition_time', time.time())
+            if time_in_state > 15.0:
+                logger.error(f"RECOVERY: Stuck in PROCESSING for {time_in_state:.1f}s - forcing IDLE")
+                self.audio_player.stop()
+                self.state_machine.transition_to(ConversationState.IDLE, trigger="recovery_timeout")
 
-            if not success:
-                logger.warning("Failed to start filler playback")
-                self._filler_playing = False
-
-        except Exception as e:
-            logger.error(f"Error playing filler: {e}", exc_info=True)
-            self._filler_playing = False
+        return True
 
     def _on_playback_complete(self):
         """Handle playback completion."""
-        logger.info("Playback complete")
-
-        # Clear filler flag if it was playing
-        if self._filler_playing:
-            logger.debug("Filler playback complete")
-            self._filler_playing = False
-            # Don't transition to IDLE yet - real response may be coming
-            return
+        logger.info("Playback complete callback called")
 
         # Resume wake word detector after all playback finishes
         self._resume_wake_after_playback()
 
-        # Return to IDLE state (after real response)
+        # Return to IDLE state
         self.state_machine.transition_to(ConversationState.IDLE, trigger="playback_complete")
 
     def _pause_wake_for_playback(self):
