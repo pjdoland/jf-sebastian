@@ -399,12 +399,14 @@ Now respond to their question naturally, as if your filler phrase was the beginn
 
                         # Play this item (blocks until complete)
                         logger.info(f"{chunk_type.capitalize()} {chunk_id}: Playing NOW...")
+                        logger.debug(f"{chunk_type.capitalize()} {chunk_id}: Calling play_stereo (audio_player.is_playing={self.audio_player.is_playing})")
 
                         # Use preroll only for first item (filler)
                         preroll = 0 if chunk_type == "chunk" else None
 
                         success = self.audio_player.play_stereo(stereo_audio, sample_rate, blocking=True, preroll_ms=preroll)
 
+                        logger.debug(f"{chunk_type.capitalize()} {chunk_id}: play_stereo returned {success}")
                         if not success:
                             logger.warning(f"{chunk_type.capitalize()} {chunk_id}: Playback failed - DROPPING")
                         else:
@@ -552,18 +554,19 @@ Now respond to their question naturally, as if your filler phrase was the beginn
             logger.warning("RECOVERY: Wake detector stuck paused in IDLE")
             self._resume_wake_after_playback()
 
-        # Check 2: Audio playing in IDLE state
-        if self.audio_player.is_playing and self.state_machine.state == ConversationState.IDLE:
+        # Check 2: Audio playing in IDLE state (skip during sequential playback)
+        if self.audio_player.is_playing and self.state_machine.state == ConversationState.IDLE and not self._sequential_playback_active:
             logger.warning("RECOVERY: Audio playing in IDLE state - stopping")
             self.audio_player.stop()
 
         # Check 3: Stuck in PROCESSING (30 second timeout)
+        # Skip this check during sequential playback - we're actively playing chunks
         # Normal processing with filler can take 20+ seconds:
         # - Transcription: 1-2s
         # - Filler playback: 10-20s
         # - LLM streaming: 2-5s
         # - TTS + RVC for first chunk: 3-5s
-        if self.state_machine.state == ConversationState.PROCESSING:
+        if self.state_machine.state == ConversationState.PROCESSING and not self._sequential_playback_active:
             # Calculate time in state
             time_in_state = time.time() - getattr(self.state_machine, '_last_transition_time', time.time())
             if time_in_state > 30.0:
