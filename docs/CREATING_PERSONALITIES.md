@@ -53,11 +53,18 @@ Each personality is completely self-contained:
 your_personality/
 ├── personality.yaml          # Character definition (this is what you edit!)
 ├── hey_your_name.onnx       # Wake word model (trained separately)
-└── filler_audio/            # Generated audio files (auto-created)
-    ├── filler_01.wav
-    ├── filler_02.wav
-    └── ...
+└── filler_audio/            # Device-specific generated audio files (auto-created)
+    ├── teddy_ruxpin/        # Filler audio with PPM control signals
+    │   ├── filler_01.wav
+    │   ├── filler_02.wav
+    │   └── ...
+    └── squawkers_mccaw/     # Filler audio with simple stereo
+        ├── filler_01.wav
+        ├── filler_02.wav
+        └── ...
 ```
+
+**Note:** The filler audio is generated per output device type, so each personality automatically gets device-specific versions based on the registered output devices in the system.
 
 ### The personality.yaml File
 

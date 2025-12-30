@@ -4,6 +4,11 @@
 
 Get your animatronic AI companion talking in 5 minutes!
 
+**System Requirements:**
+- Python 3.10.x (required for RVC voice conversion support)
+- macOS (currently configured for Mac audio devices)
+- OpenAI API key
+
 ## Installation Methods
 
 Choose one of the following installation methods:
@@ -22,14 +27,17 @@ cd jf-sebastian
 ```
 
 The setup script automatically:
+- Checks for Python 3.10.x (required for RVC compatibility)
 - Creates Python virtual environment
+- Upgrades pip to latest version
 - Installs all Python packages
+- Optionally installs RVC voice conversion dependencies
 - Downloads OpenWakeWord preprocessing models
 - Installs system dependencies (PortAudio, FFmpeg via Homebrew)
 - Creates required directories
 - Creates `.env` configuration file from template
 - Lists available audio devices
-- Generates filler audio for all personalities
+- Optionally generates filler audio for all personalities
 - Checks for wake word models
 
 **Then skip to step 2 below.**
@@ -83,11 +91,11 @@ OUTPUT_DEVICE_NAME=Arsvita
 python scripts/test_microphone.py
 ```
 
-## 5. Generate Filler Audio
+## 5. Generate Filler Audio (Optional but Recommended)
 
-**If you used the automated installation (`./setup.sh`), this step is already complete.** The setup script automatically generates filler audio for all personalities.
+**If you used the automated installation (`./setup.sh`) and chose to generate filler audio, this step is already complete.**
 
-**For manual installation:** Filler phrases are pre-recorded audio clips that play immediately when you speak, creating a natural conversational feel while the system processes your question in the background.
+**For manual installation or if you skipped this step:** Filler phrases are pre-recorded audio clips that play immediately when you speak, creating a natural conversational feel while the system processes your question in the background.
 
 ```bash
 python scripts/generate_fillers.py

@@ -160,16 +160,18 @@ cd jf-sebastian
 ```
 
 The setup script will automatically:
-1. Check Python version (3.10+ required)
-2. Create virtual environment
-3. Install Python dependencies
-4. Download OpenWakeWord preprocessing models
-5. Install system dependencies (PortAudio, FFmpeg via Homebrew)
-6. Create required directories
-7. Create `.env` configuration file from template
-8. List available audio devices
-9. Generate filler audio for all personalities
-10. Check for wake word models
+1. Check Python version (3.10.x specifically - required for RVC compatibility)
+2. Create virtual environment with Python 3.10
+3. Upgrade pip to latest version
+4. Install Python dependencies from requirements.txt
+5. Optionally install RVC voice conversion dependencies (asks for confirmation)
+6. Download OpenWakeWord preprocessing models
+7. Install system dependencies (PortAudio, FFmpeg via Homebrew)
+8. Create required directories
+9. Create `.env` configuration file from template
+10. List available audio devices
+11. Optionally generate filler audio for all personalities (asks for confirmation)
+12. Check for wake word models
 
 **After running setup.sh:**
 1. Edit `.env` and add your OpenAI API key:
@@ -196,14 +198,31 @@ cd jf-sebastian
 
 #### 2. Create Virtual Environment
 
+**Important:** RVC voice conversion requires Python 3.10.x specifically (not 3.11+). If you plan to use RVC, ensure you're using Python 3.10:
+
 ```bash
+# Check your Python version
+python3 --version  # Should show 3.10.x
+
+# If you need Python 3.10, install via:
+# - pyenv: pyenv install 3.10.13 && pyenv local 3.10.13
+# - Homebrew: brew install python@3.10 (then use python3.10 command)
+
+# Create virtual environment with Python 3.10
 python3 -m venv venv
+# Or if using python3.10 from Homebrew:
+# python3.10 -m venv venv
+
 source venv/bin/activate  # On macOS/Linux
 ```
 
 #### 3. Install Dependencies
 
 ```bash
+# Upgrade pip first
+pip install --upgrade pip
+
+# Install Python dependencies
 pip install -r requirements.txt
 ```
 
@@ -311,18 +330,28 @@ OUTPUT_DEVICE_NAME=Arsvita
 
 **RVC (Retrieval-based Voice Conversion) is optional.** The system works perfectly with OpenAI TTS voices alone. Install RVC only if you want to use custom trained voice models for unique character voices.
 
-**Known Issue:** RVC has complex dependencies that may require pip downgrade on some systems.
+**Requirements:**
+- Python 3.10.x specifically (RVC is not compatible with Python 3.11+)
+- Requires temporarily downgrading pip for compatibility
+
+**Installation:**
 
 ```bash
-# Downgrade pip if needed (recommended for RVC compatibility)
+# Method 1: Use the automated script (recommended)
+./scripts/install_rvc.sh
+
+# Method 2: Manual installation
+# Step 1: Downgrade pip for RVC compatibility
 pip install pip==24.0
 
-# Install RVC and dependencies
-pip install rvc-python torch torchaudio fairseq librosa
+# Step 2: Install RVC dependencies
+pip install -r requirements-rvc.txt
 
-# Upgrade pip back after installation (optional)
+# Step 3: Upgrade pip back to latest
 pip install --upgrade pip
 ```
+
+The `requirements-rvc.txt` file includes: torch, torchaudio, fairseq, librosa, and rvc-python.
 
 **Troubleshooting RVC Installation:**
 - If you get dependency conflicts, try: `pip install rvc-python --no-deps` then install dependencies manually
@@ -333,9 +362,9 @@ pip install --upgrade pip
 
 See [docs/CREATING_PERSONALITIES.md](docs/CREATING_PERSONALITIES.md#advanced-rvc-voice-conversion) for RVC configuration and usage.
 
-#### 10. Generate Filler Audio
+#### 10. Generate Filler Audio (Optional but Recommended)
 
-**This step is required before running the application.** Filler phrases are pre-recorded audio clips that play immediately when you speak, creating a natural conversational feel while the system processes your question in the background.
+**Filler phrases** are pre-recorded audio clips that play immediately when you speak, creating a natural conversational feel while the system processes your question in the background. The system can work without them, but conversations will feel more responsive with filler audio.
 
 Generate the filler audio for all personalities:
 
@@ -351,16 +380,31 @@ Each device-specific directory contains 30 WAV files with:
 - Voice audio synthesized with the personality's configured voice, speed, and tone
 - Device-appropriate audio processing (PPM signals for Teddy Ruxpin, simple stereo for Squawkers McCaw)
 
+**Note:** The filler audio files are generated per output device type, so each personality will have device-specific versions automatically created based on the registered output devices.
+
 **When to regenerate filler audio:**
 - After creating a new personality
-- After switching to a different personality (if fillers don't exist yet)
+- After switching to a different personality (if fillers don't exist yet for your output device)
 - After modifying a personality's `tts_voice`, `tts_speed`, or `tts_style` settings
 - After editing the `filler_phrases` list in the personality YAML file
 - After adding support for a new output device type
 
-**Note:** By default, the script generates fillers for **all** personalities. To generate for just one personality, use:
+**Personality-specific generation:**
+By default, the script generates fillers for **all** personalities. To generate for just one personality:
 ```bash
 python scripts/generate_fillers.py --personality johnny
+```
+
+**Device-specific storage:**
+Each personality stores filler audio in device-specific subdirectories:
+```
+personalities/johnny/filler_audio/
+├── teddy_ruxpin/       # 30 WAV files with PPM control signals
+│   ├── filler_01.wav
+│   └── ...
+└── squawkers_mccaw/    # 30 WAV files with simple stereo
+    ├── filler_01.wav
+    └── ...
 ```
 
 ## Personalities
