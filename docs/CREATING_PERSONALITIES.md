@@ -147,7 +147,7 @@ wake_word_model: hey_captain.onnx
 # rvc_index_file: captain_voice.index  # Optional - improves quality
 # rvc_pitch_shift: 0  # Semitones, -12 to 12
 # rvc_index_rate: 0.75  # Index influence, 0.0 to 1.0
-# rvc_f0_method: rmvpe  # Pitch detection: rmvpe, crepe, harvest, pm
+# rvc_f0_method: pm  # Pitch detection: pm, harvest, crepe, rmvpe (macOS: use pm)
 ```
 
 #### Write the System Prompt
@@ -669,18 +669,57 @@ rvc_pitch_shift: -2
 # Lower = cleaner but less accurate to trained voice
 rvc_index_rate: 0.75
 
-# Pitch detection method (rmvpe, crepe, harvest, pm)
-# rmvpe: Best quality (recommended)
-# crepe: Good quality, faster
-# harvest: Fast, lower quality
-# pm: Fastest, lowest quality
-rvc_f0_method: rmvpe
+# Pitch detection method (pm, harvest, crepe, rmvpe)
+# pm: Good quality, fastest (recommended for macOS)
+# harvest: Good quality, fast
+# crepe: Better quality, medium speed
+# rmvpe: Best quality, slow (Linux/Windows only - crashes on macOS)
+rvc_f0_method: pm
 
 # Optional: Additional RVC parameters
 rvc_filter_radius: 3  # Median filtering (0-7, higher = smoother)
 rvc_rms_mix_rate: 0.25  # Volume envelope mixing (0.0-1.0)
 rvc_protect: 0.33  # Protect voiceless consonants (0.0-0.5)
 ```
+
+### RVC Pitch Detection Methods
+
+RVC supports multiple pitch detection methods via `rvc_f0_method`. Choose based on your platform and quality requirements:
+
+| Method | Quality | Speed | Requirements | macOS Compatible |
+|--------|---------|-------|--------------|------------------|
+| `pm` | Good | Fastest | Built-in | ✅ **Recommended** |
+| `harvest` | Good | Fast | Built-in | ✅ Yes |
+| `crepe` | Better | Medium | Built-in | ✅ Yes |
+| `rmvpe` | Best | Slow | Download required | ❌ **Crashes** |
+
+#### Using rmvpe (Linux/Windows Only)
+
+The `rmvpe` method provides the highest quality pitch detection but has important limitations:
+
+**⚠️ macOS Users:** `rmvpe` crashes on macOS due to faiss/OpenMP conflicts with PyTorch. Use `pm`, `harvest`, or `crepe` instead.
+
+**For Linux/Windows users who want maximum quality:**
+
+```bash
+# Create base_models directory if it doesn't exist
+mkdir -p base_models
+
+# Download the rmvpe model (173MB)
+wget -P base_models https://huggingface.co/lj1995/VoiceConversionWebUI/resolve/main/rmvpe.pt
+
+# Rename to expected filename
+mv base_models/rmvpe.pt base_models/rmvpe.pth
+```
+
+Then set in your `personality.yaml`:
+```yaml
+rvc_f0_method: rmvpe
+```
+
+**Recommended defaults:**
+- **macOS**: `pm` (fast, stable, good quality)
+- **Linux/Windows**: `rmvpe` (best quality, requires download)
 
 ### Getting RVC Models
 
@@ -746,7 +785,7 @@ RVC_DEVICE=mps  # or cpu, cuda
 **Fix:**
 - Lower `rvc_index_rate` (try 0.5)
 - Increase `rvc_protect` (try 0.4)
-- Try different `rvc_f0_method` (rmvpe usually best)
+- Try different `rvc_f0_method` (`pm` recommended for macOS, `rmvpe` for Linux/Windows)
 
 **Problem:** Voice pitch is wrong
 **Fix:** Adjust `rvc_pitch_shift`:
