@@ -103,6 +103,12 @@ class TeddyRuxpinApp:
             for error in device_errors:
                 logger.error(f"  - {error}")
             raise ValueError("Invalid device configuration")
+
+        # Warm up RVC if personality uses it (eliminates first-use delay)
+        if self.personality.rvc_enabled:
+            logger.info(f"Warming up RVC for personality '{self.personality.name}'...")
+            self.output_device.audio_processor.warmup_rvc(self.personality)
+
         self.audio_player = AudioPlayer(on_playback_complete=self._on_playback_complete)
 
         # Initialize filler phrase manager with personality-specific directory, phrases, and device type

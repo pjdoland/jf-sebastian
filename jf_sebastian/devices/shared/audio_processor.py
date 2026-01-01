@@ -158,3 +158,57 @@ class AudioProcessor:
         except Exception as e:
             logger.error(f"Error during RVC conversion: {e}", exc_info=True)
             return audio
+
+    def warmup_rvc(self, personality: 'Personality') -> bool:
+        """
+        Warm up RVC by loading model and running a quick inference.
+        This eliminates the first-use delay when the personality uses RVC.
+
+        Args:
+            personality: Personality with RVC configuration
+
+        Returns:
+            True if warmup successful or not needed, False on error
+        """
+        # Check if RVC is enabled for this personality
+        if not personality.rvc_enabled:
+            logger.debug(f"RVC not enabled for personality '{personality.name}', skipping warmup")
+            return True
+
+        # Check if global RVC is disabled
+        if not settings.RVC_ENABLED:
+            logger.debug("RVC globally disabled in settings, skipping warmup")
+            return True
+
+        # Initialize RVC processor if needed
+        if self._rvc_processor is None:
+            try:
+                from jf_sebastian.modules.rvc_processor import RVCProcessor
+                device = settings.RVC_DEVICE
+                self._rvc_processor = RVCProcessor(device=device)
+                logger.info(f"RVC processor initialized for warmup (device={device})")
+            except Exception as e:
+                logger.error(f"Failed to initialize RVC processor: {e}", exc_info=True)
+                return False
+
+        # Check if RVC is available
+        if not self._rvc_processor.available:
+            logger.warning("RVC processor not available, skipping warmup")
+            return False
+
+        # Get model path
+        model_path = personality.rvc_model_path
+        if model_path is None:
+            logger.warning(f"RVC model not found for warmup: {personality.rvc_model}")
+            return False
+
+        # Get index path (optional)
+        index_path = personality.rvc_index_path
+
+        # Warm up the RVC processor
+        return self._rvc_processor.warmup(
+            model_path=str(model_path),
+            index_path=str(index_path) if index_path else None,
+            pitch_shift=personality.rvc_pitch_shift,
+            f0_method=personality.rvc_f0_method
+        )

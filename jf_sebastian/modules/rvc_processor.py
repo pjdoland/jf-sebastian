@@ -236,3 +236,64 @@ class RVCProcessor:
                     Path(input_path).unlink(missing_ok=True)
                 except Exception as e:
                     logger.warning(f"Failed to clean up temp file: {e}")
+
+    def warmup(
+        self,
+        model_path: str,
+        index_path: Optional[str] = None,
+        pitch_shift: int = 0,
+        f0_method: str = "harvest"
+    ) -> bool:
+        """
+        Warm up RVC by loading model and running a quick inference.
+        This eliminates the first-use delay by pre-loading the model and
+        initializing all the inference components.
+
+        Args:
+            model_path: Path to RVC model file
+            index_path: Optional path to index file
+            pitch_shift: Pitch shift in semitones
+            f0_method: Pitch extraction method
+
+        Returns:
+            True if warmup successful, False otherwise
+        """
+        if not self._available:
+            logger.debug("RVC not available, skipping warmup")
+            return False
+
+        if not Path(model_path).exists():
+            logger.warning(f"RVC model not found for warmup: {model_path}")
+            return False
+
+        try:
+            logger.info(f"Warming up RVC model: {model_path}")
+            start_time = time.time()
+
+            # Create a short dummy audio clip (0.5 seconds of silence at 16kHz)
+            sample_rate = 16000
+            duration = 0.5
+            dummy_audio = np.zeros(int(sample_rate * duration), dtype=np.float32)
+
+            # Run a quick conversion to warm up the model
+            result = self.convert_audio(
+                audio=dummy_audio,
+                sample_rate=sample_rate,
+                model_path=model_path,
+                index_path=index_path,
+                pitch_shift=pitch_shift,
+                f0_method=f0_method,
+                index_rate=0.0,  # Disable index for faster warmup
+            )
+
+            if result is not None:
+                elapsed = time.time() - start_time
+                logger.info(f"RVC warmup completed in {elapsed:.2f}s - model ready")
+                return True
+            else:
+                logger.warning("RVC warmup failed - model may not be properly loaded")
+                return False
+
+        except Exception as e:
+            logger.error(f"Error during RVC warmup: {e}", exc_info=True)
+            return False
