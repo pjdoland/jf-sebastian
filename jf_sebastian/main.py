@@ -349,6 +349,20 @@ class TeddyRuxpinApp:
                 self.state_machine.transition_to(ConversationState.IDLE, trigger="transcription_failed")
                 return
 
+            # Validate transcript is meaningful (not just noise/silence/filler words)
+            transcript_clean = transcript.strip()
+            # Remove common punctuation that Whisper adds for silence
+            transcript_words = transcript_clean.strip('.,!?;:-').strip()
+
+            # Check if transcript is too short or just common filler sounds
+            meaningless_words = {'um', 'uh', 'er', 'ah', 'hmm', 'mhmm', 'mm', '...', '..', '.'}
+            if (len(transcript_words) < 2 or
+                transcript_words.lower() in meaningless_words or
+                not any(c.isalnum() for c in transcript_words)):
+                logger.info(f"Transcript too short or meaningless: \"{transcript}\" - returning to IDLE")
+                self.state_machine.transition_to(ConversationState.IDLE, trigger="empty_speech")
+                return
+
             logger.info(f"Transcript: \"{transcript}\"")
 
             # Step 2-4: Stream LLM → process each sentence through TTS+RVC → queue for playback
