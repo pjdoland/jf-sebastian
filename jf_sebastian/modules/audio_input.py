@@ -56,23 +56,30 @@ class AudioRecorder:
         self._silence_threshold = settings.SPEECH_END_SILENCE_SECONDS
         self._min_listen_seconds = settings.MIN_LISTEN_SECONDS
 
+        # Continuous conversation mode - if True, keep recording after speech ends
+        self._continuous = False
+
         logger.info("Audio recorder initialized")
 
-    def start_recording(self, initial_audio: Optional[bytes] = None):
+    def start_recording(self, initial_audio: Optional[bytes] = None, continuous: bool = False):
         """
         Start recording audio in background thread.
 
         Args:
             initial_audio: Optional audio bytes to prepend to recording (e.g., post-wake-word buffer)
                           Should be int16 audio at 16kHz
+            continuous: If True, keep recording after speech ends (for multi-turn conversations)
         """
         if self._recording:
             logger.warning("Audio recorder already running")
             return
 
-        logger.info("Starting audio recording...")
+        logger.info(f"Starting audio recording (continuous={continuous})...")
 
         try:
+            # Store continuous mode setting
+            self._continuous = continuous
+
             # Initialize VAD
             self._vad = webrtcvad.Vad(settings.VAD_AGGRESSIVENESS)
 
@@ -173,8 +180,11 @@ class AudioRecorder:
                 # Check timeout
                 if time.time() - start_time > settings.SILENCE_TIMEOUT:
                     logger.info(f"Recording timeout reached ({settings.SILENCE_TIMEOUT}s)")
-                    self._handle_speech_end()
-                    break
+                    should_continue = self._handle_speech_end()
+                    if not should_continue:
+                        break
+                    # Reset start time for next turn
+                    start_time = time.time()
 
                 # Read audio frame
                 try:
@@ -209,8 +219,11 @@ class AudioRecorder:
                             and time.time() - start_time >= self._min_listen_seconds
                         ):
                             logger.info("Speech ended (silence detected)")
-                            self._handle_speech_end()
-                            break
+                            should_continue = self._handle_speech_end()
+                            if not should_continue:
+                                break
+                            # Reset start time for next turn
+                            start_time = time.time()
 
         except Exception as e:
             logger.error(f"Error in recording loop: {e}", exc_info=True)
@@ -233,8 +246,13 @@ class AudioRecorder:
             logger.error(f"VAD error: {e}")
             return False
 
-    def _handle_speech_end(self):
-        """Handle end of speech detection."""
+    def _handle_speech_end(self) -> bool:
+        """
+        Handle end of speech detection.
+
+        Returns:
+            True if should continue recording (continuous mode), False if should stop
+        """
         audio_data = self._get_audio_data()
 
         if len(audio_data) > 0:
@@ -243,8 +261,17 @@ class AudioRecorder:
             except Exception as e:
                 logger.error(f"Error in speech_end callback: {e}", exc_info=True)
 
-        # Stop recording
-        self._recording = False
+        if self._continuous:
+            # Continuous mode - reset state and continue recording
+            logger.info("Continuous mode: resetting state for next turn")
+            self._frames.clear()
+            self._speech_active = False
+            self._silence_start_time = None
+            return True
+        else:
+            # Single-shot mode - stop recording
+            self._recording = False
+            return False
 
     def _get_audio_data(self) -> bytes:
         """Combine all frames into single audio data bytes."""

@@ -270,9 +270,16 @@ class AudioPlayer:
             write_duration = time.time() - playback_start_time
             logger.info(f"Wrote {chunks_written} chunks, {offset}/{total_bytes} bytes in {write_duration:.2f}s")
 
-            # Wait a moment to ensure all audio has been played from the buffer
-            # This helps prevent stream close timeout on macOS
-            time.sleep(0.2)
+            # Wait for the audio to finish playing from the buffer
+            # Calculate expected playback time and subtract the write time
+            expected_playback_time = len(stereo_audio) / sample_rate
+            time_remaining = max(0, expected_playback_time - write_duration)
+            if time_remaining > 0:
+                logger.info(f"Waiting {time_remaining:.2f}s for audio to finish playing from buffer")
+                time.sleep(time_remaining)
+
+            # Add a small buffer to ensure the last bit of audio completes
+            time.sleep(0.1)
 
             # Close stream with timeout protection
             # Use a separate thread because stream.stop_stream() can block indefinitely on macOS

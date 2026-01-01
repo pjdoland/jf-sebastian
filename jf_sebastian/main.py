@@ -245,24 +245,15 @@ class TeddyRuxpinApp:
         # (Will already be paused if continuing conversation)
         self._pause_wake_for_playback()
 
-        # Check current recording state
-        recording_flag = self.audio_recorder._recording
-        has_thread = self.audio_recorder._thread is not None
-        thread_alive = self.audio_recorder._thread.is_alive() if has_thread else False
-
-        logger.info(f"Recorder state: _recording={recording_flag}, has_thread={has_thread}, thread_alive={thread_alive}")
-
-        # Always start fresh recording when entering LISTENING state
-        # If a previous session is still cleaning up, this ensures we start clean
-        if recording_flag or thread_alive:
-            logger.info("Stopping previous recording session before starting new one")
-            self.audio_recorder.stop_recording()
-            time.sleep(0.2)  # Give thread time to fully exit
-
-        # Start new recording session
-        post_wake_audio = self.wake_word_detector.get_post_wake_audio()
-        logger.info("Starting recording session")
-        self.audio_recorder.start_recording(initial_audio=post_wake_audio)
+        # Only start recording if not already running
+        # (When continuing conversation, recorder is already in continuous mode)
+        if not self.audio_recorder._recording:
+            # New conversation from IDLE - start continuous recording session
+            post_wake_audio = self.wake_word_detector.get_post_wake_audio()
+            logger.info("Starting new continuous conversation recording session")
+            self.audio_recorder.start_recording(initial_audio=post_wake_audio, continuous=True)
+        else:
+            logger.info("Continuing conversation - recorder already running in continuous mode")
 
     def _on_enter_processing(self):
         """Handle entering PROCESSING state."""
@@ -282,6 +273,11 @@ class TeddyRuxpinApp:
     def _on_enter_idle(self):
         """Handle entering IDLE state."""
         logger.info("Entering IDLE state - waiting for wake word...")
+
+        # Stop any ongoing recording (end continuous conversation mode)
+        if self.audio_recorder._recording:
+            logger.info("Stopping continuous recording session")
+            self.audio_recorder.stop_recording()
 
         # Resume wake word detector
         self._resume_wake_after_playback()
