@@ -245,16 +245,24 @@ class TeddyRuxpinApp:
         # (Will already be paused if continuing conversation)
         self._pause_wake_for_playback()
 
-        # Only start recording if not already recording (new conversation from IDLE)
-        # When continuing conversation (from SPEAKING), recorder is already running
-        if not self.audio_recorder._recording:
-            # New conversation - use post-wake-word audio buffer
-            post_wake_audio = self.wake_word_detector.get_post_wake_audio()
-            logger.debug("Starting new conversation with post-wake audio buffer")
-            self.audio_recorder.start_recording(initial_audio=post_wake_audio)
-        else:
-            # Continuing conversation - recorder is already running, just let it continue
-            logger.debug("Continuing conversation - recorder already running")
+        # Check current recording state
+        recording_flag = self.audio_recorder._recording
+        has_thread = self.audio_recorder._thread is not None
+        thread_alive = self.audio_recorder._thread.is_alive() if has_thread else False
+
+        logger.info(f"Recorder state: _recording={recording_flag}, has_thread={has_thread}, thread_alive={thread_alive}")
+
+        # Always start fresh recording when entering LISTENING state
+        # If a previous session is still cleaning up, this ensures we start clean
+        if recording_flag or thread_alive:
+            logger.info("Stopping previous recording session before starting new one")
+            self.audio_recorder.stop_recording()
+            time.sleep(0.2)  # Give thread time to fully exit
+
+        # Start new recording session
+        post_wake_audio = self.wake_word_detector.get_post_wake_audio()
+        logger.info("Starting recording session")
+        self.audio_recorder.start_recording(initial_audio=post_wake_audio)
 
     def _on_enter_processing(self):
         """Handle entering PROCESSING state."""
