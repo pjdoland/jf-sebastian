@@ -122,7 +122,8 @@ class AudioPlayer:
                 # Give macOS CoreAudio time to release the abandoned stream
                 # This is a workaround for PyAudio not being able to open new streams
                 # immediately after abandoning one on macOS
-                time.sleep(0.5)
+                # Increased from 0.5s to 3s to ensure macOS has time to fully release resources
+                time.sleep(3.0)
                 self._stream_abandoned = False
                 logger.info("Proceeding with stream open after delay")
 
@@ -269,6 +270,10 @@ class AudioPlayer:
             write_duration = time.time() - playback_start_time
             logger.info(f"Wrote {chunks_written} chunks, {offset}/{total_bytes} bytes in {write_duration:.2f}s")
 
+            # Wait a moment to ensure all audio has been played from the buffer
+            # This helps prevent stream close timeout on macOS
+            time.sleep(0.2)
+
             # Close stream with timeout protection
             # Use a separate thread because stream.stop_stream() can block indefinitely on macOS
             close_success = False
@@ -291,6 +296,18 @@ class AudioPlayer:
             if not close_success:
                 logger.warning("Stream close timed out after 10s, abandoning stream (may leak resources)")
                 self._stream_abandoned = True
+                # Force cleanup by terminating and re-initializing PyAudio
+                # This ensures macOS CoreAudio releases all resources
+                logger.info("Terminating PyAudio to force resource cleanup...")
+                try:
+                    self._pyaudio.terminate()
+                    logger.info("PyAudio terminated, waiting for macOS to release resources...")
+                    time.sleep(1.0)
+                    self._pyaudio = pyaudio.PyAudio()
+                    logger.info("PyAudio re-initialized successfully")
+                    self._stream_abandoned = False  # No need to wait again since we re-initialized
+                except Exception as e:
+                    logger.error(f"Error re-initializing PyAudio: {e}")
             else:
                 logger.info("Stream closed cleanly")
 
