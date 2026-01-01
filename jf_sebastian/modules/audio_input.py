@@ -149,8 +149,11 @@ class AudioRecorder:
         logger.info("Stopping audio recording...")
         self._recording = False
 
-        if self._thread:
+        # Only join thread if we're not calling from within the recording thread itself
+        if self._thread and threading.current_thread() != self._thread:
             self._thread.join(timeout=2.0)
+        elif self._thread:
+            logger.debug("Skipping thread join (called from within recording thread)")
 
         # Get final audio data
         audio_data = self._get_audio_data()
