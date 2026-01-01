@@ -316,12 +316,14 @@ class TeddyRuxpinApp:
 
         # Select filler FIRST (before state transition) so we can pass its context to the LLM
         filler_context = None
-        if self.filler_manager.has_fillers:
+        if settings.ENABLE_FILLER_AUDIO and self.filler_manager.has_fillers:
             filler_result = self.filler_manager.get_random_filler()
             if filler_result:
                 self._selected_filler = filler_result  # Store for later playback
                 filler_context = filler_result[2]  # Extract text
                 logger.info(f"Selected filler context for LLM: {filler_context[:50]}...")
+        elif not settings.ENABLE_FILLER_AUDIO:
+            logger.debug("Filler audio disabled by ENABLE_FILLER_AUDIO setting")
 
         # Transition to PROCESSING state (this will trigger _on_enter_processing which plays the filler)
         self.state_machine.transition_to(ConversationState.PROCESSING, trigger="speech_end")
