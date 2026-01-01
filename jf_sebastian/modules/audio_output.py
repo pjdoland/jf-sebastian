@@ -270,16 +270,14 @@ class AudioPlayer:
             write_duration = time.time() - playback_start_time
             logger.info(f"Wrote {chunks_written} chunks, {offset}/{total_bytes} bytes in {write_duration:.2f}s")
 
-            # Wait for the audio to finish playing from the buffer
-            # Calculate expected playback time and subtract the write time
-            expected_playback_time = len(stereo_audio) / sample_rate
-            time_remaining = max(0, expected_playback_time - write_duration)
-            if time_remaining > 0:
-                logger.info(f"Waiting {time_remaining:.2f}s for audio to finish playing from buffer")
-                time.sleep(time_remaining)
-
-            # Add a small buffer to ensure the last bit of audio completes
-            time.sleep(0.1)
+            # Wait for buffered audio to finish playing
+            # PyAudio buffers frames and plays them asynchronously. When stream.write() returns,
+            # there's still buffered audio that hasn't played yet. We need to wait for it.
+            # With frames_per_buffer=1024 at 44100Hz, that's ~0.023s of buffer per write.
+            # To be safe, wait 0.5s for the buffer to drain completely.
+            buffer_drain_time = 0.5
+            logger.info(f"Waiting {buffer_drain_time}s for audio buffer to drain")
+            time.sleep(buffer_drain_time)
 
             # Close stream with timeout protection
             # Use a separate thread because stream.stop_stream() can block indefinitely on macOS
