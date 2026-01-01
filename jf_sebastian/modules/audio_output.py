@@ -122,8 +122,8 @@ class AudioPlayer:
                 # Give macOS CoreAudio time to release the abandoned stream
                 # This is a workaround for PyAudio not being able to open new streams
                 # immediately after abandoning one on macOS
-                # Increased from 0.5s to 3s to ensure macOS has time to fully release resources
-                time.sleep(3.0)
+                # Increased to 5s as 3s was still timing out on macOS
+                time.sleep(5.0)
                 self._stream_abandoned = False
                 logger.info("Proceeding with stream open after delay")
 
@@ -296,18 +296,9 @@ class AudioPlayer:
             if not close_success:
                 logger.warning("Stream close timed out after 10s, abandoning stream (may leak resources)")
                 self._stream_abandoned = True
-                # Force cleanup by terminating and re-initializing PyAudio
-                # This ensures macOS CoreAudio releases all resources
-                logger.info("Terminating PyAudio to force resource cleanup...")
-                try:
-                    self._pyaudio.terminate()
-                    logger.info("PyAudio terminated, waiting for macOS to release resources...")
-                    time.sleep(1.0)
-                    self._pyaudio = pyaudio.PyAudio()
-                    logger.info("PyAudio re-initialized successfully")
-                    self._stream_abandoned = False  # No need to wait again since we re-initialized
-                except Exception as e:
-                    logger.error(f"Error re-initializing PyAudio: {e}")
+                # Note: We don't terminate PyAudio here because terminate() can block for 20+ seconds on macOS,
+                # which is worse than just abandoning the stream. The 3-second delay in the next playback
+                # attempt (see line 126) should give macOS enough time to release resources.
             else:
                 logger.info("Stream closed cleanly")
 
