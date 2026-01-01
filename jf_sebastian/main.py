@@ -255,6 +255,8 @@ class TeddyRuxpinApp:
             # Continuing conversation - stop previous recorder and restart
             logger.debug("Continuing conversation - restarting audio recorder")
             self.audio_recorder.stop_recording()
+            # Brief delay to ensure old recording thread fully exits before starting new one
+            time.sleep(0.1)
             post_wake_audio = None
 
         # Start recording with optional post-wake-word buffer
