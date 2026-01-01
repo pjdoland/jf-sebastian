@@ -252,9 +252,10 @@ class TeddyRuxpinApp:
             post_wake_audio = self.wake_word_detector.get_post_wake_audio()
             logger.debug("Starting new conversation with post-wake audio buffer")
         else:
-            # Continuing conversation - no buffer needed
+            # Continuing conversation - stop previous recorder and restart
+            logger.debug("Continuing conversation - restarting audio recorder")
+            self.audio_recorder.stop_recording()
             post_wake_audio = None
-            logger.debug("Continuing conversation without post-wake audio buffer")
 
         # Start recording with optional post-wake-word buffer
         self.audio_recorder.start_recording(initial_audio=post_wake_audio)
