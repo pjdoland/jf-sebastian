@@ -242,12 +242,21 @@ class TeddyRuxpinApp:
         logger.info("Entering LISTENING state - recording audio...")
 
         # Pause wake word detector while listening to user (and for rest of interaction)
+        # (Will already be paused if continuing conversation)
         self._pause_wake_for_playback()
 
-        # Get post-wake-word audio buffer to capture immediate speech after wake word
-        post_wake_audio = self.wake_word_detector.get_post_wake_audio()
+        # Get post-wake-word audio buffer only when starting new conversation (from IDLE)
+        # When continuing conversation (from SPEAKING), we don't need the buffer
+        if self.state_machine.conversation_duration is None or self.state_machine.conversation_duration < 1.0:
+            # New conversation - use post-wake-word audio buffer
+            post_wake_audio = self.wake_word_detector.get_post_wake_audio()
+            logger.debug("Starting new conversation with post-wake audio buffer")
+        else:
+            # Continuing conversation - no buffer needed
+            post_wake_audio = None
+            logger.debug("Continuing conversation without post-wake audio buffer")
 
-        # Start recording with post-wake-word buffer prepended
+        # Start recording with optional post-wake-word buffer
         self.audio_recorder.start_recording(initial_audio=post_wake_audio)
 
     def _on_enter_processing(self):
@@ -289,6 +298,14 @@ class TeddyRuxpinApp:
             audio_data: Recorded audio data
         """
         logger.info(f"Speech ended, captured {len(audio_data)} bytes")
+
+        # Check if audio is too short (timeout without meaningful speech)
+        # At 16kHz, MIN_LISTEN_SECONDS * 16000 * 2 bytes = minimum expected bytes
+        min_bytes = int(settings.MIN_LISTEN_SECONDS * 16000 * 2)
+        if len(audio_data) < min_bytes:
+            logger.info(f"Audio too short ({len(audio_data)} < {min_bytes} bytes), ending conversation")
+            self.state_machine.transition_to(ConversationState.IDLE, trigger="silence_timeout")
+            return
 
         # Save debug audio if enabled (async - non-blocking)
         if settings.SAVE_DEBUG_AUDIO:
@@ -517,10 +534,11 @@ Now respond to their question naturally, as if your filler phrase was the beginn
 
             logger.info(f"Streaming playback complete: {chunk_num} chunks, full text: \"{full_response_text.strip()}\"")
 
-            # All chunks done - transition to IDLE
+            # All chunks done - transition to LISTENING to continue conversation
+            # If no speech is detected within SILENCE_TIMEOUT, the audio recorder will timeout
+            # and we'll transition to IDLE in _on_speech_end
             self._sequential_playback_active = False
-            self._resume_wake_after_playback()
-            self.state_machine.transition_to(ConversationState.IDLE, trigger="playback_complete")
+            self.state_machine.transition_to(ConversationState.LISTENING, trigger="continue_conversation")
 
             # Save debug audio (concatenated version for comparison)
             if settings.SAVE_DEBUG_AUDIO and debug_chunks:

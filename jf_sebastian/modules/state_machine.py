@@ -137,13 +137,14 @@ class StateMachine:
         - LISTENING -> IDLE (timeout or silence)
         - PROCESSING -> SPEAKING (response ready)
         - PROCESSING -> IDLE (error or cancellation)
-        - SPEAKING -> IDLE (response complete)
+        - SPEAKING -> LISTENING (continue conversation)
+        - SPEAKING -> IDLE (conversation ended)
         """
         valid_transitions = {
             ConversationState.IDLE: [ConversationState.LISTENING],
             ConversationState.LISTENING: [ConversationState.PROCESSING, ConversationState.IDLE],
             ConversationState.PROCESSING: [ConversationState.SPEAKING, ConversationState.IDLE],
-            ConversationState.SPEAKING: [ConversationState.IDLE],
+            ConversationState.SPEAKING: [ConversationState.LISTENING, ConversationState.IDLE],
         }
 
         # Allow same-state "transitions" (no-op)
