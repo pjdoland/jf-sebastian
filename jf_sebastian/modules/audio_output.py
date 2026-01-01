@@ -273,9 +273,9 @@ class AudioPlayer:
             # Wait for buffered audio to finish playing
             # PyAudio buffers frames and plays them asynchronously. When stream.write() returns,
             # there's still buffered audio that hasn't played yet. We need to wait for it.
-            # macOS also has driver-level buffering that we need to account for.
-            # Be conservative: wait 2 seconds for all buffers to drain.
-            buffer_drain_time = 2.0
+            # With frames_per_buffer=1024 at 44100Hz, buffer holds ~0.023s of audio.
+            # macOS may have some driver buffering too. Wait 0.3s to be safe without long gaps.
+            buffer_drain_time = 0.3
             logger.info(f"Waiting {buffer_drain_time}s for audio buffer to drain")
             time.sleep(buffer_drain_time)
 
