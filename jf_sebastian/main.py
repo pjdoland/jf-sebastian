@@ -280,13 +280,13 @@ class TeddyRuxpinApp:
         """Handle entering IDLE state."""
         logger.info("Entering IDLE state - waiting for wake word...")
 
+        # Resume wake word detector FIRST (before stopping recorder which can block)
+        self._resume_wake_after_playback()
+
         # Stop any ongoing recording (end continuous conversation mode)
         if self.audio_recorder._recording:
             logger.info("Stopping continuous recording session")
             self.audio_recorder.stop_recording()
-
-        # Resume wake word detector
-        self._resume_wake_after_playback()
 
         # Check if conversation should be cleared
         if self.conversation_engine.time_since_last_interaction > settings.CONVERSATION_TIMEOUT:
