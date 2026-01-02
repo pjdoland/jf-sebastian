@@ -316,13 +316,18 @@ class TeddyRuxpinApp:
 
         # Check if audio is too quiet (filters silence before Whisper)
         from jf_sebastian.utils.audio_utils import calculate_rms
-        rms = calculate_rms(audio_data)
-        if rms < settings.MIN_AUDIO_RMS:
-            logger.info(f"Audio too quiet (RMS {rms:.0f} < {settings.MIN_AUDIO_RMS}), likely silence - returning to IDLE")
+        # Use peak RMS over 100ms windows to detect ANY speech in the buffer
+        peak_rms = calculate_rms(audio_data, sample_rate=16000)  # Whisper uses 16kHz
+
+        # Log RMS value for threshold tuning
+        logger.info(f"📊 Audio Peak RMS: {peak_rms:.1f} (threshold: {settings.MIN_AUDIO_RMS})")
+
+        if peak_rms < settings.MIN_AUDIO_RMS:
+            logger.info(f"Audio too quiet (Peak RMS {peak_rms:.0f} < {settings.MIN_AUDIO_RMS}), likely silence - returning to IDLE")
             self.state_machine.transition_to(ConversationState.IDLE, trigger="silence_timeout")
             return
 
-        logger.info(f"Audio passed validation (RMS: {rms:.0f}), proceeding to transcription")
+        logger.info(f"Audio passed validation (Peak RMS: {peak_rms:.0f}), proceeding to transcription")
 
         # Save debug audio if enabled (async - non-blocking)
         if settings.SAVE_DEBUG_AUDIO:
@@ -371,7 +376,7 @@ class TeddyRuxpinApp:
             transcript_words = transcript_clean.strip('.,!?;:-').strip()
 
             # Check if transcript is too short or just common filler sounds
-            meaningless_words = {'um', 'uh', 'er', 'ah', 'hmm', 'mhmm', 'mm', '...', '..', '.'}
+            meaningless_words = {'um', 'uh', 'er', 'ah', 'hmm', 'mhmm', 'mm', 'bye', '...', '..', '.'}
             if (len(transcript_words) < 2 or
                 transcript_words.lower() in meaningless_words or
                 not any(c.isalnum() for c in transcript_words)):
