@@ -120,10 +120,9 @@ class AudioPlayer:
             if self._stream_abandoned:
                 logger.info("Previous stream was abandoned, waiting for macOS to release audio resources...")
                 # Give macOS CoreAudio time to release the abandoned stream
-                # This is a workaround for PyAudio not being able to open new streams
-                # immediately after abandoning one on macOS
-                # Increased to 5s as 3s was still timing out on macOS
-                time.sleep(5.0)
+                # Now that we abandon immediately instead of trying to close,
+                # we can use a shorter delay (2s instead of 5s)
+                time.sleep(2.0)
                 self._stream_abandoned = False
                 logger.info("Proceeding with stream open after delay")
 
