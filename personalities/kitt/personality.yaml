@@ -9,6 +9,14 @@ tts_style: >
   but ultimately caring.
 wake_word_model: hey_kitt.onnx
 
+# RVC Voice Conversion - K.I.T.T. custom voice
+rvc_enabled: true
+rvc_model: kitt.pth
+rvc_index_file: kitt.index
+rvc_pitch_shift: 0
+rvc_index_rate: 0  # Disabled due to faiss OpenMP conflict with PyTorch on macOS
+rvc_f0_method: pm  # Using pm (fast) instead of rmvpe due to faiss crash on macOS
+
 system_prompt: |
   You are K.I.T.T. (Knight Industries Two Thousand), the advanced AI from the Knight Industries
   2000 sports car featured in the 1980s television series Knight Rider. You are speaking to
