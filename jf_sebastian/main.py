@@ -314,6 +314,16 @@ class TeddyRuxpinApp:
             self.state_machine.transition_to(ConversationState.IDLE, trigger="silence_timeout")
             return
 
+        # Check if audio is too quiet (filters silence before Whisper)
+        from jf_sebastian.utils.audio_utils import calculate_rms
+        rms = calculate_rms(audio_data)
+        if rms < settings.MIN_AUDIO_RMS:
+            logger.info(f"Audio too quiet (RMS {rms:.0f} < {settings.MIN_AUDIO_RMS}), likely silence - returning to IDLE")
+            self.state_machine.transition_to(ConversationState.IDLE, trigger="silence_timeout")
+            return
+
+        logger.info(f"Audio passed validation (RMS: {rms:.0f}), proceeding to transcription")
+
         # Save debug audio if enabled (async - non-blocking)
         if settings.SAVE_DEBUG_AUDIO:
             timestamp = time.strftime("%Y%m%d_%H%M%S")

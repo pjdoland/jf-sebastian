@@ -37,6 +37,7 @@ class Settings:
     SILENCE_TIMEOUT: float = float(os.getenv("SILENCE_TIMEOUT", "10.0"))
     SPEECH_END_SILENCE_SECONDS: float = float(os.getenv("SPEECH_END_SILENCE_SECONDS", "1.5"))
     MIN_LISTEN_SECONDS: float = float(os.getenv("MIN_LISTEN_SECONDS", "1.0"))
+    MIN_AUDIO_RMS: float = float(os.getenv("MIN_AUDIO_RMS", "800"))  # Minimum RMS amplitude to transcribe (filters silence)
 
     # Conversation Settings
     CONVERSATION_TIMEOUT: float = float(os.getenv("CONVERSATION_TIMEOUT", "120.0"))
