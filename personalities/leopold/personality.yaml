@@ -19,7 +19,7 @@ tts_style: "Speak urgently and conspiratorially, as if sharing important secrets
 rvc_enabled: true
 rvc_model: leopold.pth  # Model file in this personality's directory
 rvc_pitch_shift: 0
-rvc_index_rate: 0.4  # Optimized from 0.5 for speed
+rvc_index_rate: 0.75  # Feature retrieval influence (0.0-1.0, higher = more index influence)
 rvc_f0_method: pm  # Fastest pitch detection method
 rvc_filter_radius: 1  # Optimized from default 3 for speed
 rvc_rms_mix_rate: 0.15  # Optimized from default 0.25 for speed
