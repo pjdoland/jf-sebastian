@@ -6,6 +6,7 @@ Uses rvc-python library for direct in-process voice conversion.
 import logging
 import time
 import tempfile
+import os
 from typing import Optional
 from pathlib import Path
 import numpy as np
@@ -14,6 +15,13 @@ import soundfile as sf
 from jf_sebastian.utils.async_file_utils import save_async
 
 logger = logging.getLogger(__name__)
+
+# Fix faiss OpenMP conflict with PyTorch on macOS
+# Both libraries use OpenMP and can conflict, causing crashes
+# Setting OMP_NUM_THREADS=1 prevents the conflict
+if 'OMP_NUM_THREADS' not in os.environ:
+    os.environ['OMP_NUM_THREADS'] = '1'
+    logger.debug("Set OMP_NUM_THREADS=1 to prevent faiss/PyTorch OpenMP conflict")
 
 # Patch torch.load BEFORE importing rvc-python
 # PyTorch 2.6+ changed default weights_only from False to True
