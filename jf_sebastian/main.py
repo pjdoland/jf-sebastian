@@ -414,6 +414,7 @@ Now respond to their question naturally, as if your filler phrase was the beginn
                 try:
                     chunk_count = 0
                     is_first_real_chunk = True  # Track first non-filler chunk
+                    is_first_item = True  # Track first item (filler or chunk)
 
                     while True:
                         # Get next chunk from queue (blocks until available)
@@ -432,53 +433,45 @@ Now respond to their question naturally, as if your filler phrase was the beginn
 
                         chunk_count += 1
 
+                        # Start playback session on FIRST item (filler or chunk) for gapless playback
+                        if is_first_item:
+                            # Use the sample rate from the first item (device-dependent: 48kHz for Squawkers, 44.1kHz for Teddy)
+                            logger.info(f"Starting playback session for gapless playback at {sample_rate}Hz")
+                            if not self.audio_player.start_playback_session(sample_rate=sample_rate):
+                                logger.error("Failed to start playback session, falling back to single-shot playback")
+                            else:
+                                session_started = True
+                            is_first_item = False
+
                         # Transition to SPEAKING state before first real chunk (after filler)
                         if chunk_type == "chunk" and is_first_real_chunk:
                             logger.info(f"First response chunk ready, transitioning to SPEAKING state")
                             self.state_machine.transition_to(ConversationState.SPEAKING, trigger="response_ready")
                             is_first_real_chunk = False
 
-                            # Start playback session for gapless multi-chunk playback
-                            # Use the sample rate from the first chunk (device-dependent: 48kHz for Squawkers, 44.1kHz for Teddy)
-                            logger.info(f"Starting playback session for gapless chunk playback at {sample_rate}Hz")
-                            if not self.audio_player.start_playback_session(sample_rate=sample_rate):
-                                logger.error("Failed to start playback session, falling back to single-shot playback")
-                            else:
-                                session_started = True
-
-                        # Play this item
+                        # Play this item using session (gapless for both filler and chunks)
                         logger.info(f"{chunk_type.capitalize()} {chunk_id}: Playing NOW...")
 
-                        if chunk_type == "filler":
-                            # Filler uses single-shot playback (old behavior)
-                            logger.debug(f"{chunk_type.capitalize()} {chunk_id}: Using play_stereo for filler")
-                            # Use preroll for filler
-                            success = self.audio_player.play_stereo(stereo_audio, sample_rate, blocking=True, preroll_ms=None)
+                        if session_started:
+                            # Use session playback for gapless audio (both filler and chunks)
+                            logger.debug(f"{chunk_type.capitalize()} {chunk_id}: Writing to session stream")
+                            success = self.audio_player.write_session_chunk(stereo_audio, sample_rate)
 
-                            logger.debug(f"{chunk_type.capitalize()} {chunk_id}: play_stereo returned {success}")
+                            if not success:
+                                logger.warning(f"{chunk_type.capitalize()} {chunk_id}: Session write failed - DROPPING")
+                            else:
+                                logger.info(f"{chunk_type.capitalize()} {chunk_id}: Written to session successfully")
+                        else:
+                            # Fallback to single-shot if session failed to start
+                            logger.debug(f"{chunk_type.capitalize()} {chunk_id}: Using fallback play_stereo (session not started)")
+                            # Use preroll only for filler when in fallback mode
+                            preroll = None if chunk_type == "filler" else 0
+                            success = self.audio_player.play_stereo(stereo_audio, sample_rate, blocking=True, preroll_ms=preroll)
+
                             if not success:
                                 logger.warning(f"{chunk_type.capitalize()} {chunk_id}: Playback failed - DROPPING")
                             else:
                                 logger.info(f"{chunk_type.capitalize()} {chunk_id}: Playback complete")
-                        else:
-                            # Chunks use session playback (gapless)
-                            if session_started:
-                                logger.debug(f"{chunk_type.capitalize()} {chunk_id}: Writing to session stream")
-                                success = self.audio_player.write_session_chunk(stereo_audio, sample_rate)
-
-                                if not success:
-                                    logger.warning(f"{chunk_type.capitalize()} {chunk_id}: Session write failed - DROPPING")
-                                else:
-                                    logger.info(f"{chunk_type.capitalize()} {chunk_id}: Written to session successfully")
-                            else:
-                                # Fallback to single-shot if session failed to start
-                                logger.debug(f"{chunk_type.capitalize()} {chunk_id}: Using fallback play_stereo (session not started)")
-                                success = self.audio_player.play_stereo(stereo_audio, sample_rate, blocking=True, preroll_ms=0)
-
-                                if not success:
-                                    logger.warning(f"{chunk_type.capitalize()} {chunk_id}: Playback failed - DROPPING")
-                                else:
-                                    logger.info(f"{chunk_type.capitalize()} {chunk_id}: Playback complete")
 
                         playback_queue.task_done()
 
