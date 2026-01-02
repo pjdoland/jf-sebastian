@@ -270,41 +270,12 @@ class AudioPlayer:
             write_duration = time.time() - playback_start_time
             logger.info(f"Wrote {chunks_written} chunks, {offset}/{total_bytes} bytes in {write_duration:.2f}s")
 
-            # Wait for buffered audio to finish playing
-            # PyAudio buffers frames and plays them asynchronously. When stream.write() returns,
-            # there's still buffered audio that hasn't played yet. We need to wait for it.
-            # With frames_per_buffer=1024 at 44100Hz, buffer holds ~0.023s of audio.
-            # macOS may have some driver buffering too. Wait 0.3s to be safe without long gaps.
-            buffer_drain_time = 0.3
-            logger.info(f"Waiting {buffer_drain_time}s for audio buffer to drain")
-            time.sleep(buffer_drain_time)
-
-            # Close stream with timeout protection
-            # Skip stop_stream() as it can block indefinitely on macOS - just close directly
-            close_success = False
-            def close_stream_thread():
-                nonlocal close_success, stream
-                try:
-                    logger.info("Closing audio stream...")
-                    stream.close()
-                    logger.info("Audio stream closed")
-                    close_success = True
-                except Exception as e:
-                    logger.error(f"Error in stream close thread: {e}")
-
-            closer = threading.Thread(target=close_stream_thread, daemon=True)
-            closer.start()
-            closer.join(timeout=10.0)  # Wait up to 10 seconds for clean close (macOS can be slow)
-
-            if not close_success:
-                logger.warning("Stream close timed out after 10s, abandoning stream (may leak resources)")
-                self._stream_abandoned = True
-                # Note: We don't terminate PyAudio here because terminate() can block for 20+ seconds on macOS,
-                # which is worse than just abandoning the stream. The 3-second delay in the next playback
-                # attempt (see line 126) should give macOS enough time to release resources.
-            else:
-                logger.info("Stream closed cleanly")
-
+            # On macOS, trying to close the stream cleanly often blocks for 10+ seconds
+            # This prevents subsequent chunks from playing promptly.
+            # Better strategy: abandon the stream immediately and let macOS clean it up.
+            # The 5-second delay before the next stream opens gives macOS time to release resources.
+            logger.info("Abandoning stream to avoid close blocking (macOS CoreAudio will clean up)")
+            self._stream_abandoned = True
             stream = None
 
             if self._playing:
