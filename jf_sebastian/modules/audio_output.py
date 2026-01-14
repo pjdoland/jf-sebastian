@@ -124,9 +124,8 @@ class AudioPlayer:
             if self._stream_abandoned:
                 logger.info("Previous stream was abandoned, waiting for macOS to release audio resources...")
                 # Give macOS CoreAudio time to release the abandoned stream
-                # Now that we abandon immediately instead of trying to close,
-                # we can use a shorter delay (2s instead of 5s)
-                time.sleep(2.0)
+                # Reduced to 0.5s to minimize gaps between filler and response
+                time.sleep(0.5)
                 self._stream_abandoned = False
                 logger.info("Proceeding with stream open after delay")
 
@@ -353,7 +352,8 @@ class AudioPlayer:
 
             if self._stream_abandoned:
                 logger.info("Previous stream was abandoned, waiting for macOS to release audio resources...")
-                time.sleep(2.0)
+                # Reduced to 0.5s to minimize gaps between filler and response
+                time.sleep(0.5)
                 self._stream_abandoned = False
                 logger.info("Proceeding with session stream open after delay")
 

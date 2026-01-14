@@ -24,6 +24,13 @@ Personalities are defined using simple YAML files - **no programming required**.
 - **Character**: Eccentric truth-seeker with an insane backstory (Turkish prison, UFO abductions, intelligence contractor)
 - **Filler phrases**: Checking bug detectors, scanning perimeter, reviewing surveillance footage, etc.
 
+### Teddy Ruxpin (Storytelling Bear)
+- **Wake word**: "Hey, Teddy Ruxpin" (needs training)
+- **Voice**: Echo (warm, friendly)
+- **Character**: The classic 1980s storytelling teddy bear from the magical land of Grundo
+- **Filler phrases**: Recalling adventures with Grubby, thinking about crystals, remembering stories, etc.
+- **Note**: Personality created, but requires wake word training and filler audio generation
+
 ## Switching Personalities
 
 To switch personalities, update the `PERSONALITY` setting in your `.env` file:
@@ -37,6 +44,9 @@ PERSONALITY=mr_lincoln
 
 # Use Leopold the Conspiracy Theorist
 PERSONALITY=leopold
+
+# Use Teddy Ruxpin
+PERSONALITY=teddy_ruxpin
 ```
 
 ## Creating a New Personality

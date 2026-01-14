@@ -16,6 +16,9 @@ rvc_index_file: kitt.index
 rvc_pitch_shift: 0
 rvc_index_rate: 0.75  # Feature retrieval influence (0.0-1.0, higher = more index influence)
 rvc_f0_method: pm  # Using pm (fast) instead of rmvpe
+rvc_filter_radius: 0  # Median filter for pitch (0-7, lower = faster, 0 = no filtering)
+rvc_rms_mix_rate: 0.1  # Volume envelope mix (0.0-1.0, lower = faster, default 0.25)
+rvc_protect: 0.2  # Consonant protection (0.0-0.5, lower = faster, default 0.33)
 
 system_prompt: |
   You are K.I.T.T. (Knight Industries Two Thousand), the advanced AI from the Knight Industries
