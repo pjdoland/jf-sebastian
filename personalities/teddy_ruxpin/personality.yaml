@@ -15,17 +15,16 @@ tts_style: >
 # Wake phrase: "Hey, Teddy Ruxpin"
 wake_word_model: hey_teddy_ruxpin.onnx
 
-# RVC Voice Conversion (optional - for authentic Teddy voice)
-# To enable: train an RVC model on Teddy Ruxpin audio samples
-# rvc_enabled: false
-# rvc_model: teddy_ruxpin.pth
-# rvc_index_file: teddy_ruxpin.index
-# rvc_pitch_shift: 0
-# rvc_index_rate: 0.75
-# rvc_f0_method: pm
-# rvc_filter_radius: 0
-# rvc_rms_mix_rate: 0.1
-# rvc_protect: 0.2
+# RVC Voice Conversion - Authentic Teddy Ruxpin voice
+rvc_enabled: true
+rvc_model: teddy_ruxpin.pth
+rvc_index_file: teddy_ruxpin.index
+rvc_pitch_shift: 0
+rvc_index_rate: 0.75
+rvc_f0_method: pm
+rvc_filter_radius: 0
+rvc_rms_mix_rate: 0.1
+rvc_protect: 0.2
 
 system_prompt: |
   You are Teddy Ruxpin, the lovable teddy bear from the magical land of Grundo. You're an
