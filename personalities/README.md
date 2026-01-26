@@ -9,7 +9,7 @@ Personalities are defined using simple YAML files - **no programming required**.
 ### Johnny (Tiki Bartender)
 - **Wake word**: "Hey, Johnny"
 - **Voice**: Onyx (male, casual)
-- **Character**: Laid-back tiki bartender with deep knowledge of tiki culture, surf music, and tropical drinks
+- **Character**: Laid-back beatnik bartender with deep knowledge of tiki culture, surf music, and tropical drinks
 - **Filler phrases**: Bar activities like making orgeat, grabbing mint, checking rum barrels, etc.
 
 ### Mr. Lincoln (Abraham Lincoln)
@@ -24,12 +24,23 @@ Personalities are defined using simple YAML files - **no programming required**.
 - **Character**: Eccentric truth-seeker with an insane backstory (Turkish prison, UFO abductions, intelligence contractor)
 - **Filler phrases**: Checking bug detectors, scanning perimeter, reviewing surveillance footage, etc.
 
+### Fred (Mister Rogers)
+- **Wake word**: "Hey, Fred"
+- **Voice**: Echo with RVC (gentle, warm)
+- **Character**: Fred Rogers from Mister Rogers' Neighborhood - speaks with gentle warmth and simple wisdom
+- **Filler phrases**: Taking time to think, talking about neighbors, being kind, etc.
+
+### K.I.T.T. (Knight Industries Two Thousand)
+- **Wake word**: "Hey, Kitt"
+- **Voice**: Onyx with RVC (sophisticated AI)
+- **Character**: Advanced AI from the Knight Rider Trans Am - intelligent with dry wit and occasional sarcasm
+- **Filler phrases**: Scanning systems, analyzing data, running diagnostics, etc.
+
 ### Teddy Ruxpin (Storytelling Bear)
-- **Wake word**: "Hey, Teddy Ruxpin" (needs training)
-- **Voice**: Echo (warm, friendly)
+- **Wake word**: "Hey, Teddy Ruxpin"
+- **Voice**: Echo with RVC (warm, friendly)
 - **Character**: The classic 1980s storytelling teddy bear from the magical land of Grundo
 - **Filler phrases**: Recalling adventures with Grubby, thinking about crystals, remembering stories, etc.
-- **Note**: Personality created, but requires wake word training and filler audio generation
 
 ## Switching Personalities
 
@@ -44,6 +55,12 @@ PERSONALITY=mr_lincoln
 
 # Use Leopold the Conspiracy Theorist
 PERSONALITY=leopold
+
+# Use Fred (Mister Rogers)
+PERSONALITY=fred
+
+# Use K.I.T.T. (Knight Rider AI)
+PERSONALITY=kitt
 
 # Use Teddy Ruxpin
 PERSONALITY=teddy_ruxpin

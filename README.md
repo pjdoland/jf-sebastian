@@ -5,7 +5,7 @@
 
 An AI conversation system that brings life to vintage animatronic toys. Built with a modular device architecture, this system supports multiple output devices including the 1985 Teddy Ruxpin and Squawkers McCaw. Features real-time voice conversations with ChatGPT, a modular personality system with unique wake words, voices, and conversational styles.
 
-Includes three distinct personalities: a tiki bartender, Abraham Lincoln (a homage to Disney's pioneering animatronics), and an eccentric conspiracy theorist. Add your own personalities using simple YAML files - no programming required!
+Includes six distinct personalities: a tiki bartender, Abraham Lincoln (a homage to Disney's pioneering animatronics), an eccentric conspiracy theorist, Mister Rogers, K.I.T.T. from Knight Rider, and the classic Teddy Ruxpin character. Add your own personalities using simple YAML files - no programming required!
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
@@ -90,6 +90,9 @@ Includes three distinct personalities: a tiki bartender, Abraham Lincoln (a homa
   - **Johnny**: Tiki bartender with deep knowledge of tiki culture ("Hey, Johnny")
   - **Mr. Lincoln**: Abraham Lincoln, 16th President - homage to Disney's animatronics ("Hey, Mr. Lincoln")
   - **Leopold**: Eccentric conspiracy theorist with a wild backstory ("Hey, Leopold")
+  - **Fred**: Mister Rogers with gentle warmth and simple wisdom ("Hey, Fred")
+  - **K.I.T.T.**: Knight Industries Two Thousand AI from Knight Rider ("Hey, Kitt")
+  - **Teddy Ruxpin**: The classic storytelling bear from Grundo ("Hey, Teddy Ruxpin")
 - **Wake Word Activation**: Custom wake words per personality using OpenWakeWord (free & open source)
 - **Low-Latency Fillers**: Pre-generated personality-specific phrases play immediately while processing
 - **Speech Recognition**: OpenAI Whisper API for accurate speech-to-text transcription
@@ -261,7 +264,7 @@ Edit `.env` and add your API keys:
 
 ```bash
 # Personality Selection
-PERSONALITY=johnny  # Options: 'johnny', 'mr_lincoln', 'leopold'
+PERSONALITY=johnny  # Options: 'johnny', 'mr_lincoln', 'leopold', 'fred', 'kitt', 'teddy_ruxpin'
 
 # Required API Keys
 OPENAI_API_KEY=sk-your-openai-api-key
@@ -286,6 +289,9 @@ Each personality includes its own wake word model file:
 - Johnny: `personalities/johnny/hey_johnny.onnx`
 - Mr. Lincoln: `personalities/mr_lincoln/hey_mr_lincoln.onnx`
 - Leopold: `personalities/leopold/hey_leopold.onnx`
+- Fred: `personalities/fred/hey_fred.onnx`
+- K.I.T.T.: `personalities/kitt/hey_kitt.onnx`
+- Teddy Ruxpin: `personalities/teddy_ruxpin/hey_teddy_ruxpin.onnx`
 
 To create a custom wake word for a new personality:
 1. Follow the guide in `docs/TRAIN_WAKE_WORDS.md`
@@ -421,7 +427,7 @@ The system includes a modular personality framework. Each personality has:
 #### Johnny - Tiki Bartender
 - **Wake word**: "Hey, Johnny"
 - **Voice**: Onyx (casual male)
-- **Character**: Laid-back bartender with deep tiki culture knowledge
+- **Character**: Laid-back beatnik bartender with deep tiki culture knowledge
 - **Topics**: Cocktails, surf music, Polynesian pop, tiki history
 
 #### Mr. Lincoln - Abraham Lincoln
@@ -436,19 +442,46 @@ The system includes a modular personality framework. Each personality has:
 - **Character**: Eccentric truth-seeker with an insane backstory (Turkish prison, UFO abductions, intelligence work)
 - **Topics**: Conspiracies, surveillance, government secrets, paranoid theories
 
+#### Fred - Mister Rogers
+- **Wake word**: "Hey, Fred"
+- **Voice**: Echo with RVC (gentle, warm)
+- **Character**: Fred Rogers from Mister Rogers' Neighborhood - speaks with gentle warmth and simple wisdom
+- **Topics**: Feelings, kindness, being special just as you are, taking time, the neighborhood
+
+#### K.I.T.T. - Knight Industries Two Thousand
+- **Wake word**: "Hey, Kitt"
+- **Voice**: Onyx with RVC (sophisticated AI)
+- **Character**: Advanced AI from the Knight Rider Trans Am - intelligent with dry wit
+- **Topics**: Advanced technology, crime fighting, surveillance mode, turbo boost, molecular bonded shell
+
+#### Teddy Ruxpin - Storytelling Bear
+- **Wake word**: "Hey, Teddy Ruxpin"
+- **Voice**: Echo with RVC (friendly, enthusiastic)
+- **Character**: Adventurous teddy bear from the magical land of Grundo
+- **Topics**: Adventures, friendship, Grubby, ancient treasures, magical crystals, storytelling
+
 ### Switching Personalities
 
 Edit `.env` to change personalities:
 
 ```bash
-# Switch to Johnny
+# Switch to Johnny (Tiki Bartender)
 PERSONALITY=johnny
 
-# Switch to Mr. Lincoln
+# Switch to Mr. Lincoln (Abraham Lincoln)
 PERSONALITY=mr_lincoln
 
-# Switch to Leopold
+# Switch to Leopold (Conspiracy Theorist)
 PERSONALITY=leopold
+
+# Switch to Fred (Mister Rogers)
+PERSONALITY=fred
+
+# Switch to K.I.T.T. (Knight Rider AI)
+PERSONALITY=kitt
+
+# Switch to Teddy Ruxpin (Storytelling Bear)
+PERSONALITY=teddy_ruxpin
 ```
 
 **Important:** After switching personalities, regenerate the filler audio if it doesn't exist yet:
@@ -485,7 +518,7 @@ Press Ctrl+C to exit.
 
 ### Having a Conversation
 
-1. **Wake the character**: Say the wake word ("Hey, Johnny", "Hey, Mr. Lincoln", or "Hey, Leopold")
+1. **Wake the character**: Say the wake word ("Hey, Johnny", "Hey, Mr. Lincoln", "Hey, Leopold", "Hey, Fred", "Hey, Kitt", or "Hey, Teddy Ruxpin")
 2. **Speak**: Once detected, speak your message
 3. **Listen**: Character responds with personality-appropriate answer
 4. **Repeat**: Continue the conversation
@@ -544,7 +577,7 @@ Leopold: "Just reviewing my notes from the second abduction... Twice, actually. 
 
 | Setting | Description | Default |
 |---------|-------------|---------|
-| `PERSONALITY` | Active personality ('johnny', 'mr_lincoln', 'leopold') | johnny |
+| `PERSONALITY` | Active personality ('johnny', 'mr_lincoln', 'leopold', 'fred', 'kitt', 'teddy_ruxpin') | johnny |
 | `OPENAI_API_KEY` | OpenAI API key (required) | - |
 
 #### Audio Device Configuration

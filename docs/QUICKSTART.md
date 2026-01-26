@@ -66,7 +66,8 @@ OPENAI_API_KEY=sk-your-key-here
 Set which personality you want to use in `.env`:
 
 ```bash
-# Options: 'johnny' (tiki bartender), 'mr_lincoln' (Abraham Lincoln), 'leopold' (conspiracy theorist)
+# Options: 'johnny' (tiki bartender), 'mr_lincoln' (Abraham Lincoln), 'leopold' (conspiracy theorist),
+#          'fred' (Mister Rogers), 'kitt' (Knight Rider AI), 'teddy_ruxpin' (storytelling bear)
 PERSONALITY=johnny
 ```
 
