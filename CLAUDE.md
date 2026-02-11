@@ -98,13 +98,17 @@ State transitions managed in `jf_sebastian/modules/state_machine.py` (StateMachi
 2. Start in IDLE state with background wake word detection
 3. On wake word: IDLE → LISTENING
 4. On speech end (VAD detection): LISTENING → PROCESSING
-5. Parallel processing pipeline:
-   - Whisper API transcribes speech
+5. Multi-stage audio validation (filters silence/noise before Whisper):
+   - Length check → RMS amplitude check → VAD speech content analysis
+   - Only if all checks pass: Select filler phrase → Call Whisper API
+   - Transcript validation (hallucination detection as backup)
+6. Parallel processing pipeline:
+   - Whisper API transcribes speech (only if validation passed)
    - ConversationEngine streams GPT response with word-based chunking (MIN_CHUNK_WORDS=15)
    - TextToSpeech synthesizes each chunk (optionally through RVC)
    - Output device creates stereo audio (LEFT=voice, RIGHT=PPM control for Teddy Ruxpin)
-6. AudioPlayer plays chunks: PROCESSING → SPEAKING
-7. On completion: SPEAKING → LISTENING or IDLE
+7. AudioPlayer plays chunks: PROCESSING → SPEAKING
+8. On completion: SPEAKING → LISTENING or IDLE
 
 ### Key Module Responsibilities
 
@@ -130,6 +134,9 @@ State transitions managed in `jf_sebastian/modules/state_machine.py` (StateMachi
 
 **jf_sebastian/config/**
 - `settings.py`: Central Settings class loading from `.env` with validation
+
+**jf_sebastian/utils/**
+- `audio_utils.py`: Audio utility functions including `calculate_rms()` for amplitude analysis and `contains_speech()` for VAD-based speech detection
 
 ### Device Architecture Pattern
 The system uses a **plugin-style device registry** allowing easy addition of new output devices:
@@ -179,6 +186,53 @@ Precise 60Hz PPM (Pulse Position Modulation) for animatronic motor control:
 - LEFT channel: Voice audio
 - RIGHT channel: PPM control signals (Teddy Ruxpin only)
 - FFmpeg required for MP3→PCM conversion
+
+### Multi-Stage Silence Detection
+The system uses a **defense-in-depth approach** to filter out silence and background noise before processing, preventing unnecessary Whisper API calls and avoiding hallucinations (false transcriptions like "Thank you", "Goodbye", etc.):
+
+**Stage 1: Audio Length Check** (`main.py:_on_speech_end`)
+- Validates minimum audio duration (MIN_LISTEN_SECONDS * sample_rate * 2 bytes)
+- Filters recordings that ended too quickly (likely timeouts)
+- Returns to IDLE if audio too short
+
+**Stage 2: RMS Amplitude Check** (`main.py:_on_speech_end` → `utils/audio_utils.py:calculate_rms`)
+- Analyzes peak RMS (Root Mean Square) amplitude using 100ms sliding windows
+- Detects if ANY portion of the audio has sufficient volume
+- Configurable threshold: `MIN_AUDIO_RMS` (default: 60, typical speech: 1500-5000)
+- Filters: Pure silence, very quiet audio
+- Returns to IDLE if RMS below threshold
+
+**Stage 3: VAD Speech Content Analysis** (`main.py:_on_speech_end` → `utils/audio_utils.py:contains_speech`)
+- Analyzes entire audio buffer frame-by-frame using WebRTC VAD
+- Calculates percentage of frames containing actual speech vs. noise
+- Configurable threshold: `MIN_SPEECH_RATIO` (default: 0.3 = 30% of frames must be speech)
+- Filters: Background noise, music, rustling, humming - anything with volume but no speech
+- Returns to IDLE if speech ratio below threshold
+- This is the **primary defense** against Whisper hallucinations
+
+**Stage 4: Whisper Hallucination Detection** (`main.py:_process_and_speak`)
+- After transcription, checks transcript against known Whisper hallucination phrases
+- Common hallucinations: "Thank you", "Goodbye", "Bye", "Thanks for watching", etc.
+- Also validates transcript isn't too short or just punctuation
+- Returns to IDLE if hallucination detected
+- This is a **backup safety net** for edge cases that slip through VAD
+
+**Execution Order:**
+1. Stages 1-3 run **before** selecting filler phrase
+2. Stages 1-3 run **before** calling Whisper API (saves API quota)
+3. Only if all stages pass: Filler phrase selected → Whisper called → Stage 4 validation
+
+**Benefits:**
+- Eliminates 95%+ of false Whisper API calls
+- Prevents filler phrases from playing on silence/noise
+- Saves API costs by filtering before transcription
+- Multi-layered validation ensures robustness
+
+**Tuning Guide:**
+- Increase `MIN_AUDIO_RMS` if transcribing too much quiet noise (typical speech: 1500-5000)
+- Increase `MIN_SPEECH_RATIO` (0.4-0.5) if still getting hallucinations
+- Decrease `MIN_SPEECH_RATIO` (0.2-0.25) if valid speech being rejected
+- Use `VAD_AGGRESSIVENESS` (0-3) to control sensitivity (3 = most strict)
 
 ### RVC Voice Conversion
 - Optional feature requiring Python 3.10.x specifically

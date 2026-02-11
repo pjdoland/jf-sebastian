@@ -41,6 +41,26 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
+# Common Whisper hallucinations when transcribing silence or background noise
+# These phrases should be filtered out before processing
+WHISPER_SILENCE_HALLUCINATIONS = {
+    # Common closing phrases
+    'thank you', 'thanks', 'thank you for watching', 'thanks for watching',
+    'goodbye', 'bye', 'bye bye', 'see you', 'see you next time', 'see you later',
+
+    # Common filler phrases that Whisper returns for silence
+    'you', 'the', 'okay', 'oh', 'so', 'well', 'and', 'but', 'yeah', 'yes', 'no',
+
+    # Music/video-related (common in training data)
+    'subscribe', 'like and subscribe', 'please subscribe',
+
+    # Empty or punctuation-only
+    '', '.', '...', '..', '?', '!',
+
+    # Single letters or very short
+    'a', 'i', 'o',
+}
+
 
 class TeddyRuxpinApp:
     """
@@ -314,8 +334,10 @@ class TeddyRuxpinApp:
             self.state_machine.transition_to(ConversationState.IDLE, trigger="silence_timeout")
             return
 
-        # Check if audio is too quiet (filters silence before Whisper)
-        from jf_sebastian.utils.audio_utils import calculate_rms
+        # Multi-stage audio validation (filters silence before Whisper API call)
+        from jf_sebastian.utils.audio_utils import calculate_rms, contains_speech
+
+        # Stage 1: RMS check - filters pure silence and very quiet audio
         # Use peak RMS over 100ms windows to detect ANY speech in the buffer
         peak_rms = calculate_rms(audio_data, sample_rate=16000)  # Whisper uses 16kHz
 
@@ -327,7 +349,17 @@ class TeddyRuxpinApp:
             self.state_machine.transition_to(ConversationState.IDLE, trigger="silence_timeout")
             return
 
-        logger.info(f"Audio passed validation (Peak RMS: {peak_rms:.0f}), proceeding to transcription")
+        # Stage 2: VAD-based speech detection - filters noise/background that passes RMS
+        # This catches cases where audio has sufficient volume but no actual speech
+        # (e.g., background noise, music, rustling) that would cause Whisper hallucinations
+        if not contains_speech(audio_data, sample_rate=16000,
+                              vad_aggressiveness=settings.VAD_AGGRESSIVENESS,
+                              min_speech_ratio=settings.MIN_SPEECH_RATIO):
+            logger.info(f"No meaningful speech detected in audio - likely background noise - returning to IDLE")
+            self.state_machine.transition_to(ConversationState.IDLE, trigger="no_speech_detected")
+            return
+
+        logger.info(f"Audio passed validation (Peak RMS: {peak_rms:.0f}, speech detected), proceeding to transcription")
 
         # Save debug audio if enabled (async - non-blocking)
         if settings.SAVE_DEBUG_AUDIO:
@@ -375,8 +407,14 @@ class TeddyRuxpinApp:
             # Remove common punctuation that Whisper adds for silence
             transcript_words = transcript_clean.strip('.,!?;:-').strip()
 
+            # Check against common Whisper hallucinations for silence
+            if transcript_words.lower() in WHISPER_SILENCE_HALLUCINATIONS:
+                logger.info(f"Detected Whisper silence hallucination: \"{transcript}\" - returning to IDLE")
+                self.state_machine.transition_to(ConversationState.IDLE, trigger="silence_hallucination")
+                return
+
             # Check if transcript is too short or just common filler sounds
-            meaningless_words = {'um', 'uh', 'er', 'ah', 'hmm', 'mhmm', 'mm', 'bye', '...', '..', '.'}
+            meaningless_words = {'um', 'uh', 'er', 'ah', 'hmm', 'mhmm', 'mm'}
             if (len(transcript_words) < 2 or
                 transcript_words.lower() in meaningless_words or
                 not any(c.isalnum() for c in transcript_words)):
