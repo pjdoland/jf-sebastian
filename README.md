@@ -381,10 +381,11 @@ python scripts/generate_fillers.py
 This creates device-specific filler audio for each registered output device. For each personality, it generates:
 - `filler_audio/teddy_ruxpin/` - Filler audio with PPM control signals for mouth and eyes
 - `filler_audio/squawkers_mccaw/` - Filler audio with simple stereo (no PPM)
+- `filler_audio/headless/` - Filler audio with simple stereo for computer playback
 
 Each device-specific directory contains 30 WAV files with:
 - Voice audio synthesized with the personality's configured voice, speed, and tone
-- Device-appropriate audio processing (PPM signals for Teddy Ruxpin, simple stereo for Squawkers McCaw)
+- Device-appropriate audio processing (PPM signals for Teddy Ruxpin, simple stereo for others)
 
 **Note:** The filler audio files are generated per output device type, so each personality will have device-specific versions automatically created based on the registered output devices.
 
@@ -408,7 +409,10 @@ personalities/johnny/filler_audio/
 ├── teddy_ruxpin/       # 30 WAV files with PPM control signals
 │   ├── filler_01.wav
 │   └── ...
-└── squawkers_mccaw/    # 30 WAV files with simple stereo
+├── squawkers_mccaw/    # 30 WAV files with simple stereo
+│   ├── filler_01.wav
+│   └── ...
+└── headless/           # 30 WAV files with simple stereo
     ├── filler_01.wav
     └── ...
 ```
@@ -586,7 +590,7 @@ Leopold: "Just reviewing my notes from the second abduction... Twice, actually. 
 |---------|-------------|---------|
 | `INPUT_DEVICE_NAME` | Microphone device name | - |
 | `OUTPUT_DEVICE_NAME` | Speaker device name | - |
-| `OUTPUT_DEVICE_TYPE` | Output device type ('teddy_ruxpin', 'squawkers_mccaw') | teddy_ruxpin |
+| `OUTPUT_DEVICE_TYPE` | Output device type ('teddy_ruxpin', 'squawkers_mccaw', 'headless') | teddy_ruxpin |
 | `SAMPLE_RATE` | Audio sample rate (Hz) - must be 16000, 22050, 44100, or 48000 | 16000 |
 | `CHUNK_SIZE` | Audio chunk size for processing | 1024 |
 
@@ -788,6 +792,7 @@ jf-sebastian/
 │   │   ├── factory.py       # Device registry and factory
 │   │   ├── teddy_ruxpin.py  # Teddy Ruxpin device (with PPM)
 │   │   ├── squawkers_mccaw.py  # Squawkers McCaw device (simple stereo)
+│   │   ├── headless.py      # Headless device (computer playback)
 │   │   └── shared/          # Shared utilities for all devices
 │   │       ├── __init__.py
 │   │       ├── audio_processor.py     # MP3→PCM conversion
@@ -818,7 +823,11 @@ jf-sebastian/
 │   │       │   ├── filler_01.wav
 │   │       │   ├── filler_02.wav
 │   │       │   └── ...
-│   │       └── squawkers_mccaw/
+│   │       ├── squawkers_mccaw/
+│   │       │   ├── filler_01.wav
+│   │       │   ├── filler_02.wav
+│   │       │   └── ...
+│   │       └── headless/
 │   │           ├── filler_01.wav
 │   │           ├── filler_02.wav
 │   │           └── ...

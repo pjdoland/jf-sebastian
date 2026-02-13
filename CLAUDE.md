@@ -129,6 +129,7 @@ State transitions managed in `jf_sebastian/modules/state_machine.py` (StateMachi
 - `factory.py`: DeviceRegistry providing plugin-style registration/creation
 - `teddy_ruxpin.py`: TeddyRuxpinDevice generating stereo (LEFT=voice, RIGHT=PPM)
 - `squawkers_mccaw.py`: SquawkersMcCawDevice for simple stereo output
+- `headless.py`: HeadlessDevice for computer playback (identical to Squawkers)
 - `shared/audio_processor.py`: MP3→PCM conversion via FFmpeg
 - `shared/sentiment_analyzer.py`: VADER sentiment analysis for eye control
 
@@ -155,7 +156,7 @@ Zero-code personality definition via YAML files in `personalities/` directory:
   - System prompt for LLM personality
   - Filler phrases for low-latency feel
   - Optional RVC voice conversion models (`*.pth`, `*.index`)
-- Filler audio stored in device-specific subdirectories: `filler_audio/teddy_ruxpin/`, `filler_audio/squawkers_mccaw/`
+- Filler audio stored in device-specific subdirectories: `filler_audio/teddy_ruxpin/`, `filler_audio/squawkers_mccaw/`, `filler_audio/headless/`
 
 **Available personalities:** johnny, mr_lincoln, leopold, fred, kitt, teddy_ruxpin, all_might, computer, el_rey, hal_9000, jose, rich
 
