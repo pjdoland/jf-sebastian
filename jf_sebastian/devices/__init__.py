@@ -9,6 +9,7 @@ from jf_sebastian.devices.factory import DeviceRegistry, register_device
 # Import device implementations to trigger registration
 from jf_sebastian.devices.teddy_ruxpin import TeddyRuxpinDevice
 from jf_sebastian.devices.squawkers_mccaw import SquawkersMcCawDevice
+from jf_sebastian.devices.headless import HeadlessDevice
 
 __all__ = [
     'OutputDevice',
@@ -16,4 +17,5 @@ __all__ = [
     'register_device',
     'TeddyRuxpinDevice',
     'SquawkersMcCawDevice',
+    'HeadlessDevice',
 ]

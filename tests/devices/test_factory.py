@@ -5,7 +5,7 @@ Tests for device factory and registry.
 import pytest
 from jf_sebastian.devices.base import OutputDevice
 from jf_sebastian.devices.factory import DeviceRegistry, register_device
-from jf_sebastian.devices import TeddyRuxpinDevice, SquawkersMcCawDevice
+from jf_sebastian.devices import TeddyRuxpinDevice, SquawkersMcCawDevice, HeadlessDevice
 
 
 def test_device_registry_lists_devices():
@@ -14,7 +14,8 @@ def test_device_registry_lists_devices():
 
     assert 'teddy_ruxpin' in devices
     assert 'squawkers_mccaw' in devices
-    assert len(devices) >= 2
+    assert 'headless' in devices
+    assert len(devices) >= 3
 
 
 def test_device_registry_create_teddy_ruxpin():
@@ -33,6 +34,16 @@ def test_device_registry_create_squawkers_mccaw():
 
     assert isinstance(device, SquawkersMcCawDevice)
     assert device.device_name == "Squawkers McCaw"
+    assert device.requires_ppm is False
+    assert device.get_output_channels() == 2
+
+
+def test_device_registry_create_headless():
+    """Test creating Headless device from registry."""
+    device = DeviceRegistry.create('headless')
+
+    assert isinstance(device, HeadlessDevice)
+    assert device.device_name == "Headless"
     assert device.requires_ppm is False
     assert device.get_output_channels() == 2
 

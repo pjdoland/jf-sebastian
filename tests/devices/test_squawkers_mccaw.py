@@ -24,7 +24,7 @@ def test_squawkers_mccaw_device_initialization():
     assert device.device_name == "Squawkers McCaw"
     assert device.requires_ppm is False
     assert device.get_output_channels() == 2
-    assert device.output_sample_rate == 44100
+    assert device.output_sample_rate == 48000
     assert device.audio_processor is not None
     assert device.sentiment_analyzer is not None
 
@@ -91,7 +91,7 @@ def test_squawkers_mccaw_create_output_success(mock_settings, mock_voice_audio):
     assert isinstance(stereo_audio, np.ndarray)
     assert stereo_audio.ndim == 2
     assert stereo_audio.shape[1] == 2  # Stereo
-    assert sample_rate == 44100
+    assert sample_rate == 48000
 
     # Check audio is normalized
     assert np.all(stereo_audio >= -2.0)  # With gain, might be slightly over 1.0
