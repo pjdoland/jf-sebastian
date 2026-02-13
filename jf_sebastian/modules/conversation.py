@@ -48,6 +48,67 @@ class ConversationEngine:
 
         logger.info(f"Conversation engine initialized (model={settings.GPT_MODEL})")
 
+    def _is_gpt5_or_newer(self) -> bool:
+        """
+        Determine if the model is GPT-5 or newer.
+
+        GPT-5+ models have different API parameter requirements than GPT-4 and older.
+
+        Returns:
+            True if GPT-5 or newer, False otherwise
+        """
+        model = settings.GPT_MODEL.lower()
+        return 'gpt-5' in model
+
+    def _uses_max_completion_tokens(self) -> bool:
+        """
+        Determine if the model uses max_completion_tokens instead of max_tokens.
+
+        Returns:
+            True if model uses max_completion_tokens, False if it uses max_tokens
+        """
+        return self._is_gpt5_or_newer()
+
+    def _supports_custom_temperature(self) -> bool:
+        """
+        Determine if the model supports custom temperature values.
+
+        GPT-5+ only supports the default temperature of 1.0.
+
+        Returns:
+            True if model supports custom temperature, False otherwise
+        """
+        return not self._is_gpt5_or_newer()
+
+    def _get_effective_max_tokens(self, requested_tokens: int) -> int:
+        """
+        Get the effective max tokens value for the current model.
+
+        GPT-5+ requires higher max_completion_tokens values than GPT-4's max_tokens.
+        Testing shows GPT-5-mini needs at least 3500 tokens when using system prompts
+        and context, while GPT-4 works fine with 200-300.
+
+        NOTE: GPT-5-mini has significantly higher latency (~15-20s to first token)
+        compared to GPT-4o-mini (~2-3s), making it less suitable for real-time
+        conversational applications. Consider using GPT-4o-mini for better UX.
+
+        Args:
+            requested_tokens: The configured token limit
+
+        Returns:
+            Adjusted token limit appropriate for the model
+        """
+        if self._is_gpt5_or_newer():
+            # GPT-5+ requires much higher token limits (minimum ~3500)
+            # Scale up requested tokens significantly, with a minimum of 3500
+            adjusted = max(requested_tokens * 18, 3500)
+            if adjusted != requested_tokens:
+                logger.debug(f"Adjusted token limit for GPT-5+: {requested_tokens} -> {adjusted}")
+            return adjusted
+        else:
+            # GPT-4 and older work fine with configured values
+            return requested_tokens
+
     def generate_response(self, user_input: str, additional_context: Optional[str] = None) -> Optional[str]:
         """
         Generate a response to user input.
@@ -83,13 +144,24 @@ class ConversationEngine:
 
             logger.info(f"Generating response to: \"{user_input}\"")
 
-            # Call GPT-4o API
-            response = self.client.chat.completions.create(
-                model=settings.GPT_MODEL,
-                messages=list(self._messages),
-                temperature=0.8,  # Slightly creative for personality
-                max_tokens=settings.MAX_TOKENS,
-            )
+            # Call GPT API with appropriate parameters
+            api_params = {
+                "model": settings.GPT_MODEL,
+                "messages": list(self._messages),
+            }
+
+            # Add temperature if supported (GPT-4 and older)
+            if self._supports_custom_temperature():
+                api_params["temperature"] = 0.8  # Slightly creative for personality
+
+            # Add token limit parameter (name varies by model version)
+            effective_tokens = self._get_effective_max_tokens(settings.MAX_TOKENS)
+            if self._uses_max_completion_tokens():
+                api_params["max_completion_tokens"] = effective_tokens
+            else:
+                api_params["max_tokens"] = effective_tokens
+
+            response = self.client.chat.completions.create(**api_params)
 
             # Extract assistant response
             assistant_message = response.choices[0].message.content.strip()
@@ -197,14 +269,25 @@ class ConversationEngine:
 
             logger.info(f"Generating streaming response to: \"{user_input}\"")
 
-            # Call GPT-4o API with streaming
-            stream = self.client.chat.completions.create(
-                model=settings.GPT_MODEL,
-                messages=list(self._messages),
-                temperature=0.8,
-                max_tokens=settings.MAX_TOKENS_STREAMING,
-                stream=True  # Enable streaming!
-            )
+            # Call GPT API with streaming and appropriate parameters
+            api_params = {
+                "model": settings.GPT_MODEL,
+                "messages": list(self._messages),
+                "stream": True  # Enable streaming!
+            }
+
+            # Add temperature if supported (GPT-4 and older)
+            if self._supports_custom_temperature():
+                api_params["temperature"] = 0.8
+
+            # Add token limit parameter (name varies by model version)
+            effective_tokens = self._get_effective_max_tokens(settings.MAX_TOKENS_STREAMING)
+            if self._uses_max_completion_tokens():
+                api_params["max_completion_tokens"] = effective_tokens
+            else:
+                api_params["max_tokens"] = effective_tokens
+
+            stream = self.client.chat.completions.create(**api_params)
 
             # Buffer for accumulating tokens
             buffer = ""
