@@ -65,15 +65,26 @@ echo "✓ Pip downgraded to 24.0"
 echo ""
 
 if [ "$IS_JETSON" = true ]; then
-    echo "Step 2a: Installing PyTorch from NVIDIA Jetson index..."
+    # Detect CUDA version for correct Jetson wheel index
+    if command -v nvcc &> /dev/null; then
+        CUDA_VERSION=$(nvcc --version | grep -oP 'release \K[0-9]+\.[0-9]+')
+        CUDA_TAG="cu$(echo "$CUDA_VERSION" | tr -d '.')"
+    else
+        echo "⚠ nvcc not found, defaulting to CUDA 12.6 (JetPack 6.1+)"
+        CUDA_TAG="cu126"
+    fi
+    JETSON_INDEX="https://pypi.jetson-ai-lab.dev/jp6/${CUDA_TAG}/"
+    echo "Using Jetson wheel index: $JETSON_INDEX"
+    echo ""
+
+    echo "Step 2a: Installing PyTorch from Jetson AI Lab index..."
     echo "This may take 10-15 minutes on Jetson..."
-    JETSON_INDEX="https://developer.download.nvidia.com/compute/redist/jp/v60/"
     pip install torch torchaudio --index-url "$JETSON_INDEX" -q || {
         echo "⚠ torchaudio install failed (no Jetson wheel available)"
         echo "  Installing torch only..."
         pip install torch --index-url "$JETSON_INDEX" -q
     }
-    echo "✓ PyTorch installed from NVIDIA Jetson index"
+    echo "✓ PyTorch installed from Jetson AI Lab index"
     echo ""
 
     echo "Step 2b: Installing RVC dependencies (Jetson)..."
