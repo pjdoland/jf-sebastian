@@ -61,6 +61,7 @@ class AudioRecorder:
 
         # Suppression mode - when True, frames are read but discarded (echo suppression)
         self._suppressed = False
+        self._suppression_cooldown_until: float = 0.0
 
         logger.info("Audio recorder initialized")
 
@@ -158,15 +159,22 @@ class AudioRecorder:
             self._suppressed = True
             logger.info("Audio capture suppressed (echo suppression)")
 
-    def unsuppress(self):
+    def unsuppress(self, cooldown_ms: int = 500):
         """Resume audio capture after suppression.
-        Clears any buffered frames and resets speech detection state."""
+        Clears any buffered frames and resets speech detection state.
+
+        Args:
+            cooldown_ms: Milliseconds to keep discarding frames after unsuppress,
+                         allowing speaker audio/room reverb to die down.
+        """
         if self._suppressed:
-            self._suppressed = False
             self._frames.clear()
             self._speech_active = False
             self._silence_start_time = None
-            logger.info("Audio capture resumed (suppression lifted)")
+            # Set cooldown end time — frames are still discarded until then
+            self._suppression_cooldown_until = time.time() + (cooldown_ms / 1000.0)
+            self._suppressed = False
+            logger.info(f"Audio capture resumed (suppression lifted, {cooldown_ms}ms cooldown)")
 
     def stop_recording(self):
         """Stop recording and return collected audio."""
@@ -221,8 +229,8 @@ class AudioRecorder:
                     logger.error(f"Error reading audio frame: {e}")
                     break
 
-                # If suppressed (during playback), discard frame and skip VAD
-                if self._suppressed:
+                # If suppressed (during playback) or in cooldown, discard frame and skip VAD
+                if self._suppressed or time.time() < self._suppression_cooldown_until:
                     continue
 
                 # Store frame
