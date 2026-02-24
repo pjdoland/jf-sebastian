@@ -4,7 +4,7 @@
 # PyTorch and torchaudio are EXCLUDED here because they must be installed
 # separately from NVIDIA's Jetson-specific wheel index:
 #
-#   pip install torch torchaudio --index-url https://pypi.jetson-ai-lab.dev/jp6/cu126/
+#   pip install torch torchaudio --index-url https://pypi.jetson-ai-lab.io/jp6/cu126/
 #
 # The setup.sh and scripts/install_rvc.sh scripts handle this automatically.
 #

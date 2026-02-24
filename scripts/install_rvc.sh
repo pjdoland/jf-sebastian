@@ -12,8 +12,6 @@ echo "This script installs RVC (Retrieval-based Voice Conversion) for"
 echo "custom voice models. RVC is OPTIONAL - the system works perfectly"
 echo "with OpenAI TTS voices alone."
 echo ""
-echo "Known issue: RVC has complex dependencies requiring pip downgrade."
-echo ""
 
 # Check if venv is activated
 if [ -z "$VIRTUAL_ENV" ]; then
@@ -51,7 +49,12 @@ echo "Current pip version: $current_pip"
 echo ""
 
 # Ask for confirmation
-read -p "Install RVC dependencies? This will temporarily downgrade pip. (y/N): " -n 1 -r
+if [ "$IS_JETSON" = true ]; then
+    read -p "Install RVC dependencies? (y/N): " -n 1 -r
+else
+    echo "Known issue: RVC has complex dependencies requiring pip downgrade."
+    read -p "Install RVC dependencies? This will temporarily downgrade pip. (y/N): " -n 1 -r
+fi
 echo
 if [[ ! $REPLY =~ ^[Yy]$ ]]; then
     echo "Installation cancelled."
@@ -59,25 +62,23 @@ if [[ ! $REPLY =~ ^[Yy]$ ]]; then
 fi
 
 echo ""
-echo "Step 1: Downgrading pip to 24.0 for compatibility..."
-pip install pip==24.0 -q
-echo "✓ Pip downgraded to 24.0"
-echo ""
 
 if [ "$IS_JETSON" = true ]; then
-    # Detect CUDA version for correct Jetson wheel index
+    # Jetson path: no pip downgrade needed, use Jetson AI Lab wheel index
+    # Detect CUDA version for correct index
     if command -v nvcc &> /dev/null; then
-        CUDA_VERSION=$(nvcc --version | grep -oP 'release \K[0-9]+\.[0-9]+')
+        CUDA_VERSION=$(nvcc --version | sed -n 's/.*release \([0-9]*\.[0-9]*\).*/\1/p')
         CUDA_TAG="cu$(echo "$CUDA_VERSION" | tr -d '.')"
+        echo "Detected CUDA $CUDA_VERSION"
     else
         echo "⚠ nvcc not found, defaulting to CUDA 12.6 (JetPack 6.1+)"
         CUDA_TAG="cu126"
     fi
-    JETSON_INDEX="https://pypi.jetson-ai-lab.dev/jp6/${CUDA_TAG}/"
+    JETSON_INDEX="https://pypi.jetson-ai-lab.io/jp6/${CUDA_TAG}/"
     echo "Using Jetson wheel index: $JETSON_INDEX"
     echo ""
 
-    echo "Step 2a: Installing PyTorch from Jetson AI Lab index..."
+    echo "Step 1: Installing PyTorch from Jetson AI Lab index..."
     echo "This may take 10-15 minutes on Jetson..."
     pip install torch torchaudio --index-url "$JETSON_INDEX" -q || {
         echo "⚠ torchaudio install failed (no Jetson wheel available)"
@@ -87,27 +88,33 @@ if [ "$IS_JETSON" = true ]; then
     echo "✓ PyTorch installed from Jetson AI Lab index"
     echo ""
 
-    echo "Step 2b: Installing RVC dependencies (Jetson)..."
+    echo "Step 2: Installing RVC dependencies (Jetson)..."
     echo "This may take 5-10 minutes (fairseq, rvc-python)..."
     pip install -r requirements-rvc-jetson.txt -q
     echo "✓ RVC dependencies installed"
 else
+    # Standard path: pip downgrade needed for fairseq dependency resolution
+    echo "Step 1: Downgrading pip to 24.0 for compatibility..."
+    pip install pip==24.0 -q
+    echo "✓ Pip downgraded to 24.0"
+    echo ""
+
     echo "Step 2: Installing RVC dependencies..."
     echo "This may take 5-10 minutes (torch, fairseq, rvc-python)..."
     pip install -r requirements-rvc.txt -q
     echo "✓ RVC dependencies installed"
-fi
-echo ""
+    echo ""
 
-echo "Step 3: Upgrading pip back to latest..."
-read -p "Upgrade pip back to latest version? (Y/n): " -n 1 -r
-echo
-if [[ $REPLY =~ ^[Nn]$ ]]; then
-    echo "Keeping pip at 24.0"
-else
-    pip install --upgrade pip -q
-    new_pip=$(pip --version | awk '{print $2}')
-    echo "✓ Pip upgraded to $new_pip"
+    echo "Step 3: Upgrading pip back to latest..."
+    read -p "Upgrade pip back to latest version? (Y/n): " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Nn]$ ]]; then
+        echo "Keeping pip at 24.0"
+    else
+        pip install --upgrade pip -q
+        new_pip=$(pip --version | awk '{print $2}')
+        echo "✓ Pip upgraded to $new_pip"
+    fi
 fi
 
 echo ""

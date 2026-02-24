@@ -187,25 +187,18 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
         echo ""
     fi
 
-    # Get current pip version
-    current_pip=$(pip --version | awk '{print $2}')
-    echo "Current pip version: $current_pip"
-
-    # Downgrade pip for compatibility
-    echo "Downgrading pip to 24.0 for compatibility..."
-    pip install pip==24.0 -q
-    print_success "Pip downgraded to 24.0"
-
     if [ "$IS_JETSON" = true ]; then
-        # Detect CUDA version for correct Jetson wheel index
+        # Jetson path: no pip downgrade needed, use Jetson AI Lab wheel index
+        # Detect CUDA version for correct index
         if command -v nvcc &> /dev/null; then
-            CUDA_VERSION=$(nvcc --version | grep -oP 'release \K[0-9]+\.[0-9]+')
+            CUDA_VERSION=$(nvcc --version | sed -n 's/.*release \([0-9]*\.[0-9]*\).*/\1/p')
             CUDA_TAG="cu$(echo "$CUDA_VERSION" | tr -d '.')"
+            echo "Detected CUDA $CUDA_VERSION"
         else
             print_warning "nvcc not found, defaulting to CUDA 12.6 (JetPack 6.1+)"
             CUDA_TAG="cu126"
         fi
-        JETSON_INDEX="https://pypi.jetson-ai-lab.dev/jp6/${CUDA_TAG}/"
+        JETSON_INDEX="https://pypi.jetson-ai-lab.io/jp6/${CUDA_TAG}/"
         echo "Using Jetson wheel index: $JETSON_INDEX"
 
         # Jetson: install PyTorch from Jetson AI Lab index first
@@ -224,18 +217,25 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
         pip install -r requirements-rvc-jetson.txt -q
         print_success "RVC dependencies installed"
     else
-        # Standard installation
+        # Standard path: pip downgrade needed for fairseq dependency resolution
+        current_pip=$(pip --version | awk '{print $2}')
+        echo "Current pip version: $current_pip"
+
+        echo "Downgrading pip to 24.0 for compatibility..."
+        pip install pip==24.0 -q
+        print_success "Pip downgraded to 24.0"
+
         echo "Installing RVC dependencies (torch, fairseq, rvc-python)..."
         echo "This may take 5-10 minutes..."
         pip install -r requirements-rvc.txt -q
         print_success "RVC dependencies installed"
-    fi
 
-    # Upgrade pip back
-    echo "Upgrading pip back to latest..."
-    pip install --upgrade pip -q
-    new_pip=$(pip --version | awk '{print $2}')
-    print_success "Pip upgraded to $new_pip"
+        # Upgrade pip back
+        echo "Upgrading pip back to latest..."
+        pip install --upgrade pip -q
+        new_pip=$(pip --version | awk '{print $2}')
+        print_success "Pip upgraded to $new_pip"
+    fi
 
     # Test RVC availability
     echo "Testing RVC availability..."
