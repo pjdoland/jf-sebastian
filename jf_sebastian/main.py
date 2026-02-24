@@ -311,6 +311,9 @@ class TeddyRuxpinApp:
         # Resume wake word detector FIRST (before stopping recorder which can block)
         self._resume_wake_after_playback()
 
+        # Ensure suppression is cleared (in case we came from PROCESSING/SPEAKING directly)
+        self.audio_recorder.unsuppress()
+
         # Stop any ongoing recording (end continuous conversation mode)
         if self.audio_recorder._recording:
             logger.info("Stopping continuous recording session")

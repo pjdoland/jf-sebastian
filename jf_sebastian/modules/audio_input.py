@@ -139,6 +139,8 @@ class AudioRecorder:
 
             self._speech_active = False
             self._silence_start_time = None
+            self._suppressed = False
+            self._suppression_cooldown_until = 0.0
 
             # Start recording thread
             self._recording = True
