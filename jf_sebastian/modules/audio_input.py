@@ -330,6 +330,32 @@ def save_audio_to_wav(audio_data: bytes, filename: str, sample_rate: int = None)
         logger.error(f"Error saving audio to {filename}: {e}")
 
 
+def list_audio_devices():
+    """
+    List all available audio input devices.
+    Useful for configuration and debugging.
+    """
+    try:
+        p = pyaudio.PyAudio()
+
+        logger.info("Available audio input devices:")
+        print("\nAvailable Audio Input Devices:")
+        print("-" * 80)
+
+        for i in range(p.get_device_count()):
+            info = p.get_device_info_by_index(i)
+            if info['maxInputChannels'] > 0:
+                print(f"[{i}] {info['name']}")
+                print(f"    Input Channels: {info['maxInputChannels']}")
+                print(f"    Sample Rate: {info['defaultSampleRate']} Hz")
+                print()
+
+        p.terminate()
+
+    except Exception as e:
+        logger.error(f"Error listing audio devices: {e}", exc_info=True)
+
+
 def audio_data_to_wav_bytes(audio_data: bytes, sample_rate: int = None) -> bytes:
     """
     Convert raw audio data to WAV format bytes.
@@ -352,3 +378,14 @@ def audio_data_to_wav_bytes(audio_data: bytes, sample_rate: int = None) -> bytes
         wf.writeframes(audio_data)
 
     return wav_buffer.getvalue()
+
+
+if __name__ == "__main__":
+    # Quick test/utility script
+    logging.basicConfig(level=logging.INFO)
+
+    print("Audio Input Module - Device List")
+    print("=" * 80)
+
+    # List input devices
+    list_audio_devices()

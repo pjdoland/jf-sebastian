@@ -65,7 +65,7 @@ class Settings:
 
     # RVC Voice Conversion (optional - per personality)
     RVC_ENABLED: bool = os.getenv("RVC_ENABLED", "true").lower() == "true"  # Global override to disable RVC
-    RVC_DEVICE: str = os.getenv("RVC_DEVICE", "mps")  # Device for RVC inference (cpu/mps/cuda)
+    RVC_DEVICE: str = os.getenv("RVC_DEVICE", "auto")  # Device for RVC inference (auto/cpu/mps/cuda)
     RVC_MODEL_DIR: Path = Path(os.getenv("RVC_MODEL_DIR", "./rvc_models/"))  # Global RVC model directory
 
     # Debug Settings
@@ -76,6 +76,13 @@ class Settings:
     PLAYBACK_PREROLL_MS: int = int(os.getenv("PLAYBACK_PREROLL_MS", "240"))
 
     # Note: System prompt is now defined per-personality
+
+    @classmethod
+    def resolve_rvc_device(cls):
+        """Resolve RVC_DEVICE='auto' to the best available GPU device."""
+        if cls.RVC_DEVICE == "auto":
+            from jf_sebastian.utils.gpu_utils import detect_gpu_device
+            cls.RVC_DEVICE = detect_gpu_device()
 
     @classmethod
     def validate(cls) -> list[str]:

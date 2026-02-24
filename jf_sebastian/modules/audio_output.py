@@ -4,12 +4,15 @@ Plays voice audio (left channel) and control signals (right channel) through sel
 """
 
 import logging
+import platform
 import threading
 import time
 from typing import Optional, Callable
 
 import numpy as np
 import pyaudio
+
+IS_MACOS = platform.system() == "Darwin"
 
 from jf_sebastian.config import settings
 from jf_sebastian.utils import find_audio_device_by_name
@@ -121,7 +124,7 @@ class AudioPlayer:
                 logger.warning("PyAudio was terminated, re-initializing...")
                 self._pyaudio = pyaudio.PyAudio()
 
-            if self._stream_abandoned:
+            if self._stream_abandoned and IS_MACOS:
                 logger.info("Previous stream was abandoned, waiting for macOS to release audio resources...")
                 # Give macOS CoreAudio time to release the abandoned stream
                 # Reduced to 0.5s to minimize gaps between filler and response
@@ -272,13 +275,22 @@ class AudioPlayer:
             write_duration = time.time() - playback_start_time
             logger.info(f"Wrote {chunks_written} chunks, {offset}/{total_bytes} bytes in {write_duration:.2f}s")
 
-            # On macOS, trying to close the stream cleanly often blocks for 10+ seconds
-            # This prevents subsequent chunks from playing promptly.
-            # Better strategy: abandon the stream immediately and let macOS clean it up.
-            # The 5-second delay before the next stream opens gives macOS time to release resources.
-            logger.info("Abandoning stream to avoid close blocking (macOS CoreAudio will clean up)")
-            self._stream_abandoned = True
-            stream = None
+            if IS_MACOS:
+                # On macOS, trying to close the stream cleanly often blocks for 10+ seconds
+                # This prevents subsequent chunks from playing promptly.
+                # Better strategy: abandon the stream immediately and let macOS clean it up.
+                logger.info("Abandoning stream to avoid close blocking (macOS CoreAudio will clean up)")
+                self._stream_abandoned = True
+                stream = None
+            else:
+                # On Linux/other platforms, close the stream normally
+                try:
+                    stream.stop_stream()
+                    stream.close()
+                    logger.info("Audio stream closed normally")
+                except Exception as e:
+                    logger.warning(f"Error closing stream: {e}")
+                stream = None
 
             if self._playing:
                 logger.info("Audio playback completed")
@@ -350,7 +362,7 @@ class AudioPlayer:
                 logger.warning("PyAudio was terminated, re-initializing...")
                 self._pyaudio = pyaudio.PyAudio()
 
-            if self._stream_abandoned:
+            if self._stream_abandoned and IS_MACOS:
                 logger.info("Previous stream was abandoned, waiting for macOS to release audio resources...")
                 # Reduced to 0.5s to minimize gaps between filler and response
                 time.sleep(0.5)
@@ -502,12 +514,20 @@ class AudioPlayer:
 
         try:
             if self._session_stream:
-                # On macOS, stream close can block for 10+ seconds
-                # But this only happens once at the end of the entire response, so it's acceptable
-                # We can still abandon here if needed to avoid blocking
-                logger.info("Abandoning session stream to avoid close blocking (macOS CoreAudio will clean up)")
-                self._stream_abandoned = True
-                self._session_stream = None
+                if IS_MACOS:
+                    # On macOS, stream close can block for 10+ seconds
+                    logger.info("Abandoning session stream to avoid close blocking (macOS CoreAudio will clean up)")
+                    self._stream_abandoned = True
+                    self._session_stream = None
+                else:
+                    # On Linux/other platforms, close the stream normally
+                    try:
+                        self._session_stream.stop_stream()
+                        self._session_stream.close()
+                        logger.info("Session stream closed normally")
+                    except Exception as e:
+                        logger.warning(f"Error closing session stream: {e}")
+                    self._session_stream = None
         except Exception as e:
             logger.error(f"Error ending playback session: {e}", exc_info=True)
         finally:

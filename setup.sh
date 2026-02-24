@@ -96,11 +96,27 @@ else
             print_error "Setup cancelled - Python 3.10 required"
             exit 1
         fi
+    # Check for apt (Linux/Jetson)
+    elif command -v apt-get &> /dev/null; then
+        echo "Found apt - can install Python 3.10 automatically"
+        read -p "Install Python 3.10 via apt? (Y/n): " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Nn]$ ]]; then
+            echo "Installing Python 3.10 via apt..."
+            sudo apt-get update
+            sudo apt-get install -y python3.10 python3.10-venv python3.10-dev
+            PYTHON_CMD="python3.10"
+            print_success "Installed Python 3.10 via apt"
+        else
+            print_error "Setup cancelled - Python 3.10 required"
+            exit 1
+        fi
     else
-        print_error "No package manager found (pyenv or brew)"
+        print_error "No package manager found (pyenv, brew, or apt)"
         echo "Please install Python 3.10 manually:"
         echo "  - Via pyenv: https://github.com/pyenv/pyenv"
-        echo "  - Via Homebrew: brew install python@3.10"
+        echo "  - Via Homebrew (macOS): brew install python@3.10"
+        echo "  - Via apt (Linux): sudo apt install python3.10 python3.10-venv"
         echo "  - Direct download: https://www.python.org/downloads/"
         exit 1
     fi
@@ -231,26 +247,69 @@ else:
 
 # Check for system dependencies
 print_step "8/12" "Checking system dependencies..."
-if ! command -v brew &> /dev/null; then
-    print_warning "Homebrew not found. Install manually: https://brew.sh"
-    echo "  Required packages: portaudio, ffmpeg"
-    echo "  On macOS: brew install portaudio ffmpeg"
+OS_TYPE="$(uname -s)"
+
+if [ "$OS_TYPE" = "Darwin" ]; then
+    # macOS - use Homebrew
+    if ! command -v brew &> /dev/null; then
+        print_warning "Homebrew not found. Install manually: https://brew.sh"
+        echo "  Required packages: portaudio, ffmpeg"
+        echo "  On macOS: brew install portaudio ffmpeg"
+    else
+        print_success "Homebrew found"
+
+        if ! brew list portaudio &> /dev/null; then
+            echo "Installing PortAudio..."
+            brew install portaudio
+        else
+            print_success "PortAudio installed"
+        fi
+
+        if ! brew list ffmpeg &> /dev/null; then
+            echo "Installing FFmpeg..."
+            brew install ffmpeg
+        else
+            print_success "FFmpeg installed"
+        fi
+    fi
+elif [ "$OS_TYPE" = "Linux" ]; then
+    # Linux - use apt (Debian/Ubuntu/Jetson)
+    if command -v apt-get &> /dev/null; then
+        print_success "apt package manager found"
+
+        # Check for PortAudio
+        if dpkg -s portaudio19-dev &> /dev/null; then
+            print_success "PortAudio installed"
+        else
+            echo "Installing PortAudio..."
+            sudo apt-get install -y libportaudio2 portaudio19-dev
+            print_success "PortAudio installed"
+        fi
+
+        # Check for FFmpeg
+        if command -v ffmpeg &> /dev/null; then
+            print_success "FFmpeg installed"
+        else
+            echo "Installing FFmpeg..."
+            sudo apt-get install -y ffmpeg
+            print_success "FFmpeg installed"
+        fi
+
+        # Check for ALSA dev headers (needed for PyAudio on Linux)
+        if dpkg -s libasound2-dev &> /dev/null; then
+            print_success "ALSA development headers installed"
+        else
+            echo "Installing ALSA development headers..."
+            sudo apt-get install -y libasound2-dev
+            print_success "ALSA development headers installed"
+        fi
+    else
+        print_warning "apt not found. Install these packages manually:"
+        echo "  portaudio19-dev, libportaudio2, libasound2-dev, ffmpeg"
+    fi
 else
-    print_success "Homebrew found"
-
-    if ! brew list portaudio &> /dev/null; then
-        echo "Installing PortAudio..."
-        brew install portaudio
-    else
-        print_success "PortAudio installed"
-    fi
-
-    if ! brew list ffmpeg &> /dev/null; then
-        echo "Installing FFmpeg..."
-        brew install ffmpeg
-    else
-        print_success "FFmpeg installed"
-    fi
+    print_warning "Unsupported OS: $OS_TYPE"
+    echo "  Required system packages: portaudio, ffmpeg"
 fi
 
 # Create required directories

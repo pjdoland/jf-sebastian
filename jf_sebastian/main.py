@@ -84,6 +84,9 @@ class TeddyRuxpinApp:
             logger.error(f"Failed to load personality: {e}")
             raise
 
+        # Resolve auto-detected settings
+        settings.resolve_rvc_device()
+
         # Validate configuration
         errors = settings.validate()
         if errors:
