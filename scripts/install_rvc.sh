@@ -36,6 +36,15 @@ fi
 echo "✓ Python version: $python_version"
 echo ""
 
+# Detect Jetson (aarch64 with NVIDIA Tegra)
+IS_JETSON=false
+if [ "$(uname -m)" = "aarch64" ] && [ -f "/etc/nv_tegra_release" ]; then
+    IS_JETSON=true
+    echo "⚠ NVIDIA Jetson detected - using Jetson-specific installation"
+    echo "  RVC on Jetson is EXPERIMENTAL"
+    echo ""
+fi
+
 # Get current pip version
 current_pip=$(pip --version | awk '{print $2}')
 echo "Current pip version: $current_pip"
@@ -55,10 +64,28 @@ pip install pip==24.0 -q
 echo "✓ Pip downgraded to 24.0"
 echo ""
 
-echo "Step 2: Installing RVC dependencies..."
-echo "This may take 5-10 minutes (torch, fairseq, rvc-python)..."
-pip install -r requirements-rvc.txt -q
-echo "✓ RVC dependencies installed"
+if [ "$IS_JETSON" = true ]; then
+    echo "Step 2a: Installing PyTorch from NVIDIA Jetson index..."
+    echo "This may take 10-15 minutes on Jetson..."
+    JETSON_INDEX="https://developer.download.nvidia.com/compute/redist/jp/v60/"
+    pip install torch torchaudio --index-url "$JETSON_INDEX" -q || {
+        echo "⚠ torchaudio install failed (no Jetson wheel available)"
+        echo "  Installing torch only..."
+        pip install torch --index-url "$JETSON_INDEX" -q
+    }
+    echo "✓ PyTorch installed from NVIDIA Jetson index"
+    echo ""
+
+    echo "Step 2b: Installing RVC dependencies (Jetson)..."
+    echo "This may take 5-10 minutes (fairseq, rvc-python)..."
+    pip install -r requirements-rvc-jetson.txt -q
+    echo "✓ RVC dependencies installed"
+else
+    echo "Step 2: Installing RVC dependencies..."
+    echo "This may take 5-10 minutes (torch, fairseq, rvc-python)..."
+    pip install -r requirements-rvc.txt -q
+    echo "✓ RVC dependencies installed"
+fi
 echo ""
 
 echo "Step 3: Upgrading pip back to latest..."

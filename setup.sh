@@ -178,6 +178,15 @@ echo
 if [[ $REPLY =~ ^[Yy]$ ]]; then
     echo "Installing RVC..."
 
+    # Detect Jetson (aarch64 with NVIDIA Tegra)
+    IS_JETSON=false
+    if [ "$(uname -m)" = "aarch64" ] && [ -f "/etc/nv_tegra_release" ]; then
+        IS_JETSON=true
+        print_warning "NVIDIA Jetson detected - using Jetson-specific installation"
+        echo "RVC on Jetson is EXPERIMENTAL"
+        echo ""
+    fi
+
     # Get current pip version
     current_pip=$(pip --version | awk '{print $2}')
     echo "Current pip version: $current_pip"
@@ -187,11 +196,30 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
     pip install pip==24.0 -q
     print_success "Pip downgraded to 24.0"
 
-    # Install RVC dependencies
-    echo "Installing RVC dependencies (torch, fairseq, rvc-python)..."
-    echo "This may take 5-10 minutes..."
-    pip install -r requirements-rvc.txt -q
-    print_success "RVC dependencies installed"
+    if [ "$IS_JETSON" = true ]; then
+        # Jetson: install PyTorch from NVIDIA index first
+        echo "Installing PyTorch from NVIDIA Jetson index..."
+        echo "This may take 10-15 minutes on Jetson..."
+        JETSON_INDEX="https://developer.download.nvidia.com/compute/redist/jp/v60/"
+        pip install torch torchaudio --index-url "$JETSON_INDEX" -q || {
+            print_warning "torchaudio install failed (no Jetson wheel available)"
+            echo "Installing torch only..."
+            pip install torch --index-url "$JETSON_INDEX" -q
+        }
+        print_success "PyTorch installed from NVIDIA Jetson index"
+
+        # Install remaining RVC dependencies (excludes torch/torchaudio)
+        echo "Installing RVC dependencies (fairseq, rvc-python)..."
+        echo "This may take 5-10 minutes..."
+        pip install -r requirements-rvc-jetson.txt -q
+        print_success "RVC dependencies installed"
+    else
+        # Standard installation
+        echo "Installing RVC dependencies (torch, fairseq, rvc-python)..."
+        echo "This may take 5-10 minutes..."
+        pip install -r requirements-rvc.txt -q
+        print_success "RVC dependencies installed"
+    fi
 
     # Upgrade pip back
     echo "Upgrading pip back to latest..."
