@@ -67,14 +67,31 @@ class RVCProcessor:
             device: Device to use for inference ('cpu', 'mps', or 'cuda')
         """
         self._available = RVC_AVAILABLE
-        self._device = device
+        self._device = self._validate_device(device)
         self._rvc_instance = None
         self._loaded_model_path = None
+        self._permanently_failed = False
 
         if not self._available:
             logger.error("rvc-python library not available")
         else:
-            logger.info(f"RVC processor initialized (direct library, device={device})")
+            logger.info(f"RVC processor initialized (direct library, device={self._device})")
+
+    @staticmethod
+    def _validate_device(device: str) -> str:
+        """Validate that the requested PyTorch device is actually available, fall back if not."""
+        try:
+            import torch
+            if device == "cuda" and torch.cuda.is_available():
+                return "cuda"
+            if device == "mps" and hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+                return "mps"
+            if device in ("cuda", "mps"):
+                logger.warning(f"Requested device '{device}' is not available, falling back to CPU")
+                return "cpu"
+        except ImportError:
+            pass
+        return device
 
     @property
     def available(self) -> bool:
@@ -129,6 +146,10 @@ class RVCProcessor:
         """
         if not self._available:
             logger.warning("RVC library not available, skipping conversion")
+            return None
+
+        if self._permanently_failed:
+            logger.debug("RVC permanently failed, skipping conversion")
             return None
 
         # Validate model path
@@ -232,6 +253,12 @@ class RVCProcessor:
                 logger.info(f"RVC conversion completed in {elapsed:.2f}s")
 
                 return converted_audio, converted_sr
+
+            except RuntimeError as e:
+                # Device errors (MPS/CUDA unavailable) are permanent — don't retry
+                logger.error(f"RVC conversion failed permanently: {e}", exc_info=True)
+                self._permanently_failed = True
+                return None
 
             except Exception as e:
                 logger.error(f"RVC conversion failed: {e}", exc_info=True)
