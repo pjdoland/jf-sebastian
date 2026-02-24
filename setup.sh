@@ -211,11 +211,22 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
         }
         print_success "PyTorch installed from Jetson AI Lab index"
 
+        # Downgrade pip for RVC deps (omegaconf 2.0.6 has broken metadata on pip 24.1+)
+        echo "Downgrading pip to 24.0 for RVC dependency resolution..."
+        pip install pip==24.0 -q
+        print_success "Pip downgraded to 24.0"
+
         # Install remaining RVC dependencies (excludes torch/torchaudio)
         echo "Installing RVC dependencies (fairseq, rvc-python)..."
         echo "This may take 5-10 minutes..."
         pip install -r requirements-rvc-jetson.txt -q
         print_success "RVC dependencies installed"
+
+        # Upgrade pip back
+        echo "Upgrading pip back to latest..."
+        pip install --upgrade pip -q
+        new_pip=$(pip --version | awk '{print $2}')
+        print_success "Pip upgraded to $new_pip"
     else
         # Standard path: pip downgrade needed for fairseq dependency resolution
         current_pip=$(pip --version | awk '{print $2}')

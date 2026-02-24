@@ -88,10 +88,21 @@ if [ "$IS_JETSON" = true ]; then
     echo "✓ PyTorch installed from Jetson AI Lab index"
     echo ""
 
-    echo "Step 2: Installing RVC dependencies (Jetson)..."
+    echo "Step 2: Downgrading pip to 24.0 for RVC dependency resolution..."
+    pip install pip==24.0 -q
+    echo "✓ Pip downgraded to 24.0"
+    echo ""
+
+    echo "Step 3: Installing RVC dependencies (Jetson)..."
     echo "This may take 5-10 minutes (fairseq, rvc-python)..."
     pip install -r requirements-rvc-jetson.txt -q
     echo "✓ RVC dependencies installed"
+    echo ""
+
+    echo "Step 4: Upgrading pip back to latest..."
+    pip install --upgrade pip -q
+    new_pip=$(pip --version | awk '{print $2}')
+    echo "✓ Pip upgraded to $new_pip"
 else
     # Standard path: pip downgrade needed for fairseq dependency resolution
     echo "Step 1: Downgrading pip to 24.0 for compatibility..."
