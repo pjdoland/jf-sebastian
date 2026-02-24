@@ -59,10 +59,6 @@ class AudioRecorder:
         # Continuous conversation mode - if True, keep recording after speech ends
         self._continuous = False
 
-        # Suppression mode - when True, frames are read but discarded (echo suppression)
-        self._suppressed = False
-        self._suppression_cooldown_until: float = 0.0
-
         logger.info("Audio recorder initialized")
 
     def start_recording(self, initial_audio: Optional[bytes] = None, continuous: bool = False):
@@ -139,8 +135,6 @@ class AudioRecorder:
 
             self._speech_active = False
             self._silence_start_time = None
-            self._suppressed = False
-            self._suppression_cooldown_until = 0.0
 
             # Start recording thread
             self._recording = True
@@ -153,30 +147,6 @@ class AudioRecorder:
             logger.error(f"Failed to start audio recording: {e}", exc_info=True)
             self._cleanup()
             raise
-
-    def suppress(self):
-        """Suppress audio capture (echo suppression during playback).
-        Frames are still read from the stream to keep it alive, but discarded."""
-        if not self._suppressed:
-            self._suppressed = True
-            logger.info("Audio capture suppressed (echo suppression)")
-
-    def unsuppress(self, cooldown_ms: int = 500):
-        """Resume audio capture after suppression.
-        Clears any buffered frames and resets speech detection state.
-
-        Args:
-            cooldown_ms: Milliseconds to keep discarding frames after unsuppress,
-                         allowing speaker audio/room reverb to die down.
-        """
-        if self._suppressed:
-            self._frames.clear()
-            self._speech_active = False
-            self._silence_start_time = None
-            # Set cooldown end time — frames are still discarded until then
-            self._suppression_cooldown_until = time.time() + (cooldown_ms / 1000.0)
-            self._suppressed = False
-            logger.info(f"Audio capture resumed (suppression lifted, {cooldown_ms}ms cooldown)")
 
     def stop_recording(self):
         """Stop recording and return collected audio."""
@@ -207,10 +177,8 @@ class AudioRecorder:
 
         try:
             while self._recording:
-                # Check timeout (skip during suppression — timeout doesn't count during playback)
-                if self._suppressed:
-                    start_time = time.time()
-                elif time.time() - start_time > settings.SILENCE_TIMEOUT:
+                # Check timeout
+                if time.time() - start_time > settings.SILENCE_TIMEOUT:
                     logger.info(f"Recording timeout reached ({settings.SILENCE_TIMEOUT}s)")
                     should_continue = self._handle_speech_end()
                     if not should_continue:
@@ -220,19 +188,12 @@ class AudioRecorder:
 
                 # Read audio frame
                 try:
-                    if self._audio_stream is None:
-                        logger.debug("Audio stream closed, exiting recording loop")
-                        break
                     frame = self._audio_stream.read(
                         self._vad_frame_size,
                         exception_on_overflow=False
                     )
                 except Exception as e:
                     logger.error(f"Error reading audio frame: {e}")
-                    break
-
-                # If suppressed (during playback) or in cooldown, discard frame and skip VAD
-                if self._suppressed or time.time() < self._suppression_cooldown_until:
                     continue
 
                 # Store frame
@@ -300,9 +261,8 @@ class AudioRecorder:
             except Exception as e:
                 logger.error(f"Error in speech_end callback: {e}", exc_info=True)
 
-        if self._continuous and self._recording:
+        if self._continuous:
             # Continuous mode - reset state and continue recording
-            # (Check _recording because the callback may have stopped us)
             logger.info("Continuous mode: resetting state for next turn")
             self._frames.clear()
             self._speech_active = False

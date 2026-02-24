@@ -282,16 +282,11 @@ class TeddyRuxpinApp:
             logger.info("Starting new continuous conversation recording session")
             self.audio_recorder.start_recording(initial_audio=post_wake_audio, continuous=True)
         else:
-            # Resume capture after playback suppression — clears buffered speaker audio
-            self.audio_recorder.unsuppress()
             logger.info("Continuing conversation - recorder already running in continuous mode")
 
     def _on_enter_processing(self):
         """Handle entering PROCESSING state."""
         logger.info("Entering PROCESSING state - transcribing and generating response...")
-
-        # Suppress mic capture to prevent echo (speaker audio feeding back into mic)
-        self.audio_recorder.suppress()
 
         # Filler will be added to playback queue in _process_and_speak
         # (no longer playing it separately to avoid race conditions)
@@ -310,9 +305,6 @@ class TeddyRuxpinApp:
 
         # Resume wake word detector FIRST (before stopping recorder which can block)
         self._resume_wake_after_playback()
-
-        # Ensure suppression is cleared (in case we came from PROCESSING/SPEAKING directly)
-        self.audio_recorder.unsuppress()
 
         # Stop any ongoing recording (end continuous conversation mode)
         if self.audio_recorder._recording:
