@@ -228,8 +228,11 @@ class RVCProcessor:
                 elif isinstance(result, tuple) and len(result) == 2:
                     # Tuple result (message, (sr, audio_data))
                     message, audio_result = result
-                    if audio_result is not None:
+                    if audio_result is not None and isinstance(audio_result, tuple):
                         converted_sr, converted_audio = audio_result
+                        if converted_audio is None:
+                            logger.error(f"RVC conversion produced no audio: {message}")
+                            return None
                         logger.debug(f"Conversion result: {message}")
                     else:
                         logger.error(f"RVC conversion failed: {message}")
