@@ -201,13 +201,13 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
         JETSON_INDEX="https://pypi.jetson-ai-lab.io/jp6/${CUDA_TAG}/"
         echo "Using Jetson wheel index: $JETSON_INDEX"
 
-        # Jetson: install PyTorch from Jetson AI Lab index first
-        echo "Installing PyTorch from Jetson AI Lab index..."
+        # Pin torch 2.8.0 - newer versions (2.9+) require libcudss which JetPack doesn't ship
+        echo "Installing PyTorch 2.8.0 from Jetson AI Lab index..."
         echo "This may take 10-15 minutes on Jetson..."
-        pip install torch torchaudio --index-url "$JETSON_INDEX" || {
+        pip install "torch==2.8.0" "torchaudio==2.8.0" --index-url "$JETSON_INDEX" || {
             print_warning "torchaudio install failed (no Jetson wheel available)"
             echo "Installing torch only..."
-            pip install torch --index-url "$JETSON_INDEX"
+            pip install "torch==2.8.0" --index-url "$JETSON_INDEX"
         }
         print_success "PyTorch installed from Jetson AI Lab index"
 

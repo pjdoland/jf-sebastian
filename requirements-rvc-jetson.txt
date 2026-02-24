@@ -11,6 +11,10 @@
 # RVC on Jetson is EXPERIMENTAL - some packages (fairseq, rvc-python) may
 # require building from source on aarch64.
 
+# NumPy 1.x required - torch 2.8.0 Jetson wheel and rvc-python both need it.
+# This will downgrade numpy from 2.x installed by main requirements.txt.
+numpy<=1.23.5
+
 # Core RVC library
 rvc-python>=0.1.0
 

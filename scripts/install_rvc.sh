@@ -78,12 +78,13 @@ if [ "$IS_JETSON" = true ]; then
     echo "Using Jetson wheel index: $JETSON_INDEX"
     echo ""
 
-    echo "Step 1: Installing PyTorch from Jetson AI Lab index..."
+    # Pin torch 2.8.0 - newer versions (2.9+) require libcudss which JetPack doesn't ship
+    echo "Step 1: Installing PyTorch 2.8.0 from Jetson AI Lab index..."
     echo "This may take 10-15 minutes on Jetson..."
-    pip install torch torchaudio --index-url "$JETSON_INDEX" || {
+    pip install "torch==2.8.0" "torchaudio==2.8.0" --index-url "$JETSON_INDEX" || {
         echo "⚠ torchaudio install failed (no Jetson wheel available)"
         echo "  Installing torch only..."
-        pip install torch --index-url "$JETSON_INDEX"
+        pip install "torch==2.8.0" --index-url "$JETSON_INDEX"
     }
     echo "✓ PyTorch installed from Jetson AI Lab index"
     echo ""
