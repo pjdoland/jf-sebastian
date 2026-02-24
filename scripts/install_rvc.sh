@@ -80,10 +80,10 @@ if [ "$IS_JETSON" = true ]; then
 
     echo "Step 1: Installing PyTorch from Jetson AI Lab index..."
     echo "This may take 10-15 minutes on Jetson..."
-    pip install torch torchaudio --index-url "$JETSON_INDEX" -q || {
+    pip install torch torchaudio --index-url "$JETSON_INDEX" || {
         echo "⚠ torchaudio install failed (no Jetson wheel available)"
         echo "  Installing torch only..."
-        pip install torch --index-url "$JETSON_INDEX" -q
+        pip install torch --index-url "$JETSON_INDEX"
     }
     echo "✓ PyTorch installed from Jetson AI Lab index"
     echo ""
@@ -94,8 +94,8 @@ if [ "$IS_JETSON" = true ]; then
     echo ""
 
     echo "Step 3: Installing RVC dependencies (Jetson)..."
-    echo "This may take 5-10 minutes (fairseq, rvc-python)..."
-    pip install -r requirements-rvc-jetson.txt -q
+    echo "Some packages may compile from source - this can take 15-30 minutes..."
+    pip install -r requirements-rvc-jetson.txt
     echo "✓ RVC dependencies installed"
     echo ""
 

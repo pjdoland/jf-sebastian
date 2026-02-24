@@ -204,10 +204,10 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
         # Jetson: install PyTorch from Jetson AI Lab index first
         echo "Installing PyTorch from Jetson AI Lab index..."
         echo "This may take 10-15 minutes on Jetson..."
-        pip install torch torchaudio --index-url "$JETSON_INDEX" -q || {
+        pip install torch torchaudio --index-url "$JETSON_INDEX" || {
             print_warning "torchaudio install failed (no Jetson wheel available)"
             echo "Installing torch only..."
-            pip install torch --index-url "$JETSON_INDEX" -q
+            pip install torch --index-url "$JETSON_INDEX"
         }
         print_success "PyTorch installed from Jetson AI Lab index"
 
@@ -218,8 +218,8 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
 
         # Install remaining RVC dependencies (excludes torch/torchaudio)
         echo "Installing RVC dependencies (fairseq, rvc-python)..."
-        echo "This may take 5-10 minutes..."
-        pip install -r requirements-rvc-jetson.txt -q
+        echo "Some packages may compile from source - this can take 15-30 minutes..."
+        pip install -r requirements-rvc-jetson.txt
         print_success "RVC dependencies installed"
 
         # Upgrade pip back
