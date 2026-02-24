@@ -75,15 +75,13 @@ class TeddyRuxpinDevice(OutputDevice):
                 return None
 
             # Apply RVC voice conversion if enabled for this personality
-            # Track current sample rate (changes to 48kHz if RVC is applied)
             current_sample_rate = settings.SAMPLE_RATE
             rvc_applied = False
             if personality and personality.rvc_enabled and settings.RVC_ENABLED:
-                voice_audio = self.audio_processor.apply_rvc_conversion(
+                voice_audio, current_sample_rate = self.audio_processor.apply_rvc_conversion(
                     voice_audio, settings.SAMPLE_RATE, personality
                 )
-                current_sample_rate = 48000  # RVC outputs at 48kHz
-                rvc_applied = True
+                rvc_applied = (current_sample_rate != settings.SAMPLE_RATE)
 
             # Analyze sentiment for eye control
             sentiment = self.sentiment_analyzer.analyze(response_text)

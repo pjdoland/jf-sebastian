@@ -81,22 +81,20 @@ class SquawkersMcCawDevice(OutputDevice):
                 return None
 
             # Apply RVC voice conversion if enabled for this personality
-            # RVC will output at 48kHz (model's native rate) regardless of input
+            current_sample_rate = self.rvc_input_sample_rate
             rvc_applied = False
             if personality and personality.rvc_enabled and settings.RVC_ENABLED:
-                voice_audio = self.audio_processor.apply_rvc_conversion(
+                voice_audio, current_sample_rate = self.audio_processor.apply_rvc_conversion(
                     voice_audio, self.rvc_input_sample_rate, personality
                 )
-                # After RVC, audio is at 48kHz (RVC model's output rate)
-                rvc_applied = True
+                rvc_applied = (current_sample_rate != self.rvc_input_sample_rate)
 
-            # If RVC was not applied, resample from 16kHz to 48kHz
-            if not rvc_applied:
-                # Calculate duration and resample to output sample rate
-                voice_duration = len(voice_audio) / self.rvc_input_sample_rate
+            # Resample to output sample rate if needed
+            if current_sample_rate != self.output_sample_rate:
+                voice_duration = len(voice_audio) / current_sample_rate
                 voice_samples_needed = int(voice_duration * self.output_sample_rate)
                 voice_audio = scipy_signal.resample(voice_audio, voice_samples_needed)
-                logger.debug(f"Resampled audio from {self.rvc_input_sample_rate}Hz to {self.output_sample_rate}Hz")
+                logger.debug(f"Resampled audio from {current_sample_rate}Hz to {self.output_sample_rate}Hz")
 
             # Analyze sentiment (for logging/future use)
             sentiment = self.sentiment_analyzer.analyze(response_text)

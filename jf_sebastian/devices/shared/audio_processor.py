@@ -7,7 +7,7 @@ import logging
 import tempfile
 import subprocess
 import os
-from typing import Optional, TYPE_CHECKING
+from typing import Optional, Tuple, TYPE_CHECKING
 import numpy as np
 from jf_sebastian.config import settings
 
@@ -80,7 +80,7 @@ class AudioProcessor:
         audio: np.ndarray,
         sample_rate: int,
         personality: 'Personality'
-    ) -> np.ndarray:
+    ) -> Tuple[np.ndarray, int]:
         """
         Apply RVC voice conversion to audio if enabled for the personality.
 
@@ -90,17 +90,17 @@ class AudioProcessor:
             personality: Personality configuration
 
         Returns:
-            Converted audio array (or original if RVC disabled/failed)
+            Tuple of (audio_array, sample_rate) - converted or original with its rate
         """
         # Check if RVC enabled for this personality
         if not personality.rvc_enabled:
             logger.debug("RVC not enabled for this personality")
-            return audio
+            return audio, sample_rate
 
         # Check if global RVC is disabled
         if not settings.RVC_ENABLED:
             logger.debug("RVC globally disabled in settings")
-            return audio
+            return audio, sample_rate
 
         # Lazy-load RVC processor
         if self._rvc_processor is None:
@@ -118,13 +118,13 @@ class AudioProcessor:
         # Check if RVC is available
         if not self._rvc_processor.available:
             logger.warning("RVC processor not available, using original audio")
-            return audio
+            return audio, sample_rate
 
         # Get model path
         model_path = personality.rvc_model_path
         if model_path is None:
             logger.error(f"RVC model not found: {personality.rvc_model}")
-            return audio
+            return audio, sample_rate
 
         # Get index path (optional)
         index_path = personality.rvc_index_path
@@ -134,7 +134,7 @@ class AudioProcessor:
         # Convert audio through RVC
         try:
             logger.info(f"Applying RVC conversion: {personality.rvc_model}")
-            converted = self._rvc_processor.convert_audio(
+            result = self._rvc_processor.convert_audio(
                 audio=audio,
                 sample_rate=sample_rate,
                 model_path=str(model_path),
@@ -148,16 +148,17 @@ class AudioProcessor:
             )
 
             # If conversion failed, return original
-            if converted is None:
+            if result is None:
                 logger.warning("RVC conversion failed, using original audio")
-                return audio
+                return audio, sample_rate
 
-            logger.info("RVC conversion successful")
-            return converted
+            converted_audio, converted_sr = result
+            logger.info(f"RVC conversion successful (output {converted_sr}Hz)")
+            return converted_audio, converted_sr
 
         except Exception as e:
             logger.error(f"Error during RVC conversion: {e}", exc_info=True)
-            return audio
+            return audio, sample_rate
 
     def warmup_rvc(self, personality: 'Personality') -> bool:
         """

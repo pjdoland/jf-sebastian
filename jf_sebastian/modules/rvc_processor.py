@@ -7,7 +7,7 @@ import logging
 import time
 import tempfile
 import os
-from typing import Optional
+from typing import Optional, Tuple
 from pathlib import Path
 import numpy as np
 import soundfile as sf
@@ -108,7 +108,7 @@ class RVCProcessor:
         filter_radius: int = 3,
         rms_mix_rate: float = 0.25,
         protect: float = 0.33
-    ) -> Optional[np.ndarray]:
+    ) -> Optional[Tuple[np.ndarray, int]]:
         """
         Convert audio through RVC model using rvc-python library.
 
@@ -125,7 +125,7 @@ class RVCProcessor:
             protect: Protect voiceless consonants (0.0 to 0.5)
 
         Returns:
-            Converted audio array or None on failure
+            Tuple of (converted_audio, sample_rate) or None on failure
         """
         if not self._available:
             logger.warning("RVC library not available, skipping conversion")
@@ -226,13 +226,12 @@ class RVCProcessor:
                 # Normalize to proper float32 range (-1.0 to 1.0)
                 converted_audio = converted_audio.astype(np.float32) / 32768.0
 
-                # No resampling needed - RVC outputs at 48kHz which matches our pipeline!
                 logger.info(f"RVC output normalized and ready at {converted_sr}Hz")
 
                 elapsed = time.time() - start_time
                 logger.info(f"RVC conversion completed in {elapsed:.2f}s")
 
-                return converted_audio
+                return converted_audio, converted_sr
 
             except Exception as e:
                 logger.error(f"RVC conversion failed: {e}", exc_info=True)
