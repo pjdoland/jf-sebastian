@@ -188,13 +188,16 @@ class AudioRecorder:
 
                 # Read audio frame
                 try:
+                    if self._audio_stream is None:
+                        logger.debug("Audio stream closed, exiting recording loop")
+                        break
                     frame = self._audio_stream.read(
                         self._vad_frame_size,
                         exception_on_overflow=False
                     )
                 except Exception as e:
                     logger.error(f"Error reading audio frame: {e}")
-                    continue
+                    break
 
                 # Store frame
                 self._frames.append(frame)
@@ -261,8 +264,9 @@ class AudioRecorder:
             except Exception as e:
                 logger.error(f"Error in speech_end callback: {e}", exc_info=True)
 
-        if self._continuous:
+        if self._continuous and self._recording:
             # Continuous mode - reset state and continue recording
+            # (Check _recording because the callback may have stopped us)
             logger.info("Continuous mode: resetting state for next turn")
             self._frames.clear()
             self._speech_active = False
