@@ -59,6 +59,9 @@ class AudioRecorder:
         # Continuous conversation mode - if True, keep recording after speech ends
         self._continuous = False
 
+        # Suppression mode - when True, frames are read but discarded (echo suppression)
+        self._suppressed = False
+
         logger.info("Audio recorder initialized")
 
     def start_recording(self, initial_audio: Optional[bytes] = None, continuous: bool = False):
@@ -148,6 +151,23 @@ class AudioRecorder:
             self._cleanup()
             raise
 
+    def suppress(self):
+        """Suppress audio capture (echo suppression during playback).
+        Frames are still read from the stream to keep it alive, but discarded."""
+        if not self._suppressed:
+            self._suppressed = True
+            logger.info("Audio capture suppressed (echo suppression)")
+
+    def unsuppress(self):
+        """Resume audio capture after suppression.
+        Clears any buffered frames and resets speech detection state."""
+        if self._suppressed:
+            self._suppressed = False
+            self._frames.clear()
+            self._speech_active = False
+            self._silence_start_time = None
+            logger.info("Audio capture resumed (suppression lifted)")
+
     def stop_recording(self):
         """Stop recording and return collected audio."""
         if not self._recording:
@@ -177,8 +197,10 @@ class AudioRecorder:
 
         try:
             while self._recording:
-                # Check timeout
-                if time.time() - start_time > settings.SILENCE_TIMEOUT:
+                # Check timeout (skip during suppression — timeout doesn't count during playback)
+                if self._suppressed:
+                    start_time = time.time()
+                elif time.time() - start_time > settings.SILENCE_TIMEOUT:
                     logger.info(f"Recording timeout reached ({settings.SILENCE_TIMEOUT}s)")
                     should_continue = self._handle_speech_end()
                     if not should_continue:
@@ -198,6 +220,10 @@ class AudioRecorder:
                 except Exception as e:
                     logger.error(f"Error reading audio frame: {e}")
                     break
+
+                # If suppressed (during playback), discard frame and skip VAD
+                if self._suppressed:
+                    continue
 
                 # Store frame
                 self._frames.append(frame)
