@@ -61,6 +61,11 @@ class AudioRecorder:
 
         logger.info("Audio recorder initialized")
 
+    @property
+    def is_recording(self) -> bool:
+        """Check if currently recording."""
+        return self._recording
+
     def start_recording(self, initial_audio: Optional[bytes] = None, continuous: bool = False):
         """
         Start recording audio in background thread.

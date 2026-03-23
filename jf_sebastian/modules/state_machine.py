@@ -37,6 +37,13 @@ class StateMachine:
     Thread-safe state management with event-based transitions.
     """
 
+    VALID_TRANSITIONS = {
+        ConversationState.IDLE: [ConversationState.LISTENING],
+        ConversationState.LISTENING: [ConversationState.PROCESSING, ConversationState.IDLE],
+        ConversationState.PROCESSING: [ConversationState.SPEAKING, ConversationState.IDLE],
+        ConversationState.SPEAKING: [ConversationState.LISTENING, ConversationState.IDLE],
+    }
+
     def __init__(self):
         self._state: ConversationState = ConversationState.IDLE
         self._lock = threading.Lock()
@@ -44,7 +51,9 @@ class StateMachine:
             state: [] for state in ConversationState
         }
         self._transition_history: list[StateTransition] = []
+        self._max_history: int = 100
         self._last_activity_time: float = time.time()
+        self._last_transition_time: float = time.time()
         self._conversation_start_time: Optional[float] = None
 
         logger.info("State machine initialized in IDLE state")
@@ -109,7 +118,7 @@ class StateMachine:
                 self._conversation_start_time = None
                 logger.info("Conversation session ended")
 
-            # Record transition
+            # Record transition (cap history to prevent unbounded growth)
             transition = StateTransition(
                 from_state=old_state,
                 to_state=new_state,
@@ -117,6 +126,8 @@ class StateMachine:
                 trigger=trigger
             )
             self._transition_history.append(transition)
+            if len(self._transition_history) > self._max_history:
+                self._transition_history = self._transition_history[-self._max_history:]
 
             logger.info(
                 f"State transition: {old_state.value} -> {new_state.value} "
@@ -128,30 +139,12 @@ class StateMachine:
         return True
 
     def _is_valid_transition(self, from_state: ConversationState, to_state: ConversationState) -> bool:
-        """
-        Check if a state transition is valid.
-
-        Valid transitions:
-        - IDLE -> LISTENING (wake word detected)
-        - LISTENING -> PROCESSING (speech captured)
-        - LISTENING -> IDLE (timeout or silence)
-        - PROCESSING -> SPEAKING (response ready)
-        - PROCESSING -> IDLE (error or cancellation)
-        - SPEAKING -> LISTENING (continue conversation)
-        - SPEAKING -> IDLE (conversation ended)
-        """
-        valid_transitions = {
-            ConversationState.IDLE: [ConversationState.LISTENING],
-            ConversationState.LISTENING: [ConversationState.PROCESSING, ConversationState.IDLE],
-            ConversationState.PROCESSING: [ConversationState.SPEAKING, ConversationState.IDLE],
-            ConversationState.SPEAKING: [ConversationState.LISTENING, ConversationState.IDLE],
-        }
-
+        """Check if a state transition is valid."""
         # Allow same-state "transitions" (no-op)
         if from_state == to_state:
             return True
 
-        return to_state in valid_transitions.get(from_state, [])
+        return to_state in self.VALID_TRANSITIONS.get(from_state, [])
 
     def register_callback(self, state: ConversationState, callback: Callable):
         """

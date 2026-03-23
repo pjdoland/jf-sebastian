@@ -45,6 +45,124 @@ class AudioPlayer:
         self._session_sample_rate = None
         logger.info("Audio player initialized")
 
+    # -------------------------------------------------------------------------
+    # Shared helpers (used by both single-shot and session playback)
+    # -------------------------------------------------------------------------
+
+    def _ensure_pyaudio(self):
+        """Re-initialize PyAudio if it was terminated."""
+        if self._pyaudio is None:
+            logger.warning("PyAudio was terminated, re-initializing...")
+            self._pyaudio = pyaudio.PyAudio()
+
+    def _wait_for_abandoned_stream(self):
+        """Wait for macOS to release a previously abandoned stream."""
+        if self._stream_abandoned and IS_MACOS:
+            logger.info("Previous stream was abandoned, waiting for macOS to release audio resources...")
+            time.sleep(0.5)
+            self._stream_abandoned = False
+
+    def _resolve_output_device(self) -> Optional[int]:
+        """Resolve the configured output device name to a device index."""
+        if settings.OUTPUT_DEVICE_NAME:
+            device_index = find_audio_device_by_name(
+                self._pyaudio,
+                settings.OUTPUT_DEVICE_NAME,
+                "output"
+            )
+            if device_index is None:
+                logger.warning(f"Could not find output device '{settings.OUTPUT_DEVICE_NAME}', using default")
+            return device_index
+        else:
+            logger.debug("OUTPUT_DEVICE_NAME not set, using system default audio device")
+            return None
+
+    def _open_stream_with_timeout(self, sample_rate: int, device_index: Optional[int], timeout: float = 3.0) -> Optional[pyaudio.Stream]:
+        """
+        Open a PyAudio output stream with timeout protection.
+
+        Args:
+            sample_rate: Sample rate in Hz
+            device_index: Output device index (None for default)
+            timeout: Maximum seconds to wait for stream open
+
+        Returns:
+            Opened stream, or None on failure
+        """
+        stream = None
+        open_success = False
+
+        def _open():
+            nonlocal open_success, stream
+            try:
+                stream = self._pyaudio.open(
+                    format=pyaudio.paInt16,
+                    channels=2,
+                    rate=sample_rate,
+                    output=True,
+                    output_device_index=device_index,
+                    frames_per_buffer=1024,
+                )
+                open_success = True
+            except Exception as e:
+                logger.error(f"Error opening stream: {e}")
+
+        opener = threading.Thread(target=_open, daemon=True)
+        opener.start()
+        opener.join(timeout=timeout)
+
+        if not open_success or stream is None:
+            logger.error(f"Stream open timed out or failed after {timeout}s")
+            return None
+
+        if not stream.is_active():
+            stream.start_stream()
+
+        return stream
+
+    def _close_or_abandon_stream(self, stream):
+        """Close a stream, or abandon it on macOS to avoid blocking."""
+        if stream is None:
+            return
+        if IS_MACOS:
+            logger.info("Abandoning stream to avoid close blocking (macOS CoreAudio will clean up)")
+            self._stream_abandoned = True
+        else:
+            try:
+                stream.stop_stream()
+                stream.close()
+                logger.info("Audio stream closed normally")
+            except Exception as e:
+                logger.warning(f"Error closing stream: {e}")
+
+    @staticmethod
+    def _resample_stereo(stereo_audio: np.ndarray, orig_sr: int, target_sr: int) -> np.ndarray:
+        """Resample stereo audio from orig_sr to target_sr."""
+        import librosa
+        left_resampled = librosa.resample(
+            stereo_audio[:, 0].astype(np.float32),
+            orig_sr=orig_sr,
+            target_sr=target_sr,
+            res_type='kaiser_best'
+        )
+        right_resampled = librosa.resample(
+            stereo_audio[:, 1].astype(np.float32),
+            orig_sr=orig_sr,
+            target_sr=target_sr,
+            res_type='kaiser_best'
+        )
+        return np.column_stack((left_resampled, right_resampled))
+
+    @staticmethod
+    def _to_int16(stereo_audio: np.ndarray) -> np.ndarray:
+        """Clip to valid range and convert float32 stereo audio to int16."""
+        clipped = np.clip(stereo_audio, -1.0, 1.0)
+        return (clipped * 32767).astype(np.int16)
+
+    # -------------------------------------------------------------------------
+    # Single-shot playback
+    # -------------------------------------------------------------------------
+
     def play_stereo(
         self,
         stereo_audio: np.ndarray,
@@ -117,42 +235,17 @@ class AudioPlayer:
             watchdog_timer.daemon = True
             watchdog_timer.start()
 
-            # Re-initialize PyAudio only if it was terminated (not if stream was abandoned)
-            # Note: On macOS, creating multiple PyAudio instances causes CoreAudio conflicts
-            # So we keep using the same instance even if we abandoned a stream
-            if self._pyaudio is None:
-                logger.warning("PyAudio was terminated, re-initializing...")
-                self._pyaudio = pyaudio.PyAudio()
+            self._ensure_pyaudio()
+            self._wait_for_abandoned_stream()
 
-            if self._stream_abandoned and IS_MACOS:
-                logger.info("Previous stream was abandoned, waiting for macOS to release audio resources...")
-                # Give macOS CoreAudio time to release the abandoned stream
-                # Reduced to 0.5s to minimize gaps between filler and response
-                time.sleep(0.5)
-                self._stream_abandoned = False
-                logger.info("Proceeding with stream open after delay")
+            # Resolve output device
+            device_index = self._resolve_output_device()
 
-            # Get output device by name (None = system default)
-            device_index = None
-
-            if settings.OUTPUT_DEVICE_NAME:
-                # Find device by name
-                device_index = find_audio_device_by_name(
-                    self._pyaudio,
-                    settings.OUTPUT_DEVICE_NAME,
-                    "output"
-                )
-                if device_index is None:
-                    logger.warning(f"Could not find output device '{settings.OUTPUT_DEVICE_NAME}', using default")
-            else:
-                logger.debug("OUTPUT_DEVICE_NAME not set, using system default audio device")
-
-            # Get device info
+            # Get device sample rate
             if device_index is not None and device_index >= 0:
                 device_info = self._pyaudio.get_device_info_by_index(device_index)
                 device_sample_rate = int(device_info['defaultSampleRate'])
             else:
-                # Use default device
                 default_device = self._pyaudio.get_default_output_device_info()
                 device_sample_rate = int(default_device['defaultSampleRate'])
                 device_index = None
@@ -162,75 +255,24 @@ class AudioPlayer:
             # Resample if needed
             if sample_rate != device_sample_rate:
                 logger.info(f"Resampling audio from {sample_rate}Hz to {device_sample_rate}Hz")
-                import librosa
-
-                # Resample each channel using high-quality resampling
-                left_resampled = librosa.resample(
-                    stereo_audio[:, 0].astype(np.float32),
-                    orig_sr=sample_rate,
-                    target_sr=device_sample_rate,
-                    res_type='kaiser_best'
-                )
-                right_resampled = librosa.resample(
-                    stereo_audio[:, 1].astype(np.float32),
-                    orig_sr=sample_rate,
-                    target_sr=device_sample_rate,
-                    res_type='kaiser_best'
-                )
-
-                # Combine back to stereo
-                stereo_audio = np.column_stack((left_resampled, right_resampled))
+                stereo_audio = self._resample_stereo(stereo_audio, sample_rate, device_sample_rate)
                 sample_rate = device_sample_rate
 
-            # Clip to valid range and convert to int16
-            stereo_audio = np.clip(stereo_audio, -1.0, 1.0)
-            audio_int16 = (stereo_audio * 32767).astype(np.int16)
+            # Convert to int16
+            audio_int16 = self._to_int16(stereo_audio)
 
-            # Open output stream with timeout protection (stream.open can block on macOS)
-            stream = None
-            open_success = False
-
-            def open_stream_thread():
-                nonlocal open_success, stream
-                try:
-                    logger.info("Opening audio stream...")
-                    stream = self._pyaudio.open(
-                        format=pyaudio.paInt16,
-                        channels=2,  # Stereo
-                        rate=sample_rate,
-                        output=True,
-                        output_device_index=device_index,
-                        frames_per_buffer=1024,
-                    )
-                    logger.info("Audio stream opened successfully")
-                    open_success = True
-                except Exception as e:
-                    logger.error(f"Error opening stream: {e}")
-
-            opener = threading.Thread(target=open_stream_thread, daemon=True)
-            opener.start()
-            opener.join(timeout=3.0)  # Wait up to 3 seconds for stream open
-
-            if not open_success or stream is None:
-                logger.error("Stream open timed out or failed after 3s")
+            # Open stream with timeout protection
+            stream = self._open_stream_with_timeout(sample_rate, device_index)
+            if stream is None:
                 raise RuntimeError("Failed to open audio stream (timeout or error)")
 
-            # Explicitly start the stream (should already be started, but be explicit)
-            if not stream.is_active():
-                logger.info("Stream not active, starting it explicitly")
-                stream.start_stream()
-
             # Play audio in chunks to allow interruption
-            # Write in 0.1 second chunks so we can check stop flag
             chunk_size = int(sample_rate * 0.1 * 2)  # 0.1s * 2 channels
             audio_bytes = audio_int16.tobytes()
             total_bytes = len(audio_bytes)
             bytes_per_frame = 4  # 2 bytes per sample * 2 channels
 
-            # Calculate expected playback duration for timeout detection
-            expected_duration = len(stereo_audio) / sample_rate
             playback_start_time = time.time()
-
             offset = 0
             chunks_written = 0
             last_progress_time = playback_start_time
@@ -250,11 +292,9 @@ class AudioPlayer:
                 # Write next chunk
                 chunk_end = min(offset + chunk_size * bytes_per_frame, total_bytes)
 
-                # Log every 100 chunks to track progress without spamming
                 if chunks_written % 100 == 0:
                     logger.debug(f"Writing chunk {chunks_written}, offset {offset}/{total_bytes}, elapsed {elapsed:.1f}s")
 
-                # Log first chunk write attempt
                 if chunks_written == 0:
                     logger.info(f"Starting to write audio data ({total_bytes} bytes)...")
 
@@ -264,7 +304,6 @@ class AudioPlayer:
                     chunks_written += 1
                     last_progress_time = time.time()
 
-                    # Log first chunk success
                     if chunks_written == 1:
                         logger.info(f"First chunk written successfully")
 
@@ -275,22 +314,8 @@ class AudioPlayer:
             write_duration = time.time() - playback_start_time
             logger.info(f"Wrote {chunks_written} chunks, {offset}/{total_bytes} bytes in {write_duration:.2f}s")
 
-            if IS_MACOS:
-                # On macOS, trying to close the stream cleanly often blocks for 10+ seconds
-                # This prevents subsequent chunks from playing promptly.
-                # Better strategy: abandon the stream immediately and let macOS clean it up.
-                logger.info("Abandoning stream to avoid close blocking (macOS CoreAudio will clean up)")
-                self._stream_abandoned = True
-                stream = None
-            else:
-                # On Linux/other platforms, close the stream normally
-                try:
-                    stream.stop_stream()
-                    stream.close()
-                    logger.info("Audio stream closed normally")
-                except Exception as e:
-                    logger.warning(f"Error closing stream: {e}")
-                stream = None
+            self._close_or_abandon_stream(stream)
+            stream = None
 
             if self._playing:
                 logger.info("Audio playback completed")
@@ -301,13 +326,10 @@ class AudioPlayer:
             logger.error(f"Error during audio playback: {e}", exc_info=True)
 
         finally:
-            # Cancel watchdog timer if it's still running
             if watchdog_timer:
                 watchdog_timer.cancel()
-                logger.debug("Watchdog timer cancelled")
 
             try:
-                # Clean up stream if it's still open
                 if stream:
                     try:
                         stream.stop_stream()
@@ -315,11 +337,8 @@ class AudioPlayer:
                     except Exception as cleanup_error:
                         logger.error(f"Stream cleanup error: {cleanup_error}")
             finally:
-                # GUARANTEE flag is cleared (nested finally)
                 self._playing = False
-                logger.debug(f"Playback flag cleared")
 
-            # Call completion callback
             if self.on_playback_complete:
                 try:
                     self.on_playback_complete()
@@ -337,13 +356,17 @@ class AudioPlayer:
         if self._thread:
             self._thread.join(timeout=2.0)
 
+    # -------------------------------------------------------------------------
+    # Session-based playback (gapless multi-chunk)
+    # -------------------------------------------------------------------------
+
     def start_playback_session(self, sample_rate: int = 48000) -> bool:
         """
         Start a persistent audio playback session for gapless multi-chunk playback.
         Opens a stream that will remain open until end_playback_session().
 
         Args:
-            sample_rate: Sample rate for the session (device-dependent: 48kHz for Squawkers, 44.1kHz for Teddy)
+            sample_rate: Sample rate for the session
 
         Returns:
             True if session started successfully
@@ -357,67 +380,15 @@ class AudioPlayer:
             return False
 
         try:
-            # Re-initialize PyAudio only if it was terminated
-            if self._pyaudio is None:
-                logger.warning("PyAudio was terminated, re-initializing...")
-                self._pyaudio = pyaudio.PyAudio()
+            self._ensure_pyaudio()
+            self._wait_for_abandoned_stream()
 
-            if self._stream_abandoned and IS_MACOS:
-                logger.info("Previous stream was abandoned, waiting for macOS to release audio resources...")
-                # Reduced to 0.5s to minimize gaps between filler and response
-                time.sleep(0.5)
-                self._stream_abandoned = False
-                logger.info("Proceeding with session stream open after delay")
+            device_index = self._resolve_output_device()
 
-            # Get output device by name (None = system default)
-            device_index = None
-
-            if settings.OUTPUT_DEVICE_NAME:
-                device_index = find_audio_device_by_name(
-                    self._pyaudio,
-                    settings.OUTPUT_DEVICE_NAME,
-                    "output"
-                )
-                if device_index is None:
-                    logger.warning(f"Could not find output device '{settings.OUTPUT_DEVICE_NAME}', using default")
-            else:
-                logger.debug("OUTPUT_DEVICE_NAME not set, using system default audio device")
-
-            # Open persistent stream with timeout protection
-            stream = None
-            open_success = False
-
-            def open_stream_thread():
-                nonlocal open_success, stream
-                try:
-                    logger.info(f"Opening session audio stream at {sample_rate}Hz...")
-                    stream = self._pyaudio.open(
-                        format=pyaudio.paInt16,
-                        channels=2,  # Stereo
-                        rate=sample_rate,
-                        output=True,
-                        output_device_index=device_index,
-                        frames_per_buffer=1024,
-                    )
-                    logger.info("Session audio stream opened successfully")
-                    open_success = True
-                except Exception as e:
-                    logger.error(f"Error opening session stream: {e}")
-
-            opener = threading.Thread(target=open_stream_thread, daemon=True)
-            opener.start()
-            opener.join(timeout=3.0)  # Wait up to 3 seconds for stream open
-
-            if not open_success or stream is None:
-                logger.error("Session stream open timed out or failed after 3s")
+            stream = self._open_stream_with_timeout(sample_rate, device_index)
+            if stream is None:
                 return False
 
-            # Start the stream if not already active
-            if not stream.is_active():
-                logger.info("Session stream not active, starting it explicitly")
-                stream.start_stream()
-
-            # Store session state
             self._session_stream = stream
             self._session_sample_rate = sample_rate
             self._session_active = True
@@ -448,28 +419,9 @@ class AudioPlayer:
             # Resample if needed
             if source_sample_rate != self._session_sample_rate:
                 logger.info(f"Resampling chunk from {source_sample_rate}Hz to {self._session_sample_rate}Hz")
-                import librosa
+                stereo_audio = self._resample_stereo(stereo_audio, source_sample_rate, self._session_sample_rate)
 
-                # Resample each channel using high-quality resampling
-                left_resampled = librosa.resample(
-                    stereo_audio[:, 0].astype(np.float32),
-                    orig_sr=source_sample_rate,
-                    target_sr=self._session_sample_rate,
-                    res_type='kaiser_best'
-                )
-                right_resampled = librosa.resample(
-                    stereo_audio[:, 1].astype(np.float32),
-                    orig_sr=source_sample_rate,
-                    target_sr=self._session_sample_rate,
-                    res_type='kaiser_best'
-                )
-
-                # Combine back to stereo
-                stereo_audio = np.column_stack((left_resampled, right_resampled))
-
-            # Clip to valid range and convert to int16
-            stereo_audio = np.clip(stereo_audio, -1.0, 1.0)
-            audio_int16 = (stereo_audio * 32767).astype(np.int16)
+            audio_int16 = self._to_int16(stereo_audio)
 
             # Write audio data to stream
             chunk_size = int(self._session_sample_rate * 0.1 * 2)  # 0.1s chunks * 2 channels
@@ -513,29 +465,18 @@ class AudioPlayer:
         logger.info("Ending playback session...")
 
         try:
-            if self._session_stream:
-                if IS_MACOS:
-                    # On macOS, stream close can block for 10+ seconds
-                    logger.info("Abandoning session stream to avoid close blocking (macOS CoreAudio will clean up)")
-                    self._stream_abandoned = True
-                    self._session_stream = None
-                else:
-                    # On Linux/other platforms, close the stream normally
-                    try:
-                        self._session_stream.stop_stream()
-                        self._session_stream.close()
-                        logger.info("Session stream closed normally")
-                    except Exception as e:
-                        logger.warning(f"Error closing session stream: {e}")
-                    self._session_stream = None
+            self._close_or_abandon_stream(self._session_stream)
         except Exception as e:
             logger.error(f"Error ending playback session: {e}", exc_info=True)
         finally:
-            # Always clear session state
             self._session_active = False
             self._session_stream = None
             self._session_sample_rate = None
             logger.info("Playback session ended")
+
+    # -------------------------------------------------------------------------
+    # Lifecycle
+    # -------------------------------------------------------------------------
 
     def cleanup(self):
         """Cleanup resources - call this when shutting down the application."""
@@ -558,8 +499,8 @@ class AudioPlayer:
         if self._pyaudio:
             try:
                 self._pyaudio.terminate()
-            except:
-                pass  # Ignore errors during cleanup
+            except Exception:
+                pass
 
     @property
     def is_playing(self) -> bool:

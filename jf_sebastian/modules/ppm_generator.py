@@ -43,6 +43,9 @@ class PPMGenerator:
         self.period_samples = int(self.PERIOD / 1_000_000 * sample_rate)
         self.pause_samples = int(self.PAUSE_DURATION / 1_000_000 * sample_rate)
 
+        # Cached pyphen dictionary (loaded lazily on first use)
+        self._pyphen_dic = None
+
         logger.info(f"PPM Generator initialized: {sample_rate}Hz, period={self.period_samples} samples")
 
     def generate_ppm_signal(self, duration_seconds: float, channel_values: np.ndarray) -> np.ndarray:
@@ -410,7 +413,9 @@ class PPMGenerator:
         """
         try:
             import pyphen
-            dic = pyphen.Pyphen(lang='en_US')
+            if self._pyphen_dic is None:
+                self._pyphen_dic = pyphen.Pyphen(lang='en_US')
+            dic = self._pyphen_dic
 
             syllable_list = []
             for word in words:

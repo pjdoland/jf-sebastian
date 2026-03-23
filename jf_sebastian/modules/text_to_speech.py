@@ -132,39 +132,3 @@ class TextToSpeech:
 
         logger.error(f"Synthesis failed after {max_retries} attempts")
         return None
-
-
-class MockTextToSpeech:
-    """
-    Mock text-to-speech for testing without API calls.
-    Returns silent audio data.
-    """
-
-    def __init__(self):
-        logger.info("Mock text-to-speech initialized")
-
-    def synthesize(self, text: str, speed: float = 1.0) -> Optional[bytes]:
-        """Return mock audio data (1 second of silence)."""
-        if not text:
-            return None
-
-        logger.info(f"Mock synthesis: \"{text[:50]}...\"")
-
-        # Generate 1 second of silence at 44.1kHz, 16-bit, mono
-        sample_rate = settings.SAMPLE_RATE
-        duration = 1.0
-        num_samples = int(sample_rate * duration)
-
-        # 16-bit silence = bytes of zeros
-        silent_audio = b'\x00\x00' * num_samples
-
-        return silent_audio
-
-    def synthesize_with_retry(
-        self,
-        text: str,
-        speed: float = 1.0,
-        max_retries: int = 3
-    ) -> Optional[bytes]:
-        """Return mock audio data."""
-        return self.synthesize(text, speed)

@@ -45,19 +45,20 @@ class AudioProcessor:
                 mp3_file.write(mp3_data)
                 mp3_path = mp3_file.name
 
-            # Use FFmpeg to convert MP3 to raw PCM
-            result = subprocess.run([
-                'ffmpeg',
-                '-i', mp3_path,
-                '-f', 's16le',
-                '-acodec', 'pcm_s16le',
-                '-ac', '1',  # mono
-                '-ar', str(target_sample_rate),
-                '-'
-            ], capture_output=True, check=True)
-
-            # Clean up temp file
-            os.unlink(mp3_path)
+            try:
+                # Use FFmpeg to convert MP3 to raw PCM
+                result = subprocess.run([
+                    'ffmpeg',
+                    '-i', mp3_path,
+                    '-f', 's16le',
+                    '-acodec', 'pcm_s16le',
+                    '-ac', '1',  # mono
+                    '-ar', str(target_sample_rate),
+                    '-'
+                ], capture_output=True, check=True)
+            finally:
+                # Clean up temp file even if FFmpeg fails
+                os.unlink(mp3_path)
 
             # Convert to numpy array
             samples = np.frombuffer(result.stdout, dtype=np.int16).astype(np.float32)
@@ -113,7 +114,7 @@ class AudioProcessor:
                 logger.info(f"RVC processor initialized (device={device})")
             except Exception as e:
                 logger.error(f"Failed to initialize RVC processor: {e}", exc_info=True)
-                return audio
+                return audio, sample_rate
 
         # Check if RVC is available
         if not self._rvc_processor.available:

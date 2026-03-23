@@ -24,7 +24,7 @@ from jf_sebastian.modules.speech_to_text import SpeechToText
 from jf_sebastian.modules.conversation import ConversationEngine
 from jf_sebastian.modules.text_to_speech import TextToSpeech
 from jf_sebastian.devices import DeviceRegistry
-from jf_sebastian.utils.audio_utils import save_stereo_wav
+from jf_sebastian.utils.audio_utils import save_stereo_wav, calculate_rms, contains_speech
 from jf_sebastian.utils.async_file_utils import save_async
 from jf_sebastian.modules.audio_output import AudioPlayer
 from jf_sebastian.modules.filler_phrases import FillerPhraseManager
@@ -149,25 +149,6 @@ class TeddyRuxpinApp:
         # Register state callbacks
         self._register_state_callbacks()
 
-        # Pre-warm RVC model if enabled (loads model into memory for faster first response)
-        # TEMPORARILY DISABLED: Heavy torch/rvc imports cause slow startup
-        # TODO: Re-enable with lazy imports or background thread
-        # if self.personality.rvc_enabled:
-        #     logger.info("Pre-warming RVC model...")
-        #     try:
-        #         from jf_sebastian.modules.rvc_processor import RVCProcessor
-        #         self._rvc_processor = RVCProcessor(device=settings.RVC_DEVICE)
-        #         if self._rvc_processor.available:
-        #             model_path = self.personality.rvc_model_path
-        #             if model_path:
-        #                 logger.info(f"RVC model pre-warmed: {model_path}")
-        #             else:
-        #                 logger.warning("RVC model path not found, skipping pre-warm")
-        #         else:
-        #             logger.warning("RVC processor not available, skipping pre-warm")
-        #     except Exception as e:
-        #         logger.warning(f"Failed to pre-warm RVC model: {e}")
-
         # Running flag
         self._running = False
         self._selected_filler = None  # Store pre-selected filler for playback
@@ -276,7 +257,7 @@ class TeddyRuxpinApp:
 
         # Only start recording if not already running
         # (When continuing conversation, recorder is already in continuous mode)
-        if not self.audio_recorder._recording:
+        if not self.audio_recorder.is_recording:
             # New conversation from IDLE - start continuous recording session
             post_wake_audio = self.wake_word_detector.get_post_wake_audio()
             logger.info("Starting new continuous conversation recording session")
@@ -307,7 +288,7 @@ class TeddyRuxpinApp:
         self._resume_wake_after_playback()
 
         # Stop any ongoing recording (end continuous conversation mode)
-        if self.audio_recorder._recording:
+        if self.audio_recorder.is_recording:
             logger.info("Stopping continuous recording session")
             self.audio_recorder.stop_recording()
 
@@ -338,8 +319,6 @@ class TeddyRuxpinApp:
             return
 
         # Multi-stage audio validation (filters silence before Whisper API call)
-        from jf_sebastian.utils.audio_utils import calculate_rms, contains_speech
-
         # Stage 1: RMS check - filters pure silence and very quiet audio
         # Use peak RMS over 100ms windows to detect ANY speech in the buffer
         peak_rms = calculate_rms(audio_data, sample_rate=16000)  # Whisper uses 16kHz
@@ -656,12 +635,6 @@ Now respond to their question naturally, as if your filler phrase was the beginn
             logger.error(f"Error in processing pipeline: {e}", exc_info=True)
             self._sequential_playback_active = False
             self.state_machine.transition_to(ConversationState.IDLE, trigger="error")
-
-    def _play_filler(self):
-        """DEPRECATED - Filler is now added to playback queue instead."""
-        # This method is no longer used - filler is added directly to the playback queue
-        # in _process_and_speak to ensure sequential playback without race conditions
-        pass
 
     def _validate_and_recover_state(self) -> bool:
         """

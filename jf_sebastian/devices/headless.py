@@ -12,7 +12,6 @@ from scipy import signal as scipy_signal
 from jf_sebastian.devices.base import OutputDevice
 from jf_sebastian.devices.factory import register_device
 from jf_sebastian.devices.shared.audio_processor import AudioProcessor
-from jf_sebastian.devices.shared.sentiment_analyzer import SentimentAnalyzer
 from jf_sebastian.config import settings
 
 if TYPE_CHECKING:
@@ -31,16 +30,14 @@ class HeadlessDevice(OutputDevice):
     - RIGHT channel: Voice audio (duplicate)
 
     No PPM control signals - just plays audio.
-    Sentiment analysis is still performed for consistency/logging.
     """
 
     def __init__(self):
         """Initialize Headless device."""
         self.audio_processor = AudioProcessor()
-        self.sentiment_analyzer = SentimentAnalyzer()
         self.rvc_input_sample_rate = 16000  # 16kHz for fast RVC processing
         self.output_sample_rate = 48000  # 48kHz to match RVC output and device
-        logger.info(f"Headless device initialized (RVC input: {self.rvc_input_sample_rate}Hz, output: {self.output_sample_rate}Hz)")
+        logger.info(f"{self.device_name} device initialized (RVC input: {self.rvc_input_sample_rate}Hz, output: {self.output_sample_rate}Hz)")
 
     @property
     def device_name(self) -> str:
@@ -64,7 +61,7 @@ class HeadlessDevice(OutputDevice):
 
         Args:
             voice_audio_mp3: Voice audio from TTS (MP3 format)
-            response_text: Original text for sentiment analysis (logging only)
+            response_text: Original text (unused by this device)
             personality: Optional personality configuration (for RVC, etc.)
 
         Returns:
@@ -97,10 +94,6 @@ class HeadlessDevice(OutputDevice):
                 voice_audio = scipy_signal.resample(voice_audio, voice_samples_needed)
                 logger.debug(f"Resampled audio from {current_sample_rate}Hz to {self.output_sample_rate}Hz")
 
-            # Analyze sentiment (for logging/future use)
-            sentiment = self.sentiment_analyzer.analyze(response_text)
-            logger.info(f"Sentiment: compound={sentiment:+.2f} (not used by Headless)")
-
             # RVC output is already properly leveled - don't apply gain
             # (Only apply gain if RVC was not used)
             if not rvc_applied:
@@ -110,23 +103,20 @@ class HeadlessDevice(OutputDevice):
             stereo_audio = np.column_stack((voice_audio, voice_audio))
 
             logger.info(
-                f"Headless output created: {stereo_audio.shape[0]} samples @ {self.output_sample_rate}Hz, "
-                f"sentiment={sentiment:.2f}"
+                f"{self.device_name} output created: {stereo_audio.shape[0]} samples @ {self.output_sample_rate}Hz"
             )
 
             return stereo_audio, self.output_sample_rate
 
         except Exception as e:
-            logger.error(f"Error creating Headless output: {e}", exc_info=True)
+            logger.error(f"Error creating {self.device_name} output: {e}", exc_info=True)
             return None
 
     def validate_settings(self) -> list[str]:
-        """Validate Headless-specific settings."""
+        """Validate device-specific settings."""
         errors = []
 
         if not (0.0 <= settings.VOICE_GAIN <= 2.0):
             errors.append(f"VOICE_GAIN must be 0.0-2.0, got {settings.VOICE_GAIN}")
-
-        # Note: CONTROL_GAIN is ignored for Headless
 
         return errors

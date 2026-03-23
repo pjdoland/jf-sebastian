@@ -120,30 +120,3 @@ class SpeechToText:
 
         logger.error(f"Transcription failed after {max_retries} attempts")
         return None
-
-
-class MockSpeechToText:
-    """
-    Mock speech-to-text for testing without API calls.
-    Returns placeholder text.
-    """
-
-    def __init__(self):
-        logger.info("Mock speech-to-text initialized")
-
-    def transcribe(self, audio_data: bytes, language: str = "en") -> Optional[str]:
-        """Return mock transcription."""
-        if not audio_data:
-            return None
-
-        logger.info("Mock transcription: returning test text")
-        return "This is a test transcription."
-
-    def transcribe_with_retry(
-        self,
-        audio_data: bytes,
-        language: str = "en",
-        max_retries: int = 3
-    ) -> Optional[str]:
-        """Return mock transcription."""
-        return self.transcribe(audio_data, language)
