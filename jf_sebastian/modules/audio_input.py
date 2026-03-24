@@ -186,10 +186,11 @@ class AudioRecorder:
                 if time.time() - start_time > settings.SILENCE_TIMEOUT:
                     logger.info(f"Recording timeout reached ({settings.SILENCE_TIMEOUT}s)")
                     should_continue = self._handle_speech_end()
-                    if not should_continue:
+                    if not should_continue or not self._recording:
                         break
                     # Reset start time for next turn
                     start_time = time.time()
+                    continue
 
                 # Read audio frame
                 try:
@@ -225,10 +226,11 @@ class AudioRecorder:
                         ):
                             logger.info("Speech ended (silence detected)")
                             should_continue = self._handle_speech_end()
-                            if not should_continue:
+                            if not should_continue or not self._recording:
                                 break
                             # Reset start time for next turn
                             start_time = time.time()
+                            continue
 
         except Exception as e:
             logger.error(f"Error in recording loop: {e}", exc_info=True)
