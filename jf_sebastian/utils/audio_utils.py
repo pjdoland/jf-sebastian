@@ -37,8 +37,8 @@ def calculate_rms(audio_data: bytes, window_ms: int = 100, sample_rate: int = 16
         >>> if peak_rms < settings.MIN_AUDIO_RMS:
         ...     print("No speech detected in any window")
     """
-    # Convert bytes to numpy array of 16-bit integers
-    audio_array = np.frombuffer(audio_data, dtype=np.int16)
+    # Convert bytes to float64 array (avoids int16 overflow when squaring)
+    audio_array = np.frombuffer(audio_data, dtype=np.int16).astype(np.float64)
 
     # Calculate window size in samples
     window_samples = int(sample_rate * window_ms / 1000)

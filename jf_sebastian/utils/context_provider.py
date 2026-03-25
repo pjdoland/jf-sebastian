@@ -24,7 +24,16 @@ def warm_weather_cache() -> None:
     """Pre-fetch weather in a background thread so the first conversation doesn't block."""
     if not settings.ZIPCODE:
         return
-    thread = threading.Thread(target=_fetch_weather, daemon=True)
+
+    def _warm_with_retry():
+        for attempt in range(3):
+            result = _fetch_weather()
+            if result:
+                return
+            time.sleep(2)
+        logger.warning("Weather pre-warm failed after 3 attempts; will retry on first conversation")
+
+    thread = threading.Thread(target=_warm_with_retry, daemon=True)
     thread.start()
 
 
@@ -82,12 +91,15 @@ def get_realworld_context() -> str:
         f"Current date and time: {now.strftime('%A, %B %d, %Y at %I:%M %p')}"
     ]
 
-    # Use cached weather without blocking; refresh in background if stale
+    # Get weather: sync fetch on cold miss (no data at all), async refresh on stale
     weather = _weather_cache
-    if settings.ZIPCODE:
-        if not weather or (time.time() - _weather_cache_time) >= _WEATHER_CACHE_TTL:
-            # Trigger background refresh, use stale data (or none) for this call
+    if settings.ZIPCODE and (not weather or (time.time() - _weather_cache_time) >= _WEATHER_CACHE_TTL):
+        if weather:
+            # Have stale data — refresh in background, use stale for now
             threading.Thread(target=_fetch_weather, daemon=True).start()
+        else:
+            # No data at all — sync fetch so LLM has something to work with
+            weather = _fetch_weather()
 
     if weather:
         parts.append(
