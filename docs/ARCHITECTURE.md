@@ -32,6 +32,7 @@ This application enables real-time voice conversations with ChatGPT through vint
         │   - Word-based sentence chunking (MIN_CHUNK_WORDS)
         │   - Context management
         │   - System prompt injection
+        │   - Real-world context injection (date/time, weather)
         │   - Parallel chunk processing
         │
         ├─► Text-to-Speech Module
@@ -57,14 +58,19 @@ This application enables real-time voice conversations with ChatGPT through vint
         │   │   - Sentiment-based eye control
         │   │   - Stereo: LEFT=voice, RIGHT=PPM
         │   │
-        │   ├─► Squawkers McCaw Device
+        │   ├─► Headless Device (base class for simple output)
         │   │   - Simple stereo output
         │   │   - No PPM generation
         │   │   - Stereo: LEFT=voice, RIGHT=voice (duplicate)
         │   │
+        │   ├─► Squawkers McCaw Device (subclass of Headless)
+        │   │   - Inherits all Headless behavior
+        │   │   - Named variant for Squawkers McCaw hardware
+        │   │
         │   └─► Shared Components
         │       - MP3→PCM conversion (FFmpeg)
         │       - Sentiment analysis (VADER)
+        │       - Real-world context provider (date/time, weather via wttr.in)
         │
         └─► Audio Output Pipeline
             - Stereo playback via PyAudio
@@ -286,6 +292,7 @@ Using `.env` file for:
 - Audio device names
 - Timing thresholds
 - Model selections
+- Location (ZIPCODE for weather context)
 - Debug flags
 
 ## Dependencies
@@ -302,6 +309,7 @@ Core libraries:
 - `pyphen` - Syllable parsing support
 - `vaderSentiment` - Sentiment analysis for eye control
 - `python-dotenv` - Configuration management
+- `requests` - HTTP client (weather API)
 - `threading` / `queue` - Concurrent processing
 
 RVC (Optional - for voice conversion):

@@ -12,7 +12,8 @@ from jf_sebastian.config.settings import Settings
 def test_settings_default_values():
     """Test that Settings class has sensible default values."""
     # These should work even without environment variables
-    assert Settings.PERSONALITY in ["johnny", "rich", "mr_lincoln", "leopold"]
+    assert Path(f"personalities/{Settings.PERSONALITY}").is_dir(), \
+        f"Configured personality '{Settings.PERSONALITY}' has no directory in personalities/"
     assert Settings.SAMPLE_RATE in [16000, 22050, 44100, 48000]
     assert Settings.CHUNK_SIZE > 0
     assert 0 <= Settings.VAD_AGGRESSIVENESS <= 3

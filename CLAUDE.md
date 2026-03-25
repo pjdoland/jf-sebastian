@@ -104,6 +104,7 @@ State transitions managed in `jf_sebastian/modules/state_machine.py` (StateMachi
    - Transcript validation (hallucination detection as backup)
 6. Parallel processing pipeline:
    - Whisper API transcribes speech (only if validation passed)
+   - ConversationEngine injects real-world context (date/time, weather) as transient system message
    - ConversationEngine streams GPT response with word-based chunking (MIN_CHUNK_WORDS=15)
    - TextToSpeech synthesizes each chunk (optionally through RVC)
    - Output device creates stereo audio (LEFT=voice, RIGHT=PPM control for Teddy Ruxpin)
@@ -117,7 +118,7 @@ State transitions managed in `jf_sebastian/modules/state_machine.py` (StateMachi
 - `wake_word.py`: WakeWordDetector using OpenWakeWord with debouncing (2s minimum)
 - `audio_input.py`: AudioRecorder with PyAudio/sounddevice and WebRTC VAD
 - `speech_to_text.py`: SpeechToText wrapping OpenAI Whisper API
-- `conversation.py`: ConversationEngine managing GPT-4o-mini with streaming and word-chunked responses
+- `conversation.py`: ConversationEngine managing GPT-4o-mini with streaming, word-chunked responses, and real-world context injection
 - `text_to_speech.py`: TextToSpeech wrapping OpenAI TTS with per-personality voice/speed/style
 - `filler_phrases.py`: FillerPhraseManager for low-latency response playback
 - `ppm_generator.py`: PPMGenerator for 60Hz PPM control signals (630-1590µs pulse widths)
@@ -128,8 +129,8 @@ State transitions managed in `jf_sebastian/modules/state_machine.py` (StateMachi
 - `base.py`: OutputDevice abstract base class defining the interface
 - `factory.py`: DeviceRegistry providing plugin-style registration/creation
 - `teddy_ruxpin.py`: TeddyRuxpinDevice generating stereo (LEFT=voice, RIGHT=PPM)
-- `squawkers_mccaw.py`: SquawkersMcCawDevice for simple stereo output
-- `headless.py`: HeadlessDevice for computer playback (identical to Squawkers)
+- `headless.py`: HeadlessDevice base class for simple stereo output (computer playback)
+- `squawkers_mccaw.py`: SquawkersMcCawDevice thin subclass of HeadlessDevice
 - `shared/audio_processor.py`: MP3→PCM conversion via FFmpeg
 - `shared/sentiment_analyzer.py`: VADER sentiment analysis for eye control
 
@@ -138,6 +139,7 @@ State transitions managed in `jf_sebastian/modules/state_machine.py` (StateMachi
 
 **jf_sebastian/utils/**
 - `audio_utils.py`: Audio utility functions including `calculate_rms()` for amplitude analysis and `contains_speech()` for VAD-based speech detection
+- `context_provider.py`: Real-world context (date/time, weather via wttr.in) for LLM conversations
 
 ### Device Architecture Pattern
 The system uses a **plugin-style device registry** allowing easy addition of new output devices:
@@ -255,6 +257,7 @@ Pre-generated personality-specific audio fills response gap:
 - Settings class in `jf_sebastian/config/settings.py` loads with validation
 - No hardcoded values - all configurable
 - Per-personality settings in `personalities/{name}/personality.yaml`
+- `ZIPCODE` setting enables weather context (fetched from wttr.in, cached 30 minutes)
 
 ## File Locations and Conventions
 

@@ -158,7 +158,11 @@ yourname/
     │   ├── filler_01.wav
     │   ├── filler_02.wav
     │   └── ...
-    └── squawkers_mccaw/           # Filler audio with simple stereo
+    ├── headless/                  # Filler audio for computer playback
+    │   ├── filler_01.wav
+    │   ├── filler_02.wav
+    │   └── ...
+    └── squawkers_mccaw/           # Filler audio for Squawkers McCaw
         ├── filler_01.wav
         ├── filler_02.wav
         └── ...
@@ -190,7 +194,7 @@ Filler phrases play immediately after speech detection while the real response i
 - Reflect the character's activities and personality
 - Give enough time for API processing (Whisper + GPT + TTS)
 
-**Note:** When you run `python scripts/generate_fillers.py`, the system automatically generates device-specific versions of each filler phrase for all supported output devices (Teddy Ruxpin with PPM signals, Squawkers McCaw with simple stereo, etc.). The appropriate version is loaded based on your `OUTPUT_DEVICE_TYPE` setting.
+**Note:** When you run `python scripts/generate_fillers.py`, the system automatically generates device-specific versions of each filler phrase for all supported output devices (Teddy Ruxpin with PPM signals, Headless/Squawkers McCaw with simple stereo, etc.). The appropriate version is loaded based on your `OUTPUT_DEVICE_TYPE` setting.
 
 ## Technical Details
 

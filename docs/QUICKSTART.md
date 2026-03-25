@@ -92,7 +92,17 @@ OUTPUT_DEVICE_NAME=Arsvita
 python scripts/test_microphone.py
 ```
 
-## 5. Generate Filler Audio (Optional but Recommended)
+## 5. Configure Location (Optional)
+
+To enable weather and date/time awareness in conversations, add your zipcode to `.env`:
+
+```bash
+ZIPCODE=90210
+```
+
+When set, the system fetches weather from wttr.in (free, no API key needed) and includes it in the LLM context. Personalities can then naturally answer questions like "What time is it?" or "What's the weather like?" Weather is cached for 30 minutes.
+
+## 6. Generate Filler Audio (Optional but Recommended)
 
 **If you used the automated installation (`./setup.sh`) and chose to generate filler audio, this step is already complete.**
 
@@ -121,7 +131,7 @@ This creates 30 WAV files with:
 python scripts/generate_fillers.py --personality johnny
 ```
 
-## 6. Run the Application
+## 7. Run the Application
 
 ```bash
 ./run.sh
@@ -136,7 +146,7 @@ System ready! Say 'Hey, Johnny' to start talking.
 Press Ctrl+C to exit.
 ```
 
-## 7. Start Talking
+## 8. Start Talking
 
 **For Johnny (Tiki Bartender):**
 1. Say: **"Hey, Johnny"**
