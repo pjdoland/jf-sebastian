@@ -40,6 +40,9 @@ class Settings:
     MIN_AUDIO_RMS: float = float(os.getenv("MIN_AUDIO_RMS", "60"))  # Minimum peak RMS amplitude to transcribe (filters silence)
     MIN_SPEECH_RATIO: float = float(os.getenv("MIN_SPEECH_RATIO", "0.3"))  # Minimum ratio of speech frames (0.0-1.0, default 30%)
 
+    # Location (for weather context in conversations)
+    ZIPCODE: Optional[str] = os.getenv("ZIPCODE")
+
     # Conversation Settings
     CONVERSATION_TIMEOUT: float = float(os.getenv("CONVERSATION_TIMEOUT", "120.0"))
     MAX_HISTORY_LENGTH: int = int(os.getenv("MAX_HISTORY_LENGTH", "20"))

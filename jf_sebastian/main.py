@@ -28,6 +28,7 @@ from jf_sebastian.utils.audio_utils import save_stereo_wav, calculate_rms, conta
 from jf_sebastian.utils.async_file_utils import save_async
 from jf_sebastian.modules.audio_output import AudioPlayer
 from jf_sebastian.modules.filler_phrases import FillerPhraseManager
+from jf_sebastian.utils.context_provider import warm_weather_cache
 
 # Configure logging
 logging.basicConfig(
@@ -131,6 +132,9 @@ class TeddyRuxpinApp:
         if self.personality.rvc_enabled:
             logger.info(f"Warming up RVC for personality '{self.personality.name}'...")
             self.output_device.audio_processor.warmup_rvc(self.personality)
+
+        # Pre-fetch weather in background so first conversation doesn't block
+        warm_weather_cache()
 
         self.audio_player = AudioPlayer(on_playback_complete=self._on_playback_complete)
 

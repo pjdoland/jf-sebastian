@@ -13,6 +13,7 @@ from openai import OpenAI
 from openai import APIError, APIConnectionError, RateLimitError
 
 from jf_sebastian.config import settings
+from jf_sebastian.utils.context_provider import get_realworld_context
 
 logger = logging.getLogger(__name__)
 
@@ -144,10 +145,15 @@ class ConversationEngine:
 
             logger.info(f"Generating response to: \"{user_input}\"")
 
+            # Build messages: history + transient real-world context (not stored in history)
+            messages = list(self._messages)
+            realworld_context = get_realworld_context()
+            messages.insert(-1, {"role": "system", "content": realworld_context})
+
             # Call GPT API with appropriate parameters
             api_params = {
                 "model": settings.GPT_MODEL,
-                "messages": list(self._messages),
+                "messages": messages,
             }
 
             # Add temperature if supported (GPT-4 and older)
@@ -269,10 +275,15 @@ class ConversationEngine:
 
             logger.info(f"Generating streaming response to: \"{user_input}\"")
 
+            # Build messages: history + transient real-world context (not stored in history)
+            messages = list(self._messages)
+            realworld_context = get_realworld_context()
+            messages.insert(-1, {"role": "system", "content": realworld_context})
+
             # Call GPT API with streaming and appropriate parameters
             api_params = {
                 "model": settings.GPT_MODEL,
-                "messages": list(self._messages),
+                "messages": messages,
                 "stream": True  # Enable streaming!
             }
 
