@@ -98,4 +98,10 @@ def get_realworld_context() -> str:
             f"wind {weather['wind_mph']} mph {weather['wind_dir']}"
         )
 
-    return "\n".join(parts)
+    context = "\n".join(parts)
+    return (
+        f"The following is real-world context. Use this information to answer "
+        f"questions about the current time, date, or weather. Keep these answers "
+        f"short and direct — stay in character.\n"
+        f"{context}"
+    )
