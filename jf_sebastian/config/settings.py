@@ -40,8 +40,16 @@ class Settings:
     MIN_AUDIO_RMS: float = float(os.getenv("MIN_AUDIO_RMS", "60"))  # Minimum peak RMS amplitude to transcribe (filters silence)
     MIN_SPEECH_RATIO: float = float(os.getenv("MIN_SPEECH_RATIO", "0.3"))  # Minimum ratio of speech frames (0.0-1.0, default 30%)
 
-    # Location (for weather context in conversations)
+    # Location & Weather (for real-world context in conversations)
+    # WEATHER_PROVIDER: "wttr", "homeassistant", "manual", "none", or unset/"auto"
+    # Unset/"auto" picks the first configured provider; existing ZIPCODE-only
+    # setups keep working unchanged via the wttr fallback.
+    WEATHER_PROVIDER: Optional[str] = os.getenv("WEATHER_PROVIDER")
     ZIPCODE: Optional[str] = os.getenv("ZIPCODE")
+    HOME_ASSISTANT_URL: Optional[str] = os.getenv("HOME_ASSISTANT_URL")
+    HOME_ASSISTANT_TOKEN: Optional[str] = os.getenv("HOME_ASSISTANT_TOKEN")
+    HOME_ASSISTANT_WEATHER_ENTITY: Optional[str] = os.getenv("HOME_ASSISTANT_WEATHER_ENTITY")
+    MANUAL_WEATHER: Optional[str] = os.getenv("MANUAL_WEATHER")
 
     # Conversation Settings
     CONVERSATION_TIMEOUT: float = float(os.getenv("CONVERSATION_TIMEOUT", "120.0"))
@@ -112,6 +120,16 @@ class Settings:
                 f"Invalid OUTPUT_DEVICE_TYPE: '{cls.OUTPUT_DEVICE_TYPE}'. "
                 f"Available devices: {', '.join(available_devices)}"
             )
+
+        # Validate weather provider name (if explicitly set)
+        if cls.WEATHER_PROVIDER:
+            from jf_sebastian.utils.weather import VALID_PROVIDER_NAMES
+            valid = VALID_PROVIDER_NAMES | {"none", "auto"}
+            if cls.WEATHER_PROVIDER.lower() not in valid:
+                errors.append(
+                    f"Invalid WEATHER_PROVIDER: '{cls.WEATHER_PROVIDER}'. "
+                    f"Valid values: {', '.join(sorted(valid))}"
+                )
 
         return errors
 
