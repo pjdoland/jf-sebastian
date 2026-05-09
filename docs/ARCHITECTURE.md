@@ -70,7 +70,10 @@ This application enables real-time voice conversations with ChatGPT through vint
         │   └─► Shared Components
         │       - MP3→PCM conversion (FFmpeg)
         │       - Sentiment analysis (VADER)
-        │       - Real-world context provider (date/time, weather via wttr.in)
+        │       - Real-world context provider (date/time + pluggable weather)
+        │         ├─► WttrWeatherProvider (wttr.in, public, no API key)
+        │         ├─► HomeAssistantWeatherProvider (local HA weather entity)
+        │         └─► ManualWeatherProvider (free-form, no network egress)
         │
         └─► Audio Output Pipeline
             - Stereo playback via PyAudio
@@ -292,7 +295,7 @@ Using `.env` file for:
 - Audio device names
 - Timing thresholds
 - Model selections
-- Location (ZIPCODE for weather context)
+- Weather provider selection and per-provider settings (WEATHER_PROVIDER, ZIPCODE, HOME_ASSISTANT_*, MANUAL_WEATHER)
 - Debug flags
 
 ## Dependencies
@@ -309,7 +312,7 @@ Core libraries:
 - `pyphen` - Syllable parsing support
 - `vaderSentiment` - Sentiment analysis for eye control
 - `python-dotenv` - Configuration management
-- `requests` - HTTP client (weather API)
+- `requests` - HTTP client (weather providers: wttr.in and Home Assistant)
 - `threading` / `queue` - Concurrent processing
 
 RVC (Optional - for voice conversion):
