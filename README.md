@@ -102,6 +102,7 @@ Includes six distinct personalities: a tiki bartender, Abraham Lincoln (a homage
 - **RVC Voice Conversion** (Optional): Transform TTS output with custom trained voice models for unique character voices beyond OpenAI TTS
 - **Animatronic Control** (Teddy Ruxpin): Generates PPM control signals for mouth (syllable-based lip sync) and eyes (sentiment-based)
 - **Flexible Output**: Device-specific audio processing (stereo with PPM for Teddy, simple stereo for Squawkers)
+- **Proactive Scheduler** (Optional): Per-personality `scheduled_events.yaml` for morning greetings, bedtime stories, holiday surprises — never interrupts an in-progress conversation
 
 ## Quick Start
 

@@ -120,7 +120,7 @@ State transitions managed in `jf_sebastian/modules/state_machine.py` (StateMachi
 ### Key Module Responsibilities
 
 **jf_sebastian/modules/**
-- `state_machine.py`: StateMachine class managing conversation states
+- `state_machine.py`: StateMachine class managing conversation states. `try_transition(expected, target, trigger)` is the atomic CAS used by the scheduler to enter SPEAKING without racing the wake-word detector.
 - `wake_word.py`: WakeWordDetector using OpenWakeWord with debouncing (2s minimum)
 - `audio_input.py`: AudioRecorder with PyAudio/sounddevice and WebRTC VAD
 - `speech_to_text.py`: SpeechToText wrapping OpenAI Whisper API
@@ -130,6 +130,7 @@ State transitions managed in `jf_sebastian/modules/state_machine.py` (StateMachi
 - `ppm_generator.py`: PPMGenerator for 60Hz PPM control signals (630-1590µs pulse widths)
 - `rvc_processor.py`: RVCProcessor for optional voice conversion
 - `audio_output.py`: AudioPlayer for stereo playback with device enumeration
+- `scheduler.py`: `ProactiveScheduler` background thread that fires personality-defined events (greet at 7am, bedtime story at 9pm, holiday surprises) when state is IDLE. Tiny schedule syntax (`HH:MM`, `HH:MM weekdays`, `HH:MM YYYY-MM-DD`); per-personality `scheduled_events.yaml`; suppressed during quiet hours.
 
 **jf_sebastian/devices/** (Modular Output Device Architecture)
 - `base.py`: OutputDevice abstract base class defining the interface
@@ -171,6 +172,7 @@ Zero-code personality definition via YAML files in `personalities/` directory:
   - System prompt for LLM personality
   - Filler phrases for low-latency feel
   - Optional RVC voice conversion models (`*.pth`, `*.index`)
+  - Optional `scheduled_events.yaml` for proactive utterances (see `personalities/johnny/scheduled_events.yaml` for the working example)
 - Filler audio stored in device-specific subdirectories: `filler_audio/teddy_ruxpin/`, `filler_audio/squawkers_mccaw/`, `filler_audio/headless/`
 
 **Available personalities:** johnny, mr_lincoln, leopold, fred, kitt, teddy_ruxpin, all_might, computer, el_rey, hal_9000, jose, rich
@@ -184,6 +186,15 @@ Advanced **word-based sentence chunking** for parallel processing:
 5. PPM control signals generated in parallel
 6. Chunks queued for playback while LLM continues generating
 7. Results in nearly-instant perceived response despite backend processing
+
+### Proactive Scheduler
+Personalities can define proactive utterances in `personalities/<name>/scheduled_events.yaml`:
+- Schedule syntax: `"HH:MM"`, `"HH:MM weekdays|weekends|mon,wed"`, `"HH:MM YYYY-MM-DD"`
+- Each event has either `say:` (verbatim TTS, fast) or `prompt:` (LLM-generated in character)
+- Events fire only when state is IDLE — never interrupt a conversation
+- `try_transition(IDLE, SPEAKING)` is an atomic CAS that closes the TOCTOU window with the wake-word detector
+- Quiet hours suppress events whose scheduled minute falls in the window; warned at load time
+- Globally toggle with `SCHEDULER_ENABLED`; `QUIET_HOURS_START`/`QUIET_HOURS_END` env vars override the YAML atomically
 
 ### PPM Control Signal Generation
 Precise 60Hz PPM (Pulse Position Modulation) for animatronic motor control:
