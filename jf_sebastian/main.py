@@ -31,6 +31,12 @@ from jf_sebastian.modules.audio_output import AudioPlayer
 from jf_sebastian.modules.filler_phrases import FillerPhraseManager
 from jf_sebastian.utils.context_provider import warm_weather_cache
 from jf_sebastian.utils.heartbeat import Heartbeat
+from jf_sebastian.modules.scheduler import (
+    ProactiveScheduler,
+    ScheduledEvent,
+    load_scheduled_events,
+    parse_time_or_none,
+)
 
 # Configure logging. Use RotatingFileHandler so the log file can't grow unbounded
 # (important for unattended deployments under the supervisor — see scripts/supervisor.py).
@@ -147,6 +153,25 @@ class TeddyRuxpinApp:
             self.heartbeat = Heartbeat(settings.HEARTBEAT_FILE, settings.HEARTBEAT_INTERVAL)
             self.heartbeat.start()
 
+        # Initialize proactive scheduler from per-personality scheduled_events.yaml.
+        # Global env-var quiet hours override the YAML's, if both are set.
+        self.scheduler: Optional[ProactiveScheduler] = None
+        if settings.SCHEDULER_ENABLED:
+            events, yaml_quiet_start, yaml_quiet_end = load_scheduled_events(
+                self.personality.scheduled_events_path
+            )
+            quiet_start = parse_time_or_none(settings.QUIET_HOURS_START) or yaml_quiet_start
+            quiet_end = parse_time_or_none(settings.QUIET_HOURS_END) or yaml_quiet_end
+            if events:
+                self.scheduler = ProactiveScheduler(
+                    events=events,
+                    on_fire=self._on_scheduled_event,
+                    quiet_start=quiet_start,
+                    quiet_end=quiet_end,
+                )
+                logger.info("Loaded %d scheduled event(s) for %s",
+                            len(events), self.personality.name)
+
         self.audio_player = AudioPlayer(on_playback_complete=self._on_playback_complete)
 
         # Initialize filler phrase manager with personality-specific directory, phrases, and device type
@@ -203,6 +228,10 @@ class TeddyRuxpinApp:
         # Start wake word detection
         self.wake_word_detector.start()
 
+        # Start the proactive scheduler (no-op if no events configured)
+        if self.scheduler:
+            self.scheduler.start()
+
         logger.info("=" * 80)
         logger.info(f"System ready! Say 'Hey, {self.personality.name}' to start talking.")
         logger.info("Press Ctrl+C to exit.")
@@ -233,8 +262,12 @@ class TeddyRuxpinApp:
         logger.info(f"Stopping {self.personality.name} AI system...")
         self._running = False
 
-        # Stop heartbeat first so the supervisor sees us go silent if any of
-        # the subsystem teardowns below hang.
+        # Stop scheduler so no late ticks fire while subsystems are tearing down
+        if self.scheduler:
+            self.scheduler.stop()
+
+        # Stop heartbeat so the supervisor sees us go silent if any of the
+        # subsystem teardowns below hang.
         if self.heartbeat:
             self.heartbeat.stop()
 
@@ -691,6 +724,71 @@ Now respond to their question naturally, as if your filler phrase was the beginn
 
         return True
 
+    def _on_scheduled_event(self, event: ScheduledEvent) -> None:
+        """Run a scheduled event. Suppressed if a conversation is already in progress.
+
+        Uses a non-streaming path: scheduled events are typically short utterances
+        ("Good morning!", "Bedtime story time."), so the chunked-streaming pipeline
+        adds complexity without latency benefit.
+        """
+        if self.state_machine.state != ConversationState.IDLE:
+            logger.info(
+                "Scheduled event %r skipped (state=%s, would interrupt)",
+                event.name, self.state_machine.state,
+            )
+            return
+
+        # Resolve text to speak
+        if event.say:
+            text_to_speak = event.say
+        else:
+            logger.info("Scheduled event %r: asking LLM for response to %r", event.name, event.prompt)
+            text_to_speak = self.conversation_engine.generate_response_with_retry(event.prompt)
+            if not text_to_speak:
+                logger.warning("Scheduled event %r: LLM returned empty response", event.name)
+                return
+
+        logger.info("Scheduled event %r speaking: %s", event.name, text_to_speak)
+
+        # Synthesize and play through the device pipeline
+        voice_audio_mp3 = self.text_to_speech.synthesize_with_retry(text_to_speak)
+        if not voice_audio_mp3:
+            logger.warning("Scheduled event %r: TTS failed", event.name)
+            return
+
+        result = self.output_device.create_output(voice_audio_mp3, text_to_speak, self.personality)
+        if not result:
+            logger.warning("Scheduled event %r: device output failed", event.name)
+            return
+
+        stereo_audio, sample_rate = result
+
+        # Atomic IDLE → SPEAKING transition closes the TOCTOU window with
+        # the wake-word detector that runs on its own thread.
+        if not self.state_machine.try_transition(
+            ConversationState.IDLE, ConversationState.SPEAKING, trigger="scheduled_event"
+        ):
+            logger.info(
+                "Scheduled event %r lost race to another transition (state=%s)",
+                event.name, self.state_machine.state,
+            )
+            return
+
+        # Now that we hold SPEAKING, pause wake detection.
+        self._pause_wake_for_playback()
+
+        # Non-blocking play; _on_playback_complete returns us to IDLE.
+        # If the player is busy (returns False), recover the state machine
+        # so we don't leak a stuck SPEAKING.
+        started = self.audio_player.play_stereo(stereo_audio, sample_rate, blocking=False)
+        if not started:
+            logger.warning(
+                "Scheduled event %r: audio player was busy; releasing SPEAKING",
+                event.name,
+            )
+            self._resume_wake_after_playback()
+            self.state_machine.transition_to(ConversationState.IDLE, trigger="scheduled_event_failed")
+
     def _on_playback_complete(self):
         """Handle playback completion."""
         logger.info("Playback complete callback called")
@@ -711,9 +809,12 @@ Now respond to their question naturally, as if your filler phrase was the beginn
         if not self._wake_paused_for_playback:
             try:
                 self.wake_word_detector.pause()
+                # Only mark as paused once pause() actually succeeded — otherwise
+                # _resume_wake_after_playback would short-circuit and leave wake
+                # detection silent.
+                self._wake_paused_for_playback = True
             except Exception as e:
                 logger.error(f"Error pausing wake word detector: {e}")
-            self._wake_paused_for_playback = True
 
     def _resume_wake_after_playback(self):
         """Resume wake-word detection after playback completes."""

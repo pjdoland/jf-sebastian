@@ -83,6 +83,53 @@ class StateMachine:
                 return None
             return time.time() - self._conversation_start_time
 
+    def try_transition(
+        self,
+        expected_state: ConversationState,
+        new_state: ConversationState,
+        trigger: str = "manual",
+    ) -> bool:
+        """
+        Atomic compare-and-swap transition. Only transitions if the current
+        state matches `expected_state`. Closes the TOCTOU window between
+        callers checking `.state` and calling `transition_to(...)`.
+
+        Returns True iff the transition succeeded.
+        """
+        with self._lock:
+            if self._state != expected_state:
+                return False
+            old_state = self._state
+            if not self._is_valid_transition(old_state, new_state):
+                logger.warning(
+                    f"Invalid state transition: {old_state.value} -> {new_state.value} "
+                    f"(trigger: {trigger})"
+                )
+                return False
+            self._state = new_state
+            self._last_activity_time = time.time()
+            self._last_transition_time = time.time()
+            if new_state == ConversationState.LISTENING and old_state == ConversationState.IDLE:
+                self._conversation_start_time = time.time()
+                logger.info("New conversation session started")
+            elif new_state == ConversationState.IDLE:
+                self._conversation_start_time = None
+                logger.info("Conversation session ended")
+            transition = StateTransition(
+                from_state=old_state,
+                to_state=new_state,
+                timestamp=time.time(),
+                trigger=trigger,
+            )
+            self._transition_history.append(transition)
+            if len(self._transition_history) > self._max_history:
+                self._transition_history = self._transition_history[-self._max_history:]
+            logger.info(
+                f"State transition: {old_state.value} -> {new_state.value} (trigger: {trigger})"
+            )
+        self._execute_callbacks(new_state)
+        return True
+
     def transition_to(self, new_state: ConversationState, trigger: str = "manual") -> bool:
         """
         Transition to a new state if valid.

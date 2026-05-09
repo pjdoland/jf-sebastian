@@ -422,3 +422,30 @@ def test_state_machine_error_flow():
     sm.transition_to(ConversationState.IDLE, trigger="error")
     assert sm.state == ConversationState.IDLE
     assert sm.conversation_duration is None
+
+
+def test_try_transition_succeeds_when_state_matches():
+    sm = StateMachine()
+    assert sm.try_transition(
+        ConversationState.IDLE, ConversationState.LISTENING, trigger="wake_word"
+    ) is True
+    assert sm.state == ConversationState.LISTENING
+
+
+def test_try_transition_fails_when_state_does_not_match():
+    sm = StateMachine()
+    sm.transition_to(ConversationState.LISTENING)
+    # We're now in LISTENING but the caller expected IDLE → no-op, no transition.
+    assert sm.try_transition(
+        ConversationState.IDLE, ConversationState.SPEAKING, trigger="scheduled"
+    ) is False
+    assert sm.state == ConversationState.LISTENING
+
+
+def test_try_transition_rejects_invalid_target():
+    sm = StateMachine()
+    # IDLE → SPEAKING is not a valid transition even though IDLE is the current state.
+    assert sm.try_transition(
+        ConversationState.IDLE, ConversationState.SPEAKING, trigger="bogus"
+    ) is False
+    assert sm.state == ConversationState.IDLE
