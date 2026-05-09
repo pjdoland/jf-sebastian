@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  launchd plist for J.F. Sebastian on macOS.
+
+  Install:
+    1. Edit the placeholder paths below (REPO_PATH, USER_NAME).
+    2. Copy to ~/Library/LaunchAgents/com.jf-sebastian.supervisor.plist
+    3. launchctl bootstrap gui/$UID ~/Library/LaunchAgents/com.jf-sebastian.supervisor.plist
+
+  KeepAlive is set so launchd restarts the *supervisor itself* if it crashes.
+  The supervisor in turn restarts the actual JF Sebastian child on its crashes,
+  so this is defense in depth: launchd watches the supervisor; supervisor
+  watches the child.
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.jf-sebastian.supervisor</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/REPO_PATH/venv/bin/python</string>
+        <string>/REPO_PATH/scripts/supervisor.py</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/REPO_PATH</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>HEARTBEAT_FILE</key>
+        <string>/tmp/jf_sebastian.heartbeat</string>
+        <key>CRASH_REPORT_DIR</key>
+        <string>/REPO_PATH/crash_reports</string>
+        <key>LOG_PATH</key>
+        <string>/REPO_PATH/jf_sebastian.log</string>
+        <!-- ffmpeg lives in /opt/homebrew/bin (Apple Silicon) or /usr/local/bin (Intel) -->
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+        <key>HOME</key>
+        <string>/Users/USER_NAME</string>
+        <key>LANG</key>
+        <string>en_US.UTF-8</string>
+        <key>PYTHONUNBUFFERED</key>
+        <string>1</string>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>/REPO_PATH/supervisor.log</string>
+    <key>StandardErrorPath</key>
+    <string>/REPO_PATH/supervisor.log</string>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <!-- Restart the supervisor itself if it ever exits abnormally. -->
+    <key>KeepAlive</key>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+    </dict>
+
+    <!-- Don't relaunch a wedged supervisor more than once every 30s. -->
+    <key>ThrottleInterval</key>
+    <integer>30</integer>
+
+    <!-- Audio device access requires the Aqua session. -->
+    <key>LimitLoadToSessionType</key>
+    <string>Aqua</string>
+
+    <key>ProcessType</key>
+    <string>Interactive</string>
+</dict>
+</plist>
