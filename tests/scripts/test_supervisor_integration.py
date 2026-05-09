@@ -82,7 +82,7 @@ else:
             break
         time.sleep(0.1)
 
-    fast_supervisor._shutdown = True
+    fast_supervisor.request_shutdown()
     if fast_supervisor._proc and fast_supervisor._proc.poll() is None:
         supervisor.kill_process_tree(fast_supervisor._proc, 1.0)
     sup_thread.join(timeout=5.0)
@@ -125,7 +125,7 @@ while True:
             break
         time.sleep(0.2)
 
-    fast_supervisor._shutdown = True
+    fast_supervisor.request_shutdown()
     if fast_supervisor._proc and fast_supervisor._proc.poll() is None:
         supervisor.kill_process_tree(fast_supervisor._proc, 1.0)
     sup_thread.join(timeout=5.0)

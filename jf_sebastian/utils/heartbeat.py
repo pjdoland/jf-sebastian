@@ -8,14 +8,28 @@ Use:
     hb.start()
     ...
     hb.stop()  # call before subsystems that can hang during shutdown
+
+The supervisor reads the file's mtime via `heartbeat_age()` to detect hangs.
 """
 
 import logging
 import threading
+import time
 from pathlib import Path
 from typing import Optional
 
 logger = logging.getLogger(__name__)
+
+
+def heartbeat_age(path: Path) -> Optional[float]:
+    """Seconds since the heartbeat file was last touched, or None if missing.
+
+    Clamped at 0 so small NTP backwards-jumps don't surface as negative ages.
+    """
+    try:
+        return max(0.0, time.time() - path.stat().st_mtime)
+    except (OSError, FileNotFoundError):
+        return None
 
 
 class Heartbeat:

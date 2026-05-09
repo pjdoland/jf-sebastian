@@ -135,6 +135,41 @@ class TestRequestShutdown:
         sup.request_shutdown()
         assert sup._shutdown is True
 
+    def test_kill_dead_or_zero(self):
+        from unittest.mock import MagicMock
+        proc = MagicMock()
+        proc.poll.return_value = 0
+        assert supervisor.kill_dead_or_zero(proc) is True
+        proc.poll.return_value = None
+        assert supervisor.kill_dead_or_zero(proc) is False
+        assert supervisor.kill_dead_or_zero(None) is True
+
+
+class TestPruneCrashReports:
+    def test_keeps_only_n_most_recent(self, tmp_path):
+        # Filenames are lexicographically chronological so we can fake old ones
+        for i in range(10):
+            (tmp_path / f"jfs-crash-2026010{i}-000000-000000.log").write_text("x")
+        supervisor._prune_crash_reports(tmp_path, keep=3)
+        remaining = sorted(p.name for p in tmp_path.glob("jfs-crash-*.log"))
+        assert len(remaining) == 3
+        assert remaining == [
+            "jfs-crash-20260107-000000-000000.log",
+            "jfs-crash-20260108-000000-000000.log",
+            "jfs-crash-20260109-000000-000000.log",
+        ]
+
+    def test_no_op_when_under_limit(self, tmp_path):
+        for i in range(3):
+            (tmp_path / f"jfs-crash-2026010{i}-000000-000000.log").write_text("x")
+        supervisor._prune_crash_reports(tmp_path, keep=10)
+        assert len(list(tmp_path.glob("jfs-crash-*.log"))) == 3
+
+    def test_zero_keep_is_no_op(self, tmp_path):
+        (tmp_path / "jfs-crash-20260101-000000-000000.log").write_text("x")
+        supervisor._prune_crash_reports(tmp_path, keep=0)
+        assert len(list(tmp_path.glob("jfs-crash-*.log"))) == 1
+
 
 class TestHeartbeatAgeClamp:
     def test_clamps_negative_to_zero(self, tmp_path, monkeypatch):

@@ -783,6 +783,13 @@ def main():
             # handler bypasses cleanup and can leave the heartbeat thread
             # writing into a half-torn-down interpreter.
             app._running = False
+        else:
+            # SIGTERM arrived during TeddyRuxpinApp.__init__ (RVC warmup,
+            # model loading, etc. can take 10s+). There's no app loop to
+            # flip yet; raise SystemExit so the constructor unwinds through
+            # normal exception handling. The supervisor would otherwise have
+            # to escalate to SIGKILL after shutdown_grace.
+            raise SystemExit(0)
 
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)

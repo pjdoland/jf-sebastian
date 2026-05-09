@@ -1,9 +1,10 @@
 """Tests for the heartbeat utility."""
 
+import os
 import time
 from pathlib import Path
 
-from jf_sebastian.utils.heartbeat import Heartbeat
+from jf_sebastian.utils.heartbeat import Heartbeat, heartbeat_age
 
 
 def test_touch_creates_file(tmp_path):
@@ -77,3 +78,25 @@ def test_minimum_interval_clamped():
     """A negative or zero interval should still produce a valid heartbeat."""
     hb = Heartbeat(Path("/tmp/_unused_test_hb"), interval=0)
     assert hb.interval >= 0.1
+
+
+def test_heartbeat_age_missing_returns_none(tmp_path):
+    assert heartbeat_age(tmp_path / "nope") is None
+
+
+def test_heartbeat_age_recent_file(tmp_path):
+    path = tmp_path / "hb"
+    path.touch()
+    age = heartbeat_age(path)
+    assert age is not None
+    assert age >= 0
+    assert age < 5  # touch was just now
+
+
+def test_heartbeat_age_clamps_negative_to_zero(tmp_path):
+    """Future-dated mtime (NTP step backwards) should clamp at 0."""
+    path = tmp_path / "hb"
+    path.touch()
+    future = time.time() + 60
+    os.utime(path, (future, future))
+    assert heartbeat_age(path) == 0.0

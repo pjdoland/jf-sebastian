@@ -2,6 +2,8 @@
 #
 # Install:
 #   1. Edit %h placeholders to point at your install (or keep them for ~/jf-sebastian).
+#      Note: ExecStart assumes a venv at <install>/venv. For a system Python install
+#      or a different venv location, edit the python path below.
 #   2. Copy to ~/.config/systemd/user/jf-sebastian.service
 #   3. systemctl --user daemon-reload
 #      systemctl --user enable --now jf-sebastian.service
@@ -24,7 +26,12 @@ ExecStart=%h/jf-sebastian/venv/bin/python %h/jf-sebastian/scripts/supervisor.py
 Environment=HEARTBEAT_FILE=%t/jf_sebastian.heartbeat
 Environment=CRASH_REPORT_DIR=%h/jf-sebastian/crash_reports
 Environment=LOG_PATH=%h/jf-sebastian/jf_sebastian.log
+Environment=SUPERVISOR_LOG_PATH=%h/jf-sebastian/supervisor.log
 Environment=PYTHONUNBUFFERED=1
+# Locale: systemd user units inherit very little; explicit is safer for ffmpeg
+# subprocess output and any non-ASCII personality strings.
+Environment=LANG=en_US.UTF-8
+Environment=LC_ALL=en_US.UTF-8
 Restart=on-failure
 RestartSec=10
 # Generous TimeoutStopSec — supervisor's own SHUTDOWN_GRACE_SECS (default 10s)
