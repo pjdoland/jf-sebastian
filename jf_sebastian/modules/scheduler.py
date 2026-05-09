@@ -27,7 +27,13 @@ Limitations:
 - Naive local time. On a DST "spring forward" day, an event at 02:30 will
   not fire (that minute doesn't exist). Schedule outside 02:00–02:59 on
   transition days if this matters.
+- Clock jumps forward (laptop sleep/wake, NTP step) skip events whose
+  scheduled minute falls inside the gap — there is no catch-up on resume.
+  For mission-critical schedules use system cron.
 - No live reload — edits to scheduled_events.yaml require a process restart.
+- Events fire serially on a single scheduler thread. Two events at the
+  same minute run back-to-back; if the first uses `prompt:` and the LLM
+  round-trip takes 6 s, the second fires ~6 s late.
 - Scheduled `prompt:` events go through the conversation engine and are
   added to its history alongside user turns.
 """
@@ -117,6 +123,11 @@ def _parse_when(expr: str) -> Schedule:
     days: set[int] = set()
     for token in rest.split(","):
         token = token.strip().lower()
+        if not token:
+            raise ValueError(
+                f"empty weekday token in {expr!r} "
+                f"(check for stray commas like 'mon,' or 'mon,,tue')"
+            )
         if " " in token:
             raise ValueError(
                 f"weekdays must be comma-separated, got {token!r} in {expr!r}"
@@ -249,6 +260,18 @@ def load_scheduled_events(
     quiet = (data.get("quiet_hours") or {})
     quiet_start = parse_time_or_none(quiet.get("start"))
     quiet_end = parse_time_or_none(quiet.get("end"))
+
+    # Warn at load time about events that will be silently suppressed every
+    # day by quiet hours — the most common Mike-the-Maker confusion.
+    if quiet_start is not None and quiet_end is not None and quiet_start != quiet_end:
+        for ev in events:
+            probe = datetime.combine(today, ev._schedule.tod)
+            if _is_quiet(probe, quiet_start, quiet_end):
+                logger.warning(
+                    "Event %r at %s falls inside quiet_hours %s-%s; it will never fire",
+                    ev.name, ev.when, quiet_start, quiet_end,
+                )
+
     return events, quiet_start, quiet_end
 
 
@@ -273,7 +296,18 @@ class ProactiveScheduler:
         self.on_fire = on_fire
         self.quiet_start = quiet_start
         self.quiet_end = quiet_end
-        self.tick_seconds = max(1.0, float(tick_seconds))
+        # Hard-clamp tick_seconds: minute-granularity matching means a tick
+        # interval over 59s can entirely skip an event's firing minute.
+        clamped = max(1.0, float(tick_seconds))
+        if clamped > 59.0:
+            logger.warning(
+                "tick_seconds=%.1f > 59s would risk skipping events whose "
+                "scheduled minute lands between ticks; clamping to 59.0s. "
+                "Set 30.0 or less for reliable per-minute firing.",
+                clamped,
+            )
+            clamped = 59.0
+        self.tick_seconds = clamped
         self._clock = clock or datetime.now
         self._stop = threading.Event()
         self._thread: Optional[threading.Thread] = None
@@ -291,13 +325,25 @@ class ProactiveScheduler:
             "ProactiveScheduler started with %d event(s); quiet_hours=%s-%s",
             len(self.events), self.quiet_start, self.quiet_end,
         )
+        # Itemize so a user watching the log can confirm their event loaded.
+        for ev in self.events:
+            kind = "say" if ev.say else "prompt"
+            logger.info("  - %s (when=%r, %s)", ev.name, ev.when, kind)
 
     def stop(self, join_timeout: float = 5.0) -> None:
         """Stop the scheduler thread. Generous default join — callbacks can take
-        several seconds (TTS round-trip), and shutdown can wait."""
+        several seconds (TTS round-trip), and shutdown can wait. If the join
+        times out (callback still running), logs a warning so the user isn't
+        surprised by an apparent hang."""
         self._stop.set()
         if self._thread:
             self._thread.join(timeout=join_timeout)
+            if self._thread.is_alive():
+                logger.warning(
+                    "Scheduler thread did not exit within %.1fs (likely mid-callback); "
+                    "leaving as daemon for process termination.",
+                    join_timeout,
+                )
             self._thread = None
 
     def tick(self, now: Optional[datetime] = None) -> list[ScheduledEvent]:

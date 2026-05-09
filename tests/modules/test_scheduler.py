@@ -57,6 +57,16 @@ class TestParseWhen:
         sched = _parse_when("12:00 weekends,wed")
         assert sched.weekdays == {2, 5, 6}
 
+    def test_weekdays_and_weekends_combined(self):
+        """Pinned behavior: writing both aliases produces every day of the week."""
+        assert _parse_when("07:00 weekdays,weekends").weekdays == {0, 1, 2, 3, 4, 5, 6}
+
+    def test_empty_csv_token_gives_helpful_error(self):
+        with pytest.raises(ValueError, match="empty weekday token"):
+            _parse_when("07:00 mon,")
+        with pytest.raises(ValueError, match="empty weekday token"):
+            _parse_when("07:00 mon,,tue")
+
     def test_whitespace_in_token_gives_helpful_error(self):
         with pytest.raises(ValueError, match="comma-separated"):
             _parse_when("07:00 mon mon")
@@ -252,6 +262,28 @@ class TestLoadScheduledEvents:
         # Warning should name the event so the user can find it in the YAML.
         assert any("my_typo" in r.message for r in caplog.records)
 
+    def test_event_inside_quiet_hours_warns_at_load(self, tmp_path, caplog):
+        """Mike sets quiet hours and schedules inside them — must surface at load."""
+        path = tmp_path / "se.yaml"
+        path.write_text(
+            "quiet_hours:\n"
+            "  start: '22:00'\n"
+            "  end: '07:00'\n"
+            "events:\n"
+            "  - name: too_early\n"
+            "    when: '06:30'\n"
+            "    say: 'hi'\n"
+            "  - name: morning_ok\n"
+            "    when: '08:30'\n"
+            "    say: 'hi'\n"
+        )
+        with caplog.at_level("WARNING"):
+            events, _, _ = load_scheduled_events(path)
+        assert len(events) == 2  # both load
+        warnings = [r.message for r in caplog.records if "quiet_hours" in r.message]
+        assert any("too_early" in w for w in warnings)
+        assert not any("morning_ok" in w for w in warnings)
+
 
 class TestParseTimeOrNone:
     def test_valid(self):
@@ -324,3 +356,24 @@ class TestProactiveScheduler:
             assert t1 is t2
         finally:
             sched.stop()
+
+    def test_tick_seconds_clamped_to_59(self, caplog):
+        ev = ScheduledEvent(name="x", when="00:00", say="x")
+        with caplog.at_level("WARNING"):
+            sched = ProactiveScheduler([ev], on_fire=MagicMock(), tick_seconds=120)
+        assert sched.tick_seconds == 59.0
+        assert any("clamping to 59" in r.message for r in caplog.records)
+
+    def test_start_logs_each_event(self, caplog):
+        ev1 = ScheduledEvent(name="alpha", when="00:00", say="hi")
+        ev2 = ScheduledEvent(name="beta", when="01:00", prompt="tell me")
+        sched = ProactiveScheduler([ev1, ev2], on_fire=MagicMock(), tick_seconds=10)
+        with caplog.at_level("INFO"):
+            try:
+                sched.start()
+            finally:
+                sched.stop()
+        messages = [r.message for r in caplog.records]
+        # Each event itemized in the start() log so a user watching can verify.
+        assert any("alpha" in m and "say" in m for m in messages)
+        assert any("beta" in m and "prompt" in m for m in messages)

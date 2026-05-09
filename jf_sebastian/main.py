@@ -154,14 +154,20 @@ class TeddyRuxpinApp:
             self.heartbeat.start()
 
         # Initialize proactive scheduler from per-personality scheduled_events.yaml.
-        # Global env-var quiet hours override the YAML's, if both are set.
+        # If either QUIET_HOURS_* env var is set, both come from env (atomically);
+        # otherwise both come from the YAML. This avoids the surprise of mixing
+        # an env-var start with a YAML end (or vice versa).
         self.scheduler: Optional[ProactiveScheduler] = None
         if settings.SCHEDULER_ENABLED:
             events, yaml_quiet_start, yaml_quiet_end = load_scheduled_events(
                 self.personality.scheduled_events_path
             )
-            quiet_start = parse_time_or_none(settings.QUIET_HOURS_START) or yaml_quiet_start
-            quiet_end = parse_time_or_none(settings.QUIET_HOURS_END) or yaml_quiet_end
+            env_quiet_start = parse_time_or_none(settings.QUIET_HOURS_START)
+            env_quiet_end = parse_time_or_none(settings.QUIET_HOURS_END)
+            if env_quiet_start is not None or env_quiet_end is not None:
+                quiet_start, quiet_end = env_quiet_start, env_quiet_end
+            else:
+                quiet_start, quiet_end = yaml_quiet_start, yaml_quiet_end
             if events:
                 self.scheduler = ProactiveScheduler(
                     events=events,
@@ -191,6 +197,10 @@ class TeddyRuxpinApp:
 
         # Running flag
         self._running = False
+        # Set to True at the start of stop() so any in-flight scheduler
+        # callback can short-circuit before re-initializing audio resources
+        # the rest of the app has already torn down.
+        self._shutting_down = False
         self._selected_filler = None  # Store pre-selected filler for playback
         self._wake_paused_for_playback = False
         self._sequential_playback_active = False  # Track if we're playing queued chunks
@@ -261,6 +271,10 @@ class TeddyRuxpinApp:
 
         logger.info(f"Stopping {self.personality.name} AI system...")
         self._running = False
+        # Set BEFORE stopping the scheduler so an in-flight callback observes
+        # it on its next blocking-call boundary and aborts cleanly instead of
+        # racing audio_player.cleanup() below.
+        self._shutting_down = True
 
         # Stop scheduler so no late ticks fire while subsystems are tearing down
         if self.scheduler:
@@ -730,7 +744,14 @@ Now respond to their question naturally, as if your filler phrase was the beginn
         Uses a non-streaming path: scheduled events are typically short utterances
         ("Good morning!", "Bedtime story time."), so the chunked-streaming pipeline
         adds complexity without latency benefit.
+
+        Each blocking call (LLM, TTS, device) is followed by a `_shutting_down`
+        check so a callback that's already in flight when stop() is called
+        bails out before touching audio resources the rest of the app has
+        already cleaned up.
         """
+        if self._shutting_down:
+            return
         if self.state_machine.state != ConversationState.IDLE:
             logger.info(
                 "Scheduled event %r skipped (state=%s, would interrupt)",
@@ -747,6 +768,8 @@ Now respond to their question naturally, as if your filler phrase was the beginn
             if not text_to_speak:
                 logger.warning("Scheduled event %r: LLM returned empty response", event.name)
                 return
+        if self._shutting_down:
+            return
 
         logger.info("Scheduled event %r speaking: %s", event.name, text_to_speak)
 
@@ -755,10 +778,14 @@ Now respond to their question naturally, as if your filler phrase was the beginn
         if not voice_audio_mp3:
             logger.warning("Scheduled event %r: TTS failed", event.name)
             return
+        if self._shutting_down:
+            return
 
         result = self.output_device.create_output(voice_audio_mp3, text_to_speak, self.personality)
         if not result:
             logger.warning("Scheduled event %r: device output failed", event.name)
+            return
+        if self._shutting_down:
             return
 
         stereo_audio, sample_rate = result

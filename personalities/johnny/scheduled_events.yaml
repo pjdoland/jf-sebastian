@@ -1,4 +1,6 @@
-# Scheduled events for Johnny.
+# Scheduled events — proactive utterances at specific times.
+# (This file is the Johnny example; copy it to your personality's folder
+#  and edit the events below to match your character.)
 #
 # Schedule syntax (intentionally tiny — full cron is overkill for hobbyist use):
 #   "HH:MM"                 — daily at HH:MM
