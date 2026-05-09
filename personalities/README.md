@@ -153,6 +153,7 @@ Each personality is fully self-contained in its own directory:
 yourname/
 ├── personality.yaml               # Personality definition (YAML - easy to edit!)
 ├── hey_yourname.onnx              # Wake word model
+├── scheduled_events.yaml          # Optional — proactive greetings/reminders
 └── filler_audio/                  # Device-specific pre-generated filler audio
     ├── teddy_ruxpin/              # Filler audio with PPM control signals
     │   ├── filler_01.wav
@@ -195,6 +196,35 @@ Filler phrases play immediately after speech detection while the real response i
 - Give enough time for API processing (Whisper + GPT + TTS)
 
 **Note:** When you run `python scripts/generate_fillers.py`, the system automatically generates device-specific versions of each filler phrase for all supported output devices (Teddy Ruxpin with PPM signals, Headless/Squawkers McCaw with simple stereo, etc.). The appropriate version is loaded based on your `OUTPUT_DEVICE_TYPE` setting.
+
+## Scheduled Events (optional)
+
+Drop a `scheduled_events.yaml` in any personality folder to make the
+character speak proactively at specific times — morning greetings, bedtime
+stories, holiday surprises. Events only fire when the device is IDLE, so
+they never interrupt an in-progress conversation.
+
+Schedule syntax (intentionally tiny — see `personalities/johnny/scheduled_events.yaml`
+for a working example):
+```yaml
+quiet_hours:
+  start: "22:00"
+  end: "07:00"
+events:
+  - name: morning_greeting
+    when: "08:30"            # daily
+    say: "Mornin'!"
+  - name: weekday_reminder
+    when: "17:00 weekdays"   # mon–fri (also: "weekends", or "mon,wed,fri")
+    prompt: "Remind me to wrap up work in one short sentence — stay in character."
+  - name: christmas_morning
+    when: "08:00 2026-12-25" # one-shot date
+    say: "Merry Christmas!"
+```
+
+Each event uses either `say:` (verbatim TTS, fastest) or `prompt:` (fed to
+the LLM in character, varies each time). Set `SCHEDULER_ENABLED=false` in
+`.env` to globally disable. **Edits require a process restart.**
 
 ## Technical Details
 

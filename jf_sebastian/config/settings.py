@@ -51,6 +51,12 @@ class Settings:
     HOME_ASSISTANT_WEATHER_ENTITY: Optional[str] = os.getenv("HOME_ASSISTANT_WEATHER_ENTITY")
     MANUAL_WEATHER: Optional[str] = os.getenv("MANUAL_WEATHER")
 
+    # Proactive scheduler (per-personality scheduled_events.yaml)
+    SCHEDULER_ENABLED: bool = os.getenv("SCHEDULER_ENABLED", "true").lower() == "true"
+    # Global quiet hours override (HH:MM); empty = let the personality YAML decide.
+    QUIET_HOURS_START: Optional[str] = os.getenv("QUIET_HOURS_START")
+    QUIET_HOURS_END: Optional[str] = os.getenv("QUIET_HOURS_END")
+
     # Conversation Settings
     CONVERSATION_TIMEOUT: float = float(os.getenv("CONVERSATION_TIMEOUT", "120.0"))
     MAX_HISTORY_LENGTH: int = int(os.getenv("MAX_HISTORY_LENGTH", "20"))

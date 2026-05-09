@@ -83,6 +83,27 @@ class StateMachine:
                 return None
             return time.time() - self._conversation_start_time
 
+    def try_transition(
+        self,
+        expected_state: ConversationState,
+        new_state: ConversationState,
+        trigger: str = "manual",
+    ) -> bool:
+        """
+        Atomic compare-and-swap transition. Only transitions if the current
+        state matches `expected_state`. Closes the TOCTOU window between
+        callers checking `.state` and calling `transition_to(...)`.
+
+        Returns True iff the transition succeeded.
+        """
+        with self._lock:
+            if self._state != expected_state:
+                return False
+            applied = self._apply_transition_locked(new_state, trigger)
+        if applied:
+            self._execute_callbacks(new_state)
+        return applied
+
     def transition_to(self, new_state: ConversationState, trigger: str = "manual") -> bool:
         """
         Transition to a new state if valid.
@@ -95,47 +116,51 @@ class StateMachine:
             True if transition was successful, False if invalid
         """
         with self._lock:
-            old_state = self._state
+            applied = self._apply_transition_locked(new_state, trigger)
+        if applied:
+            # Execute callbacks outside of lock to prevent deadlock
+            self._execute_callbacks(new_state)
+        return applied
 
-            # Validate transition
-            if not self._is_valid_transition(old_state, new_state):
-                logger.warning(
-                    f"Invalid state transition: {old_state.value} -> {new_state.value} "
-                    f"(trigger: {trigger})"
-                )
-                return False
-
-            # Perform transition
-            self._state = new_state
-            self._last_activity_time = time.time()
-            self._last_transition_time = time.time()  # Track transition time for recovery
-
-            # Track conversation session
-            if new_state == ConversationState.LISTENING and old_state == ConversationState.IDLE:
-                self._conversation_start_time = time.time()
-                logger.info("New conversation session started")
-            elif new_state == ConversationState.IDLE:
-                self._conversation_start_time = None
-                logger.info("Conversation session ended")
-
-            # Record transition (cap history to prevent unbounded growth)
-            transition = StateTransition(
-                from_state=old_state,
-                to_state=new_state,
-                timestamp=time.time(),
-                trigger=trigger
-            )
-            self._transition_history.append(transition)
-            if len(self._transition_history) > self._max_history:
-                self._transition_history = self._transition_history[-self._max_history:]
-
-            logger.info(
-                f"State transition: {old_state.value} -> {new_state.value} "
+    def _apply_transition_locked(
+        self, new_state: ConversationState, trigger: str
+    ) -> bool:
+        """Validate, mutate, and record the transition. Caller must hold `_lock`.
+        Returns True if the transition was applied."""
+        old_state = self._state
+        if not self._is_valid_transition(old_state, new_state):
+            logger.warning(
+                f"Invalid state transition: {old_state.value} -> {new_state.value} "
                 f"(trigger: {trigger})"
             )
+            return False
 
-        # Execute callbacks outside of lock to prevent deadlock
-        self._execute_callbacks(new_state)
+        self._state = new_state
+        now = time.time()
+        self._last_activity_time = now
+        self._last_transition_time = now
+
+        # Track conversation session boundaries.
+        if new_state == ConversationState.LISTENING and old_state == ConversationState.IDLE:
+            self._conversation_start_time = now
+            logger.info("New conversation session started")
+        elif new_state == ConversationState.IDLE:
+            self._conversation_start_time = None
+            logger.info("Conversation session ended")
+
+        # Record transition (cap history to prevent unbounded growth)
+        self._transition_history.append(StateTransition(
+            from_state=old_state,
+            to_state=new_state,
+            timestamp=now,
+            trigger=trigger,
+        ))
+        if len(self._transition_history) > self._max_history:
+            self._transition_history = self._transition_history[-self._max_history:]
+
+        logger.info(
+            f"State transition: {old_state.value} -> {new_state.value} (trigger: {trigger})"
+        )
         return True
 
     def _is_valid_transition(self, from_state: ConversationState, to_state: ConversationState) -> bool:

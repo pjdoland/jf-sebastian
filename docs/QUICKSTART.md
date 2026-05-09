@@ -184,7 +184,28 @@ System ready! Say 'Hey, Johnny' to start talking.
 Press Ctrl+C to exit.
 ```
 
-## 8. Start Talking
+## 8. Optional: Schedule Proactive Utterances
+
+Drop a `scheduled_events.yaml` into your personality's folder to make the character speak on its own at specific times — morning greetings, bedtime stories, holiday surprises. Events only fire when the device is idle, so they never interrupt an in-progress conversation.
+
+```yaml
+# personalities/<your_personality>/scheduled_events.yaml
+quiet_hours:
+  start: "22:00"
+  end: "07:00"
+events:
+  - name: morning_greeting
+    when: "08:30"
+    say: "Good morning! Ready for a great day?"
+
+  - name: weekday_reminder
+    when: "17:00 weekdays"
+    prompt: "Remind me to wrap up work — stay in character."
+```
+
+See `personalities/johnny/scheduled_events.yaml` for a full working example, and `personalities/README.md → Scheduled Events` for the schedule-syntax reference. Edits require a process restart.
+
+## 9. Start Talking
 
 **For Johnny (Tiki Bartender):**
 1. Say: **"Hey, Johnny"**
