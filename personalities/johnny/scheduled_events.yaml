@@ -1,0 +1,39 @@
+# Scheduled events — proactive utterances at specific times.
+# (This file is the Johnny example; copy it to your personality's folder
+#  and edit the events below to match your character.)
+#
+# Schedule syntax (intentionally tiny — full cron is overkill for hobbyist use):
+#   "HH:MM"                 — daily at HH:MM
+#   "HH:MM mon,wed,fri"     — those weekdays at HH:MM
+#   "HH:MM weekdays"        — Mon–Fri (alias)
+#   "HH:MM weekends"        — Sat–Sun
+#   "HH:MM YYYY-MM-DD"      — single occurrence on that date
+#
+# Each event must define EITHER:
+#   say:    "Verbatim text spoken via TTS — fastest, no LLM round-trip."
+#           Use for fixed announcements (chime intros, holidays).
+# OR:
+#   prompt: "Text fed to the LLM as if the user said it. Response goes through TTS in character."
+#           Use when you want variety — the LLM rewrites it differently each time.
+#
+# Quiet hours suppress events whose scheduled time falls inside the window.
+# Set QUIET_HOURS_START / QUIET_HOURS_END in .env to replace either field below.
+#
+# Edits to this file require a process restart — there is no live reload.
+
+quiet_hours:
+  start: "22:00"
+  end: "07:00"
+
+events:
+  - name: morning_greeting
+    when: "08:30"
+    say: "Mornin'! The bar's open. What can I make for you today?"
+
+  - name: weekend_brunch
+    when: "11:00 sat,sun"
+    prompt: "Suggest a fun brunch cocktail in one short sentence — stay in character."
+
+  - name: happy_hour_kickoff
+    when: "17:00 weekdays"
+    say: "Happy hour, baby! Pull up a stool."

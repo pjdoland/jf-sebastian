@@ -79,6 +79,11 @@ class Personality:
         return self.personality_dir / "filler_audio"
 
     @property
+    def scheduled_events_path(self) -> Path:
+        """Path to the optional scheduled_events.yaml file (may not exist)"""
+        return self.personality_dir / "scheduled_events.yaml"
+
+    @property
     def rvc_model_path(self) -> Optional[Path]:
         """
         Get full path to RVC model file.

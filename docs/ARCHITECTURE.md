@@ -31,6 +31,13 @@ This application enables real-time voice conversations with ChatGPT through vint
         │   - Personality-specific wake phrases ("Hey, Johnny" / "Hey, Mr. Lincoln" / "Hey, Leopold")
         │   - Triggers state transition: IDLE → LISTENING
         │
+        ├─► Proactive Scheduler (optional)
+        │   - Per-personality scheduled_events.yaml
+        │   - Tiny schedule syntax (HH:MM, weekdays, one-shot dates)
+        │   - say: (verbatim TTS) or prompt: (LLM in character)
+        │   - Atomic IDLE → SPEAKING CAS so wake words can't race
+        │   - Quiet-hours suppression with load-time warnings
+        │
         ├─► Audio Input Pipeline
         │   - Microphone capture (PyAudio/sounddevice)
         │   - Voice Activity Detection (WebRTC VAD)
