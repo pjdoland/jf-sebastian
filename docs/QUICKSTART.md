@@ -92,15 +92,44 @@ OUTPUT_DEVICE_NAME=Arsvita
 python scripts/test_microphone.py
 ```
 
-## 5. Configure Location (Optional)
+## 5. Configure Weather Context (Optional)
 
-To enable weather and date/time awareness in conversations, add your zipcode to `.env`:
+Personalities can naturally answer questions like "What time is it?" or "What's the weather like?" if a weather provider is configured. Date/time is always available; weather is opt-in.
+
+Pick **one** of the providers below by uncommenting the relevant lines in `.env`. If you leave `WEATHER_PROVIDER` unset and only set provider-specific vars, auto-selection picks the first one with everything it needs (priority: `homeassistant > wttr > manual`).
+
+**Provider: wttr.in (default; free, no API key)**
 
 ```bash
+WEATHER_PROVIDER=wttr
 ZIPCODE=90210
 ```
 
-When set, the system fetches weather from wttr.in (free, no API key needed) and includes it in the LLM context. Personalities can then naturally answer questions like "What time is it?" or "What's the weather like?" Weather is cached for 30 minutes.
+**Provider: Home Assistant (local, no third-party egress)**
+
+```bash
+WEATHER_PROVIDER=homeassistant
+HOME_ASSISTANT_URL=http://homeassistant.local:8123
+HOME_ASSISTANT_TOKEN=your_long_lived_access_token   # HA UI → Profile → Security → Long-Lived Access Tokens
+HOME_ASSISTANT_WEATHER_ENTITY=weather.home          # find via HA UI → Developer Tools → States, filter "weather."
+```
+
+For security, the system refuses to send the bearer token to a non-private host over plain HTTP — use `https://` or a private/loopback/`*.local` hostname.
+
+**Provider: Manual (offline / testing — zero network egress)**
+
+```bash
+WEATHER_PROVIDER=manual
+MANUAL_WEATHER=Sunny and 72F
+```
+
+**Disable weather context entirely:**
+
+```bash
+WEATHER_PROVIDER=none
+```
+
+Weather is cached for 30 minutes regardless of provider.
 
 ## 6. Generate Filler Audio (Optional but Recommended)
 
