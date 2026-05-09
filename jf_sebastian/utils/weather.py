@@ -8,6 +8,7 @@ to float — providers normalize away whatever string/int oddities their upstrea
 API returns so downstream code only handles `float | None`.
 """
 
+import ipaddress
 import logging
 from abc import ABC, abstractmethod
 from typing import Optional
@@ -20,9 +21,16 @@ from jf_sebastian.config import settings
 logger = logging.getLogger(__name__)
 
 _HTTP_TIMEOUT = 5
-_USER_AGENT = "jf-sebastian"
 # Home Assistant emits "unknown"/"unavailable"/"none" when an entity is offline
 _HA_SENTINEL_VALUES = {"unknown", "unavailable", "none", ""}
+
+# Required env vars per provider — used in "selected but not configured" warnings
+# so users know exactly what they're missing.
+_REQUIRED_VARS = {
+    "wttr": "ZIPCODE",
+    "homeassistant": "HOME_ASSISTANT_URL, HOME_ASSISTANT_TOKEN, HOME_ASSISTANT_WEATHER_ENTITY",
+    "manual": "MANUAL_WEATHER",
+}
 
 
 def _coerce_float(value) -> Optional[float]:
@@ -38,6 +46,20 @@ def _coerce_float(value) -> Optional[float]:
         return float(value)
     except (TypeError, ValueError):
         return None
+
+
+def _is_private_or_local_host(host: Optional[str]) -> bool:
+    """True if host is loopback, RFC1918/link-local, or an mDNS `.local` name."""
+    if not host:
+        return False
+    h = host.lower().strip()
+    if h == "localhost" or h.endswith(".local"):
+        return True
+    try:
+        ip = ipaddress.ip_address(h)
+        return ip.is_private or ip.is_loopback or ip.is_link_local
+    except ValueError:
+        return False  # public DNS name
 
 
 class WeatherProvider(ABC):
@@ -64,14 +86,14 @@ class WttrWeatherProvider(WeatherProvider):
     name = "wttr"
 
     def is_configured(self) -> bool:
-        return bool(settings.ZIPCODE)
+        return bool((settings.ZIPCODE or "").strip())
 
     def fetch(self) -> Optional[dict]:
         zipcode = quote(str(settings.ZIPCODE).strip(), safe="")
+        # Default User-Agent (python-requests/X.Y) — don't fingerprint this project to wttr.in
         response = requests.get(
             f"https://wttr.in/{zipcode}?format=j1",
             timeout=_HTTP_TIMEOUT,
-            headers={"User-Agent": _USER_AGENT},
         )
         response.raise_for_status()
         data = response.json()
@@ -121,23 +143,44 @@ class HomeAssistantWeatherProvider(WeatherProvider):
                 "(expected 'weather.<name>')", entity
             )
             return False
-        parsed = urlsplit(url)
+        try:
+            parsed = urlsplit(url)
+        except ValueError as e:
+            logger.warning("HOME_ASSISTANT_URL=%r is unparseable: %s", url, e)
+            return False
         if parsed.scheme not in ("http", "https") or not parsed.hostname:
             logger.warning(
                 "HOME_ASSISTANT_URL=%r is not a valid http(s) URL — refusing to fetch", url
             )
             return False
+        # Refuse to send a long-lived bearer token to a non-private host over plain HTTP.
+        # Common HA setups are http://homeassistant.local:8123 or http://192.168.x.x;
+        # a typo to a public hostname over http would otherwise leak the token.
+        if parsed.scheme == "http" and not _is_private_or_local_host(parsed.hostname):
+            logger.warning(
+                "HOME_ASSISTANT_URL=%r is a non-local host over plain HTTP — refusing "
+                "to send bearer token. Use https:// or a private/.local hostname.", url
+            )
+            return False
         return True
 
     def fetch(self) -> Optional[dict]:
-        url_base = settings.HOME_ASSISTANT_URL.strip().rstrip("/")
-        entity = quote(settings.HOME_ASSISTANT_WEATHER_ENTITY.strip(), safe="")
+        url_base = (settings.HOME_ASSISTANT_URL or "").strip().rstrip("/")
+        # If the user pasted a URL ending with /api (e.g., copied from HA's API docs),
+        # we'd otherwise produce /api/api/states/... and get a confusing 404.
+        if url_base.endswith("/api"):
+            logger.info(
+                "HOME_ASSISTANT_URL ends with '/api'; stripping to avoid '/api/api/...'. "
+                "Set HOME_ASSISTANT_URL to the base URL only (e.g., http://ha.local:8123)."
+            )
+            url_base = url_base[: -len("/api")]
+        entity = quote((settings.HOME_ASSISTANT_WEATHER_ENTITY or "").strip(), safe="")
         url = f"{url_base}/api/states/{entity}"
         response = requests.get(
             url,
             timeout=_HTTP_TIMEOUT,
             headers={
-                "Authorization": f"Bearer {settings.HOME_ASSISTANT_TOKEN.strip()}",
+                "Authorization": f"Bearer {(settings.HOME_ASSISTANT_TOKEN or '').strip()}",
                 "Content-Type": "application/json",
             },
             allow_redirects=False,
@@ -194,10 +237,11 @@ class ManualWeatherProvider(WeatherProvider):
     name = "manual"
 
     def is_configured(self) -> bool:
-        return bool(settings.MANUAL_WEATHER)
+        return bool((settings.MANUAL_WEATHER or "").strip())
 
     def fetch(self) -> Optional[dict]:
-        return {"description": settings.MANUAL_WEATHER}
+        text = (settings.MANUAL_WEATHER or "").strip()
+        return {"description": text} if text else None
 
 
 def _bearing_to_compass(bearing) -> Optional[str]:
@@ -238,6 +282,7 @@ def get_weather_provider() -> Optional[WeatherProvider]:
     explicit = (settings.WEATHER_PROVIDER or "").lower().strip()
 
     if explicit == "none":
+        logger.info("WEATHER_PROVIDER=none — weather context disabled")
         return None
     if explicit and explicit != "auto":
         cls = _PROVIDERS.get(explicit)
@@ -250,9 +295,9 @@ def get_weather_provider() -> Optional[WeatherProvider]:
             provider = cls()
             if not provider.is_configured():
                 logger.warning(
-                    "WEATHER_PROVIDER=%r selected but provider is not fully configured; "
-                    "weather context will be omitted until you set the required env vars.",
-                    explicit,
+                    "WEATHER_PROVIDER=%r selected but provider is not fully configured. "
+                    "Set: %s. Weather context will be omitted.",
+                    explicit, _REQUIRED_VARS.get(explicit, "(see docs)"),
                 )
             return provider
 

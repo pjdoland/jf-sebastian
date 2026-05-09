@@ -144,6 +144,63 @@ class TestHomeAssistantProvider:
         )
         assert HomeAssistantWeatherProvider().is_configured() is False
 
+    def test_not_configured_with_malformed_bracket_url(self, settings_overrides):
+        """urlsplit raises ValueError on `http://[invalid` — must be caught, not propagate."""
+        settings_overrides(
+            HOME_ASSISTANT_URL="http://[invalid",
+            HOME_ASSISTANT_TOKEN="abc",
+            HOME_ASSISTANT_WEATHER_ENTITY="weather.home",
+        )
+        # Must NOT raise — must return False so auto-fallback can try wttr/manual.
+        assert HomeAssistantWeatherProvider().is_configured() is False
+
+    def test_not_configured_with_public_http_host(self, settings_overrides, caplog):
+        """A long-lived bearer token must not be sent to a public host over plain HTTP."""
+        settings_overrides(
+            HOME_ASSISTANT_URL="http://example.com",
+            HOME_ASSISTANT_TOKEN="real_token",
+            HOME_ASSISTANT_WEATHER_ENTITY="weather.home",
+        )
+        with caplog.at_level("WARNING"):
+            assert HomeAssistantWeatherProvider().is_configured() is False
+        assert any("non-local host over plain HTTP" in r.message for r in caplog.records)
+
+    def test_configured_with_public_https_host(self, settings_overrides):
+        """Public hosts are OK over HTTPS (encryption protects the bearer token)."""
+        settings_overrides(
+            HOME_ASSISTANT_URL="https://my-ha.example.com",
+            HOME_ASSISTANT_TOKEN="abc",
+            HOME_ASSISTANT_WEATHER_ENTITY="weather.home",
+        )
+        assert HomeAssistantWeatherProvider().is_configured() is True
+
+    def test_configured_with_private_ip_http(self, settings_overrides):
+        """RFC1918 hosts over plain HTTP are OK (typical homelab setup)."""
+        settings_overrides(
+            HOME_ASSISTANT_URL="http://192.168.1.50:8123",
+            HOME_ASSISTANT_TOKEN="abc",
+            HOME_ASSISTANT_WEATHER_ENTITY="weather.home",
+        )
+        assert HomeAssistantWeatherProvider().is_configured() is True
+
+    def test_fetch_strips_trailing_api_from_base_url(self, settings_overrides, caplog):
+        """A pasted /api suffix must be stripped to avoid /api/api/states/... 404."""
+        settings_overrides(
+            HOME_ASSISTANT_URL="http://ha.local:8123/api",
+            HOME_ASSISTANT_TOKEN="abc",
+            HOME_ASSISTANT_WEATHER_ENTITY="weather.home",
+        )
+        fake_response = MagicMock()
+        fake_response.json.return_value = {"state": "sunny", "attributes": {}}
+        fake_response.raise_for_status = MagicMock()
+        with caplog.at_level("INFO"), patch(
+            "jf_sebastian.utils.weather.requests.get", return_value=fake_response
+        ) as mock_get:
+            HomeAssistantWeatherProvider().fetch()
+        called_url = mock_get.call_args[0][0]
+        assert called_url == "http://ha.local:8123/api/states/weather.home"
+        assert any("'/api'" in r.message and "stripping" in r.message for r in caplog.records)
+
     def test_fetch_fahrenheit_passthrough(self, settings_overrides):
         settings_overrides(
             HOME_ASSISTANT_URL="http://ha.local:8123/",
@@ -254,10 +311,20 @@ class TestManualProvider:
         settings_overrides()
         assert ManualWeatherProvider().is_configured() is False
 
+    def test_not_configured_when_whitespace_only(self, settings_overrides):
+        settings_overrides(MANUAL_WEATHER="   ")
+        assert ManualWeatherProvider().is_configured() is False
+        assert ManualWeatherProvider().fetch() is None
+
     def test_returns_description_only(self, settings_overrides):
         settings_overrides(MANUAL_WEATHER="Sunny and 72F")
         data = ManualWeatherProvider().fetch()
         assert data == {"description": "Sunny and 72F"}
+
+    def test_strips_surrounding_whitespace(self, settings_overrides):
+        settings_overrides(MANUAL_WEATHER="  Foggy  ")
+        data = ManualWeatherProvider().fetch()
+        assert data == {"description": "Foggy"}
 
 
 class TestProviderFactory:
@@ -288,6 +355,17 @@ class TestProviderFactory:
             provider = get_weather_provider()
         assert isinstance(provider, HomeAssistantWeatherProvider)
         assert any("not fully configured" in r.message for r in caplog.records)
+        # Must name the missing env vars so the user can act on it.
+        assert any(
+            "HOME_ASSISTANT_URL" in r.message and "HOME_ASSISTANT_TOKEN" in r.message
+            for r in caplog.records
+        )
+
+    def test_explicit_none_logs_disabled(self, settings_overrides, caplog):
+        settings_overrides(WEATHER_PROVIDER="none")
+        with caplog.at_level("INFO"):
+            assert get_weather_provider() is None
+        assert any("weather context disabled" in r.message.lower() for r in caplog.records)
 
     def test_auto_picks_homeassistant_first(self, settings_overrides):
         settings_overrides(

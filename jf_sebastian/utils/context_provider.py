@@ -14,7 +14,7 @@ import time
 from datetime import datetime
 from typing import Optional
 
-from jf_sebastian.utils.weather import WeatherProvider, get_weather_provider
+from jf_sebastian.utils.weather import WeatherProvider, _coerce_float, get_weather_provider
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +36,14 @@ def _get_provider() -> Optional[WeatherProvider]:
             _provider = get_weather_provider()
             if _provider:
                 logger.info("Weather provider: %s", _provider.name)
+            else:
+                # No provider configured — give the user feedback they can
+                # grep for, since this is the most common silent-misconfig
+                # path (typo'd env var name, etc.).
+                logger.info(
+                    "Weather context disabled (no provider configured). "
+                    "Set ZIPCODE, HOME_ASSISTANT_*, or MANUAL_WEATHER to enable."
+                )
         return _provider
 
 
@@ -61,13 +69,20 @@ def warm_weather_cache() -> None:
             if _fetch_weather():
                 return
             time.sleep(2)
-        logger.warning("Weather pre-warm failed after 3 attempts; will retry on first conversation")
+        logger.warning(
+            "Weather pre-warm via %s failed after 3 attempts; will retry on first conversation",
+            provider.name,
+        )
 
     threading.Thread(target=_warm_with_retry, daemon=True).start()
 
 
 def _fetch_weather() -> Optional[dict]:
     """Fetch fresh weather via the provider, updating the cache.
+
+    The HTTP request runs OUTSIDE `_weather_lock` so a slow network doesn't
+    serialize foreground readers behind a background refresh. The lock only
+    guards the cache-snapshot reads and writes.
 
     On success, updates `_weather_cache` and `_weather_cache_time`.
     On failure, bumps `_weather_cache_time` enough to back off `_RETRY_AFTER_SECONDS`
@@ -78,22 +93,31 @@ def _fetch_weather() -> Optional[dict]:
 
     provider = _get_provider()
     if not provider or not provider.is_configured():
+        # Even on this no-op path, make sure no caller leaves the flag set —
+        # otherwise a future stale read would never spawn another refresh.
+        with _weather_lock:
+            _refresh_in_flight = False
         return None
 
+    # Quick freshness check: another caller may have refreshed while we were
+    # spawning. Don't waste an HTTP round-trip if so.
     with _weather_lock:
         if _weather_cache and (time.time() - _weather_cache_time) < _WEATHER_CACHE_TTL:
             _refresh_in_flight = False
             return _weather_cache
 
-        try:
-            data = provider.fetch()
-        except Exception as e:
-            logger.warning(
-                "Weather provider %s failed: %s: %s",
-                provider.name, type(e).__name__, str(e)[:200],
-            )
-            data = None
+    # HTTP I/O happens outside the lock so concurrent readers don't block.
+    try:
+        data = provider.fetch()
+    except Exception as e:
+        logger.warning(
+            "Weather provider %s failed: %s: %s",
+            provider.name, type(e).__name__, str(e)[:200],
+        )
+        data = None
 
+    # Re-acquire the lock only to mutate cache state.
+    with _weather_lock:
         if data:
             _weather_cache = data
             _weather_cache_time = time.time()
@@ -112,24 +136,29 @@ def _fetch_weather() -> Optional[dict]:
 
 
 def _format_weather(weather: dict) -> str:
-    """Render a weather dict into a one-line summary, omitting missing fields."""
+    """Render a weather dict into a one-line summary, omitting missing fields.
+
+    Defensive against non-numeric values from third-party providers — coerces
+    everything through `_coerce_float` and silently drops fields that can't
+    be normalized.
+    """
     parts = []
     if weather.get("description"):
         parts.append(str(weather["description"]))
 
-    temp = weather.get("temp_f")
+    temp = _coerce_float(weather.get("temp_f"))
     if temp is not None:
-        feels = weather.get("feels_like_f")
+        feels = _coerce_float(weather.get("feels_like_f"))
         temp_str = f"{temp}F"
-        if feels is not None and float(feels) != float(temp):
+        if feels is not None and feels != temp:
             temp_str += f" (feels like {feels}F)"
         parts.append(temp_str)
 
-    humidity = weather.get("humidity")
+    humidity = _coerce_float(weather.get("humidity"))
     if humidity is not None:
         parts.append(f"humidity {humidity}%")
 
-    wind = weather.get("wind_mph")
+    wind = _coerce_float(weather.get("wind_mph"))
     if wind is not None:
         wind_str = f"wind {wind} mph"
         if weather.get("wind_dir"):
@@ -157,22 +186,21 @@ def get_realworld_context() -> str:
 
     provider = _get_provider()
     if provider:
+        # Single lock acquire snapshots cache state and reserves the refresh
+        # slot if a background fetch is needed.
+        spawn_refresh = False
         with _weather_lock:
             weather = _weather_cache
-            cache_age = time.time() - _weather_cache_time
+            cache_stale = (time.time() - _weather_cache_time) >= _WEATHER_CACHE_TTL
+            if cache_stale and weather and not _refresh_in_flight:
+                _refresh_in_flight = True
+                spawn_refresh = True
 
-        cache_stale = cache_age >= _WEATHER_CACHE_TTL
-        if cache_stale:
-            if weather:
-                # Return stale immediately; refresh in background — but only
-                # spawn one refresh thread at a time.
-                with _weather_lock:
-                    if not _refresh_in_flight:
-                        _refresh_in_flight = True
-                        threading.Thread(target=_fetch_weather, daemon=True).start()
-            else:
-                # Cold miss: blocking fetch so the LLM has data on the first call.
-                weather = _fetch_weather()
+        if spawn_refresh:
+            threading.Thread(target=_fetch_weather, daemon=True).start()
+        elif cache_stale and not weather:
+            # Cold miss: blocking fetch so the LLM has data on the first call.
+            weather = _fetch_weather()
 
         if weather:
             parts.append(_format_weather(weather))

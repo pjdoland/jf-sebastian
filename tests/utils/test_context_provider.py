@@ -66,6 +66,25 @@ def test_format_weather_handles_no_data():
     assert context_provider._format_weather({}) == "Current weather: unknown"
 
 
+def test_format_weather_drops_unnormalized_garbage():
+    """A third-party provider that forgets to normalize must not crash the formatter."""
+    text = context_provider._format_weather({
+        "description": "Sunny",
+        "temp_f": "not-a-number",
+        "humidity": "unavailable",
+        "wind_mph": None,
+    })
+    assert text == "Current weather: Sunny"
+
+
+def test_no_provider_logs_disabled_message(settings_overrides, caplog):
+    """A user who's not configured anything should get an INFO line they can grep for."""
+    settings_overrides()
+    with caplog.at_level("INFO"):
+        context_provider._get_provider()
+    assert any("Weather context disabled" in r.message for r in caplog.records)
+
+
 def test_cold_miss_triggers_sync_fetch(settings_overrides):
     settings_overrides(MANUAL_WEATHER="Cold and snowy")
     context = context_provider.get_realworld_context()
