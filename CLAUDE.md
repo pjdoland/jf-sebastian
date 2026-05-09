@@ -139,7 +139,8 @@ State transitions managed in `jf_sebastian/modules/state_machine.py` (StateMachi
 
 **jf_sebastian/utils/**
 - `audio_utils.py`: Audio utility functions including `calculate_rms()` for amplitude analysis and `contains_speech()` for VAD-based speech detection
-- `context_provider.py`: Real-world context (date/time, weather via wttr.in) for LLM conversations
+- `context_provider.py`: Real-world context (date/time + weather) for LLM conversations. Cache + provider singleton; HTTP I/O outside the cache lock; one in-flight refresh at a time
+- `weather.py`: Pluggable `WeatherProvider` ABC + three adapters (`WttrWeatherProvider`, `HomeAssistantWeatherProvider`, `ManualWeatherProvider`) selected via `WEATHER_PROVIDER` env var. HA URL validation rejects unparseable URLs and refuses plain HTTP to non-private hosts to protect the bearer token.
 
 ### Device Architecture Pattern
 The system uses a **plugin-style device registry** allowing easy addition of new output devices:
@@ -257,7 +258,7 @@ Pre-generated personality-specific audio fills response gap:
 - Settings class in `jf_sebastian/config/settings.py` loads with validation
 - No hardcoded values - all configurable
 - Per-personality settings in `personalities/{name}/personality.yaml`
-- `ZIPCODE` setting enables weather context (fetched from wttr.in, cached 30 minutes)
+- Weather context uses a pluggable provider selected by `WEATHER_PROVIDER` (`wttr`, `homeassistant`, `manual`, `none`, or `auto`/unset). Auto-selection picks the first configured provider in order: `homeassistant > wttr > manual`. Existing `ZIPCODE`-only setups keep working unchanged. Cached 30 minutes; failed fetches negative-cache for 60s.
 
 ## File Locations and Conventions
 
