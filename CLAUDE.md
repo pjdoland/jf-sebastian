@@ -45,6 +45,12 @@ python -m jf_sebastian.modules.audio_output
 
 # Direct execution
 python -m jf_sebastian.main
+
+# Supervised (recommended for unattended deployments — auto-restart on crash,
+# watchdog kill of hung children, crash reports to ./crash_reports/).
+# See scripts/jf-sebastian.plist (macOS) and scripts/jf-sebastian.service (Linux)
+# for the production install paths.
+HEARTBEAT_FILE=/tmp/jf_sebastian.heartbeat python scripts/supervisor.py
 ```
 
 ### Testing
@@ -141,6 +147,12 @@ State transitions managed in `jf_sebastian/modules/state_machine.py` (StateMachi
 - `audio_utils.py`: Audio utility functions including `calculate_rms()` for amplitude analysis and `contains_speech()` for VAD-based speech detection
 - `context_provider.py`: Real-world context (date/time + weather) for LLM conversations. Cache + provider singleton; HTTP I/O outside the cache lock; one in-flight refresh at a time
 - `weather.py`: Pluggable `WeatherProvider` ABC + three adapters (`WttrWeatherProvider`, `HomeAssistantWeatherProvider`, `ManualWeatherProvider`) selected via `WEATHER_PROVIDER` env var. HA URL validation rejects unparseable URLs and refuses plain HTTP to non-private hosts to protect the bearer token.
+- `heartbeat.py`: `Heartbeat` background thread that touches a file every N seconds plus a `heartbeat_age()` helper. The supervisor reads the file's mtime to detect hung children. Started by `TeddyRuxpinApp.__init__` only when `HEARTBEAT_FILE` is set; stopped first in `TeddyRuxpinApp.stop()` so a hung shutdown surfaces to the supervisor.
+
+**scripts/** (Operations)
+- `supervisor.py`: Process supervisor wrapping `python -m jf_sebastian.main`. Exponential-backoff restart, watchdog-kills hung children via SIGTERM/SIGKILL on the child's process group (`start_new_session=True` + `os.killpg`), writes enriched crash reports to `CRASH_REPORT_DIR`, prunes old reports, switches to long permanent-failure backoff after N consecutive crashes (`PERMANENT_FAILURE_THRESHOLD`).
+- `jf-sebastian.plist`: launchd agent template for macOS. `KeepAlive` restarts the supervisor itself on crash; `LimitLoadToSessionType=Aqua` ensures the audio session is available.
+- `jf-sebastian.service`: systemd user-unit template for Linux. `Restart=on-failure` + `StartLimitBurst=5` is the safety net for the supervisor process; `pipewire-pulse.service` dependency for audio.
 
 ### Device Architecture Pattern
 The system uses a **plugin-style device registry** allowing easy addition of new output devices:

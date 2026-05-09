@@ -162,9 +162,18 @@ python scripts/generate_fillers.py --personality johnny
 
 ## 7. Run the Application
 
+For interactive use:
 ```bash
 ./run.sh
 ```
+
+For unattended deployments (museum exhibits, eldercare companions, kids' rooms), wrap the app in the supervisor so it auto-restarts on crash and kills hung children:
+```bash
+HEARTBEAT_FILE=/tmp/jf_sebastian.heartbeat python scripts/supervisor.py
+```
+
+For permanent installs, use the launchd plist (macOS) or systemd unit (Linux) — see [README → Running Unattended](../README.md#running-unattended-recommended-for-permanent-installations).
+
 
 You should see:
 ```
