@@ -79,6 +79,13 @@ class Settings:
     RVC_DEVICE: str = os.getenv("RVC_DEVICE", "auto")  # Device for RVC inference (auto/cpu/mps/cuda)
     RVC_MODEL_DIR: Path = Path(os.getenv("RVC_MODEL_DIR", "./rvc_models/"))  # Global RVC model directory
 
+    # Supervisor / Heartbeat (used by scripts/supervisor.py)
+    # Set HEARTBEAT_FILE to opt in to liveness reporting; otherwise no-op.
+    HEARTBEAT_FILE: Optional[Path] = (
+        Path(os.environ["HEARTBEAT_FILE"]) if os.environ.get("HEARTBEAT_FILE") else None
+    )
+    HEARTBEAT_INTERVAL: float = float(os.getenv("HEARTBEAT_INTERVAL", "10.0"))
+
     # Debug Settings
     DEBUG_MODE: bool = os.getenv("DEBUG_MODE", "false").lower() == "true"
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")

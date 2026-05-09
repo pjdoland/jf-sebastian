@@ -6,6 +6,7 @@ Integrates all modules and manages conversation flow.
 """
 
 import logging
+import logging.handlers
 import sys
 import time
 import signal
@@ -29,15 +30,19 @@ from jf_sebastian.utils.async_file_utils import save_async
 from jf_sebastian.modules.audio_output import AudioPlayer
 from jf_sebastian.modules.filler_phrases import FillerPhraseManager
 from jf_sebastian.utils.context_provider import warm_weather_cache
+from jf_sebastian.utils.heartbeat import Heartbeat
 
-# Configure logging
+# Configure logging. Use RotatingFileHandler so the log file can't grow unbounded
+# (important for unattended deployments under the supervisor — see scripts/supervisor.py).
 logging.basicConfig(
     level=getattr(logging, settings.LOG_LEVEL),
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
         logging.StreamHandler(sys.stdout),
-        logging.FileHandler('jf_sebastian.log')
-    ]
+        logging.handlers.RotatingFileHandler(
+            'jf_sebastian.log', maxBytes=10 * 1024 * 1024, backupCount=5
+        ),
+    ],
 )
 
 logger = logging.getLogger(__name__)
@@ -136,6 +141,12 @@ class TeddyRuxpinApp:
         # Pre-fetch weather in background so first conversation doesn't block
         warm_weather_cache()
 
+        # Liveness heartbeat for the supervisor (no-op if HEARTBEAT_FILE unset)
+        self.heartbeat: Optional[Heartbeat] = None
+        if settings.HEARTBEAT_FILE:
+            self.heartbeat = Heartbeat(settings.HEARTBEAT_FILE, settings.HEARTBEAT_INTERVAL)
+            self.heartbeat.start()
+
         self.audio_player = AudioPlayer(on_playback_complete=self._on_playback_complete)
 
         # Initialize filler phrase manager with personality-specific directory, phrases, and device type
@@ -221,6 +232,11 @@ class TeddyRuxpinApp:
 
         logger.info(f"Stopping {self.personality.name} AI system...")
         self._running = False
+
+        # Stop heartbeat first so the supervisor sees us go silent if any of
+        # the subsystem teardowns below hang.
+        if self.heartbeat:
+            self.heartbeat.stop()
 
         # Stop modules
         self.wake_word_detector.stop()
@@ -751,17 +767,33 @@ def kill_existing_instances():
 
 def main():
     """Main entry point."""
-    # Kill any existing instances before starting
-    kill_existing_instances()
+    # When running under the supervisor, the supervisor is the sole spawner —
+    # don't let kill_existing_instances() take out the supervisor's other
+    # children (e.g., a previous instance still draining shutdown).
+    if not os.environ.get("HEARTBEAT_FILE"):
+        kill_existing_instances()
 
-    # Handle Ctrl+C gracefully
+    app: Optional[TeddyRuxpinApp] = None
+
     def signal_handler(sig, frame):
-        logger.info("Interrupt received, shutting down...")
-        sys.exit(0)
+        logger.info("Signal %s received, shutting down...", sig)
+        if app is not None:
+            # Cooperative shutdown — flip the flag and let the main loop's
+            # finally clause run stop(). Calling sys.exit() from a signal
+            # handler bypasses cleanup and can leave the heartbeat thread
+            # writing into a half-torn-down interpreter.
+            app._running = False
+        else:
+            # SIGTERM arrived during TeddyRuxpinApp.__init__ (RVC warmup,
+            # model loading, etc. can take 10s+). There's no app loop to
+            # flip yet; raise SystemExit so the constructor unwinds through
+            # normal exception handling. The supervisor would otherwise have
+            # to escalate to SIGKILL after shutdown_grace.
+            raise SystemExit(0)
 
     signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
 
-    # Create and start application
     try:
         app = TeddyRuxpinApp()
         app.start()

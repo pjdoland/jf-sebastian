@@ -520,6 +520,34 @@ Press Ctrl+C to exit.
 ================================================================================
 ```
 
+### Running Unattended (Recommended for Permanent Installations)
+
+For unattended deployments — museum exhibits, eldercare companions, kids' rooms, anywhere the toy needs to keep running across PortAudio/RVC crashes — wrap the app in `scripts/supervisor.py` and let launchd (macOS) or systemd (Linux) keep the supervisor itself alive.
+
+The supervisor:
+- Restarts the child process on unexpected exit, with exponential backoff (1s → 60s → 10-min permanent-failure mode if it keeps crashing)
+- Detects hung children via heartbeat-file staleness; SIGTERMs (then SIGKILLs) the whole process group
+- Writes enriched crash reports (PID, personality, ran_for, log tail) to `crash_reports/` and prunes to the most recent N
+- Forwards SIGTERM/SIGINT cleanly so `launchctl unload` / `systemctl stop` does the right thing
+
+**Quick start (foreground, for testing):**
+```bash
+HEARTBEAT_FILE=/tmp/jf_sebastian.heartbeat python scripts/supervisor.py
+```
+
+**macOS launchd:** edit the `__EDIT_ME_*__` placeholders in `scripts/jf-sebastian.plist`, copy to `~/Library/LaunchAgents/`, then:
+```bash
+launchctl bootstrap gui/$UID ~/Library/LaunchAgents/com.jf-sebastian.supervisor.plist
+```
+
+**Linux systemd:** edit `scripts/jf-sebastian.service`, copy to `~/.config/systemd/user/`, then:
+```bash
+systemctl --user daemon-reload
+systemctl --user enable --now jf-sebastian.service
+```
+
+All supervisor settings (`HEARTBEAT_INTERVAL`, `WATCHDOG_TIMEOUT`, `RESTART_BACKOFF_*`, `CRASH_REPORT_DIR`, etc.) are documented in `.env.example` under "SUPERVISOR / WATCHDOG". Set `HEARTBEAT_FILE` in `.env` to opt the main app into liveness reporting; otherwise the supervisor can only catch crashes, not hangs.
+
 ### Having a Conversation
 
 1. **Wake the character**: Say the wake word ("Hey, Johnny", "Hey, Mr. Lincoln", "Hey, Leopold", "Hey, Fred", "Hey, Kitt", or "Hey, Teddy Ruxpin")

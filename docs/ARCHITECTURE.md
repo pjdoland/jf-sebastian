@@ -8,8 +8,22 @@ This application enables real-time voice conversations with ChatGPT through vint
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
+│  Process Supervisor (scripts/supervisor.py — optional)      │
+│  - Restart child on crash with exponential backoff          │
+│  - Watchdog kill of hung children via heartbeat staleness   │
+│  - Crash reports + permanent-failure detection              │
+│  - Run via launchd (macOS) or systemd (Linux)               │
+└────────────────────────┬────────────────────────────────────┘
+                         │ (forks `python -m jf_sebastian.main`)
+                         ▼
+┌─────────────────────────────────────────────────────────────┐
 │                     Main Application                        │
 │                   (State Machine Manager)                   │
+│                                                             │
+│   Heartbeat thread (utils/heartbeat.py) — touches the       │
+│   heartbeat file every HEARTBEAT_INTERVAL seconds when      │
+│   HEARTBEAT_FILE is set, so the supervisor can tell the     │
+│   process is making progress vs. wedged in PROCESSING.      │
 └───────┬─────────────────────────────────────────────────────┘
         │
         ├─► Wake Word Detector (OpenWakeWord)
