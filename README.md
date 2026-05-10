@@ -813,75 +813,78 @@ jf-sebastian/
 │   ├── __init__.py
 │   ├── main.py              # Main application
 │   ├── config/
-│   │   ├── __init__.py
-│   │   └── settings.py      # Configuration management
+│   │   └── settings.py      # Configuration management (.env loader + validation)
 │   ├── devices/             # Modular output device architecture
-│   │   ├── __init__.py
 │   │   ├── base.py          # OutputDevice abstract class
 │   │   ├── factory.py       # Device registry and factory
 │   │   ├── teddy_ruxpin.py  # Teddy Ruxpin device (with PPM)
-│   │   ├── squawkers_mccaw.py  # Squawkers McCaw device (simple stereo)
 │   │   ├── headless.py      # Headless device (computer playback)
-│   │   └── shared/          # Shared utilities for all devices
-│   │       ├── __init__.py
-│   │       ├── audio_processor.py     # MP3→PCM conversion
-│   │       └── sentiment_analyzer.py  # Sentiment analysis
+│   │   ├── squawkers_mccaw.py  # Squawkers McCaw (subclass of HeadlessDevice)
+│   │   └── shared/
+│   │       ├── audio_processor.py     # MP3→PCM conversion (FFmpeg)
+│   │       └── sentiment_analyzer.py  # Sentiment analysis (VADER)
 │   ├── modules/
-│   │   ├── __init__.py
-│   │   ├── state_machine.py           # State management
-│   │   ├── wake_word.py               # Wake word detection
-│   │   ├── audio_input.py             # Microphone + VAD
-│   │   ├── speech_to_text.py          # Whisper API
-│   │   ├── conversation.py            # GPT-4o integration
-│   │   ├── text_to_speech.py          # TTS API
-│   │   ├── filler_phrases.py          # Filler phrase manager
-│   │   ├── ppm_generator.py           # PPM signal generation (60Hz)
-│   │   ├── animatronic_control.py     # Legacy (deprecated)
-│   │   └── audio_output.py            # Stereo playback
+│   │   ├── state_machine.py     # State management (IDLE / LISTENING / PROCESSING / SPEAKING)
+│   │   ├── wake_word.py         # Wake word detection (OpenWakeWord)
+│   │   ├── audio_input.py       # Microphone + VAD
+│   │   ├── speech_to_text.py    # Whisper API
+│   │   ├── conversation.py      # GPT-4o-mini streaming + word-chunked sentences
+│   │   ├── text_to_speech.py    # OpenAI TTS
+│   │   ├── filler_phrases.py    # Pre-recorded filler audio for low-latency feel
+│   │   ├── ppm_generator.py     # PPM signal generation (60Hz, 8-channel)
+│   │   ├── rvc_processor.py     # Optional RVC voice conversion
+│   │   ├── audio_output.py      # Stereo playback
+│   │   └── scheduler.py         # Proactive scheduler (per-personality scheduled_events.yaml)
 │   └── utils/
-│       └── audio_device_utils.py
-├── personalities/           # Device-agnostic personality system
-│   ├── __init__.py
+│       ├── audio_utils.py        # RMS, VAD-based speech detection
+│       ├── audio_device_utils.py # PyAudio device-name lookup
+│       ├── async_file_utils.py   # Non-blocking file writes
+│       ├── gpu_utils.py          # MPS/CUDA detection for RVC
+│       ├── context_provider.py   # Date/time + weather + news context for LLM
+│       ├── weather.py            # Pluggable weather providers (wttr / HA / manual)
+│       ├── news.py               # Pluggable news providers (RSS / HN / manual)
+│       └── heartbeat.py          # Liveness file for the supervisor
+├── personalities/           # Device-agnostic personality system (auto-discovered)
 │   ├── README.md            # Personality creation guide
 │   ├── base.py              # Personality loader (reads YAML)
-│   ├── johnny/              # Johnny personality (drop-in folder)
-│   │   ├── personality.yaml # Personality definition
-│   │   ├── hey_johnny.onnx  # Wake word model
-│   │   └── filler_audio/    # Device-specific filler audio
-│   │       ├── teddy_ruxpin/
-│   │       │   ├── filler_01.wav
-│   │       │   ├── filler_02.wav
-│   │       │   └── ...
-│   │       ├── squawkers_mccaw/
-│   │       │   ├── filler_01.wav
-│   │       │   ├── filler_02.wav
-│   │       │   └── ...
-│   │       └── headless/
-│   │           ├── filler_01.wav
-│   │           ├── filler_02.wav
-│   │           └── ...
-│   ├── mr_lincoln/          # Mr. Lincoln personality (drop-in folder)
-│   │   ├── personality.yaml
-│   │   ├── hey_mr_lincoln.onnx
-│   │   └── filler_audio/    # Device-specific filler audio
-│   └── leopold/             # Leopold personality (drop-in folder)
-│       ├── personality.yaml
-│       ├── hey_leopold.onnx
-│       └── filler_audio/    # Device-specific filler audio
-├── tests/                   # Unit tests
-│   ├── personalities/
-│   ├── modules/
-│   └── config/
+│   └── <personality>/       # One folder per personality (drop-in)
+│       ├── personality.yaml      # Required: name, voice, prompt, fillers, etc.
+│       ├── hey_<name>.onnx       # Required: wake word model
+│       ├── scheduled_events.yaml # Optional: proactive utterances on a schedule
+│       ├── *.pth, *.index        # Optional: RVC voice conversion models
+│       └── filler_audio/         # Pre-generated filler audio per device type
+│           ├── teddy_ruxpin/     # PPM-control flavor
+│           ├── headless/         # Simple stereo
+│           └── squawkers_mccaw/
 ├── scripts/
-│   ├── generate_fillers.py  # Generate personality filler audio
-│   └── test_microphone.py   # Microphone testing utility
+│   ├── generate_fillers.py    # Generate personality filler audio
+│   ├── test_microphone.py     # Microphone testing utility
+│   ├── test_channels.py       # PPM channel inspection
+│   ├── benchmark_rvc.py       # RVC inference timing
+│   ├── install_rvc.sh         # One-shot RVC install for Python 3.10
+│   ├── generate_toc.py        # Regenerate the table of contents in this README
+│   ├── supervisor.py          # Process supervisor for unattended deployments
+│   ├── jf-sebastian.plist     # launchd template (macOS)
+│   └── jf-sebastian.service   # systemd user-unit template (Linux)
+├── tests/
+│   ├── config/                # Settings tests
+│   ├── devices/               # Device factory + per-device tests
+│   ├── modules/               # State machine, scheduler, etc.
+│   ├── personalities/         # Personality loading + validation
+│   ├── scripts/               # Supervisor unit + integration tests
+│   └── utils/                 # Weather, news, heartbeat, audio utilities
 ├── docs/
 │   ├── ARCHITECTURE.md
 │   ├── CREATING_PERSONALITIES.md
 │   ├── QUICKSTART.md
 │   └── TRAIN_WAKE_WORDS.md
+├── CLAUDE.md                  # Guidance for AI coding tools working in this repo
+├── ROADMAP.md                 # Tier 1-3 prioritization from the 7-persona codebase review
 ├── requirements.txt
+├── requirements-rvc.txt       # Optional RVC dependencies (Python 3.10 only)
 ├── .env.example
+├── run.sh                     # Convenience launcher
+├── setup.sh                   # Automated installer
 ├── LICENSE
 └── README.md
 ```
