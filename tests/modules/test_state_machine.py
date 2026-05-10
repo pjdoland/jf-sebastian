@@ -104,14 +104,25 @@ def test_state_machine_invalid_idle_to_processing():
     assert sm.state == ConversationState.IDLE
 
 
-def test_state_machine_invalid_idle_to_speaking():
-    """Test invalid transition from IDLE to SPEAKING."""
+def test_state_machine_idle_to_speaking_allowed_for_scheduled_events():
+    """IDLE → SPEAKING is allowed so the scheduler can initiate proactive speech."""
     sm = StateMachine()
+
+    result = sm.transition_to(ConversationState.SPEAKING, trigger="scheduled")
+
+    assert result is True
+    assert sm.state == ConversationState.SPEAKING
+
+
+def test_state_machine_invalid_listening_to_speaking():
+    """LISTENING → SPEAKING skips PROCESSING and is not allowed."""
+    sm = StateMachine()
+    sm.transition_to(ConversationState.LISTENING)
 
     result = sm.transition_to(ConversationState.SPEAKING, trigger="invalid")
 
     assert result is False
-    assert sm.state == ConversationState.IDLE
+    assert sm.state == ConversationState.LISTENING
 
 
 def test_state_machine_invalid_listening_to_speaking():
@@ -247,7 +258,9 @@ def test_state_machine_callback_not_executed_on_invalid_transition():
 
     sm.register_callback(ConversationState.SPEAKING, test_callback)
 
-    # Invalid transition - callback should not execute
+    # LISTENING → SPEAKING skips PROCESSING and is invalid.
+    sm.transition_to(ConversationState.LISTENING)
+    callback_executed.clear()  # ignore any callback for the LISTENING transition itself
     sm.transition_to(ConversationState.SPEAKING)
 
     assert len(callback_executed) == 0
@@ -442,10 +455,21 @@ def test_try_transition_fails_when_state_does_not_match():
     assert sm.state == ConversationState.LISTENING
 
 
+def test_try_transition_idle_to_speaking_for_scheduled_events():
+    """IDLE → SPEAKING is allowed so the scheduler can proactively initiate
+    speech without going through LISTENING/PROCESSING."""
+    sm = StateMachine()
+    assert sm.try_transition(
+        ConversationState.IDLE, ConversationState.SPEAKING, trigger="scheduled_event"
+    ) is True
+    assert sm.state == ConversationState.SPEAKING
+
+
 def test_try_transition_rejects_invalid_target():
     sm = StateMachine()
-    # IDLE → SPEAKING is not a valid transition even though IDLE is the current state.
+    sm.transition_to(ConversationState.LISTENING)
+    # LISTENING → SPEAKING is not a valid transition (must go via PROCESSING).
     assert sm.try_transition(
-        ConversationState.IDLE, ConversationState.SPEAKING, trigger="bogus"
+        ConversationState.LISTENING, ConversationState.SPEAKING, trigger="bogus"
     ) is False
-    assert sm.state == ConversationState.IDLE
+    assert sm.state == ConversationState.LISTENING

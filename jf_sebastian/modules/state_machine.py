@@ -38,7 +38,9 @@ class StateMachine:
     """
 
     VALID_TRANSITIONS = {
-        ConversationState.IDLE: [ConversationState.LISTENING],
+        # IDLE → SPEAKING is allowed for proactive scheduled events (no
+        # LISTENING/PROCESSING phase since the speech is server-initiated).
+        ConversationState.IDLE: [ConversationState.LISTENING, ConversationState.SPEAKING],
         ConversationState.LISTENING: [ConversationState.PROCESSING, ConversationState.IDLE],
         ConversationState.PROCESSING: [ConversationState.SPEAKING, ConversationState.IDLE],
         ConversationState.SPEAKING: [ConversationState.LISTENING, ConversationState.IDLE],
