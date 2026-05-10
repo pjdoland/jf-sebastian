@@ -6,23 +6,35 @@ Comprehensive unit tests for the J.F. Sebastian animatronic AI conversation syst
 
 ```
 tests/
-├── conftest.py              # Shared pytest fixtures
-├── test_main.py             # Main application and state machine tests
-├── devices/                 # Output device tests
-│   ├── test_factory.py            # Device registry and factory tests
-│   ├── test_audio_processor.py    # Shared audio processor tests
-│   ├── test_sentiment_analyzer.py # Shared sentiment analyzer tests
-│   ├── test_teddy_ruxpin.py       # Teddy Ruxpin device tests
-│   └── test_squawkers_mccaw.py    # Squawkers McCaw device tests
+├── conftest.py                     # Shared pytest fixtures (PyAudio, OpenAI, settings, ...)
+├── test_resiliency_fixes.py        # Regression tests for past audio-pipeline races
+├── config/
+│   └── test_settings.py            # Settings loading + validation
+├── devices/
+│   ├── test_factory.py             # Device registry and factory tests
+│   ├── test_audio_processor.py     # MP3→PCM conversion (FFmpeg)
+│   ├── test_sentiment_analyzer.py  # VADER sentiment for eye control
+│   ├── test_teddy_ruxpin.py        # Teddy Ruxpin device (with PPM)
+│   └── test_squawkers_mccaw.py     # Squawkers McCaw device (subclass of headless)
 ├── modules/
-│   ├── test_ppm_generator.py      # PPM signal generation tests
-│   ├── test_filler_phrases.py     # Filler phrase management tests
-│   ├── test_audio_input.py        # Audio input tests
-│   └── test_audio_output.py       # Audio output tests
+│   ├── test_state_machine.py       # State machine + try_transition CAS
+│   ├── test_conversation.py        # ConversationEngine streaming + context injection
+│   ├── test_ppm_generator.py       # PPM signal generation
+│   ├── test_filler_phrases.py      # Filler phrase management
+│   └── test_scheduler.py           # ProactiveScheduler + schedule parser
 ├── personalities/
-│   └── test_personalities.py      # Personality system tests
+│   ├── test_base.py                # Personality dataclass + YAML loader
+│   └── test_personalities.py       # Auto-discovery + per-personality validation
+├── scripts/
+│   ├── test_supervisor.py          # Supervisor config / backoff / crash-report
+│   └── test_supervisor_integration.py  # End-to-end subprocess restart + watchdog
 └── utils/
-    └── test_audio_device_utils.py # Audio device utility tests
+    ├── conftest.py                 # Shared settings_overrides fixture
+    ├── test_audio_device_utils.py  # PyAudio device-name lookup
+    ├── test_weather.py             # Weather providers (wttr / HA / manual) + factory
+    ├── test_news.py                # News providers (RSS / HN / manual) + factory
+    ├── test_context_provider.py    # Date/time + weather + news context builder
+    └── test_heartbeat.py           # Heartbeat thread + heartbeat_age helper
 ```
 
 ## Running Tests
