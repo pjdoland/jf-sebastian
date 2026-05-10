@@ -5,7 +5,7 @@ import pytest
 
 @pytest.fixture
 def settings_overrides(monkeypatch):
-    """Reset weather-related settings to None and return a setter for per-test overrides."""
+    """Reset weather and news settings to safe defaults and return a setter for per-test overrides."""
     from jf_sebastian.config import settings
 
     defaults = {
@@ -15,6 +15,13 @@ def settings_overrides(monkeypatch):
         "HOME_ASSISTANT_TOKEN": None,
         "HOME_ASSISTANT_WEATHER_ENTITY": None,
         "MANUAL_WEATHER": None,
+        # News: explicitly disable for tests so an unrelated test doesn't try to
+        # auto-select the NPR default and call out to the network.
+        "NEWS_PROVIDER": "none",
+        "NEWS_RSS_URL": None,
+        "MANUAL_NEWS": None,
+        "NEWS_HEADLINE_LIMIT": 5,
+        "NEWS_CACHE_TTL_MINUTES": 30,
     }
     for key, value in defaults.items():
         monkeypatch.setattr(settings, key, value, raising=False)

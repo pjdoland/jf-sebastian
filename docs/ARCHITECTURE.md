@@ -91,10 +91,15 @@ This application enables real-time voice conversations with ChatGPT through vint
         │   └─► Shared Components
         │       - MP3→PCM conversion (FFmpeg)
         │       - Sentiment analysis (VADER)
-        │       - Real-world context provider (date/time + pluggable weather)
-        │         ├─► WttrWeatherProvider (wttr.in, public, no API key)
-        │         ├─► HomeAssistantWeatherProvider (local HA weather entity)
-        │         └─► ManualWeatherProvider (free-form, no network egress)
+        │       - Real-world context provider (date/time + pluggable weather + pluggable news)
+        │         ├─► Weather:
+        │         │   ├─► WttrWeatherProvider (wttr.in, public, no API key)
+        │         │   ├─► HomeAssistantWeatherProvider (local HA weather entity)
+        │         │   └─► ManualWeatherProvider (free-form, no network egress)
+        │         └─► News headlines (top 5, cached 30 min):
+        │             ├─► RssNewsProvider (any RSS/Atom feed; NPR by default)
+        │             ├─► HackerNewsProvider (tech-only; opt in explicitly)
+        │             └─► ManualNewsProvider (newline-separated, no network)
         │
         └─► Audio Output Pipeline
             - Stereo playback via PyAudio

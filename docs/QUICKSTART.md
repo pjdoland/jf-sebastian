@@ -131,6 +131,31 @@ WEATHER_PROVIDER=none
 
 Weather is cached for 30 minutes regardless of provider.
 
+## 5b. News Headlines (On by Default)
+
+Top headlines are injected into LLM context so personalities can naturally bring up "what's going on" in conversation. Out-of-the-box this uses NPR Topics: News with no config required.
+
+**Upgrading and don't want news?** Add `NEWS_PROVIDER=none` to your existing `.env`. Existing installs upgrading to this version will start fetching headlines until that line is added.
+
+**Available feeds** — set `NEWS_RSS_URL` to any of:
+
+| Feed | URL |
+|------|-----|
+| NPR Topics: News (default) | `https://feeds.npr.org/1001/rss.xml` |
+| BBC News (World) | `http://feeds.bbci.co.uk/news/world/rss.xml` |
+| AP Top News | `https://feeds.apnews.com/rss/apf-topnews` |
+| Reuters World | `https://feeds.reuters.com/reuters/worldNews` |
+
+Or set `NEWS_PROVIDER=hackernews` for tech news (no other config needed).
+
+**Disable entirely:** `NEWS_PROVIDER=none`.
+
+**Privacy note:** the news server (e.g., NPR) sees your IP and access cadence; OpenAI sees the headline text and can infer which feed you chose. If you want zero third-party news egress, use `NEWS_PROVIDER=manual` with `MANUAL_NEWS=…` instead, or `NEWS_PROVIDER=none` to omit the section entirely.
+
+**For child-facing personalities** (e.g., `teddy_ruxpin`, `fred`): NPR Top News may include violence, politics, or other content unsuitable for children. Consider `NEWS_PROVIDER=none` or a kid-safe RSS feed when running with these personalities.
+
+Cached for 30 minutes (`NEWS_CACHE_TTL_MINUTES`, minimum 60 seconds); top 5 headlines per turn (`NEWS_HEADLINE_LIMIT`).
+
 ## 6. Generate Filler Audio (Optional but Recommended)
 
 **If you used the automated installation (`./setup.sh`) and chose to generate filler audio, this step is already complete.**

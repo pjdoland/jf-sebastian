@@ -146,8 +146,9 @@ State transitions managed in `jf_sebastian/modules/state_machine.py` (StateMachi
 
 **jf_sebastian/utils/**
 - `audio_utils.py`: Audio utility functions including `calculate_rms()` for amplitude analysis and `contains_speech()` for VAD-based speech detection
-- `context_provider.py`: Real-world context (date/time + weather) for LLM conversations. Cache + provider singleton; HTTP I/O outside the cache lock; one in-flight refresh at a time
+- `context_provider.py`: Real-world context (date/time + weather + news headlines) for LLM conversations. Each subsystem has its own cache + provider singleton + lock + refresh-in-flight flag; HTTP I/O outside the cache lock; one in-flight refresh per subsystem
 - `weather.py`: Pluggable `WeatherProvider` ABC + three adapters (`WttrWeatherProvider`, `HomeAssistantWeatherProvider`, `ManualWeatherProvider`) selected via `WEATHER_PROVIDER` env var. HA URL validation rejects unparseable URLs and refuses plain HTTP to non-private hosts to protect the bearer token.
+- `news.py`: Pluggable `NewsProvider` ABC + three adapters (`RssNewsProvider`, `HackerNewsProvider`, `ManualNewsProvider`) selected via `NEWS_PROVIDER` env var. RSS uses `feedparser` and defaults to NPR Topics: News if `NEWS_RSS_URL` is unset, so headlines are on out-of-the-box. Hacker News is excluded from auto-selection (tech-only; opt in explicitly).
 - `heartbeat.py`: `Heartbeat` background thread that touches a file every N seconds plus a `heartbeat_age()` helper. The supervisor reads the file's mtime to detect hung children. Started by `TeddyRuxpinApp.__init__` only when `HEARTBEAT_FILE` is set; stopped first in `TeddyRuxpinApp.stop()` so a hung shutdown surfaces to the supervisor.
 
 **scripts/** (Operations)
