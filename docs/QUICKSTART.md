@@ -131,6 +131,28 @@ WEATHER_PROVIDER=none
 
 Weather is cached for 30 minutes regardless of provider.
 
+## 5b. News Headlines (On by Default)
+
+Top headlines are injected into LLM context so personalities can naturally bring up "what's going on" in conversation. Out-of-the-box this uses NPR Topics: News with no config required. To use a different feed:
+
+```bash
+NEWS_RSS_URL=http://feeds.bbci.co.uk/news/world/rss.xml
+```
+
+To disable entirely:
+
+```bash
+NEWS_PROVIDER=none
+```
+
+To use Hacker News (tech-focused — opt in only):
+
+```bash
+NEWS_PROVIDER=hackernews
+```
+
+Cached for 30 minutes (`NEWS_CACHE_TTL_MINUTES`); top 5 headlines per turn (`NEWS_HEADLINE_LIMIT`).
+
 ## 6. Generate Filler Audio (Optional but Recommended)
 
 **If you used the automated installation (`./setup.sh`) and chose to generate filler audio, this step is already complete.**

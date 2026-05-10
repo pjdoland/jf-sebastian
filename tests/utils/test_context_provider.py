@@ -81,7 +81,7 @@ def test_no_provider_logs_disabled_message(settings_overrides, caplog):
     """A user who's not configured anything should get an INFO line they can grep for."""
     settings_overrides()
     with caplog.at_level("INFO"):
-        context_provider._get_provider()
+        context_provider._get_weather_provider_cached()
     assert any("Weather context disabled" in r.message for r in caplog.records)
 
 
@@ -115,12 +115,80 @@ def test_warm_cache_no_op_without_provider(settings_overrides):
 
 
 def test_no_http_calls_when_unconfigured(settings_overrides):
-    """A fresh install with no env vars should never call requests.get."""
-    settings_overrides()
+    """A fresh install with no env vars (and news disabled) should never call requests.get."""
+    settings_overrides()  # NEWS_PROVIDER defaults to "none" in conftest
     with patch(
         "jf_sebastian.utils.weather.requests.get",
-        side_effect=AssertionError("requests.get should not be called when unconfigured"),
+        side_effect=AssertionError("weather.requests.get should not be called when unconfigured"),
+    ), patch(
+        "jf_sebastian.utils.news.requests.get",
+        side_effect=AssertionError("news.requests.get should not be called when news disabled"),
     ):
         context_provider.warm_weather_cache()
+        context_provider.warm_news_cache()
         context = context_provider.get_realworld_context()
     assert "Current weather" not in context
+    assert "Top headlines" not in context
+
+
+# ─── News integration ─────────────────────────────────────────────────────────
+
+
+def test_format_news_renders_bullets():
+    text = context_provider._format_news(["First", "Second", "Third"])
+    assert text == "Top headlines:\n- First\n- Second\n- Third"
+
+
+def test_format_news_handles_empty_list():
+    assert context_provider._format_news([]) == ""
+
+
+def test_context_uses_manual_news(settings_overrides):
+    settings_overrides(
+        NEWS_PROVIDER="manual",
+        MANUAL_NEWS="Headline A\nHeadline B",
+    )
+    context = context_provider.get_realworld_context()
+    assert "Top headlines:" in context
+    assert "- Headline A" in context
+    assert "- Headline B" in context
+
+
+def test_context_no_news_when_disabled(settings_overrides):
+    settings_overrides(NEWS_PROVIDER="none", MANUAL_NEWS="Should not appear")
+    context = context_provider.get_realworld_context()
+    assert "Top headlines" not in context
+
+
+def test_news_negative_caches_on_failure(settings_overrides):
+    """When the news provider raises, we shouldn't tight-loop retries."""
+    settings_overrides(NEWS_PROVIDER="rss", NEWS_RSS_URL="https://example.com/rss")
+    with patch(
+        "jf_sebastian.utils.news.requests.get",
+        side_effect=Exception("network down"),
+    ):
+        context_provider.get_realworld_context()
+        import time as _time
+        ttl = context_provider._news_cache_ttl()
+        age = _time.time() - context_provider._news_cache_time
+        assert age < ttl, "negative cache should suppress immediate retry"
+
+
+def test_warm_news_cache_no_op_without_provider(settings_overrides):
+    settings_overrides()  # NEWS_PROVIDER=none from conftest
+    context_provider.warm_news_cache()  # should not raise
+
+
+def test_context_includes_both_weather_and_news(settings_overrides):
+    """When both subsystems are configured, both sections appear."""
+    settings_overrides(
+        MANUAL_WEATHER="Foggy",
+        NEWS_PROVIDER="manual",
+        MANUAL_NEWS="Headline one\nHeadline two",
+    )
+    context = context_provider.get_realworld_context()
+    assert "Current weather: Foggy" in context
+    assert "Top headlines:" in context
+    assert "- Headline one" in context
+    # Order: weather before news
+    assert context.index("Current weather") < context.index("Top headlines")

@@ -51,6 +51,15 @@ class Settings:
     HOME_ASSISTANT_WEATHER_ENTITY: Optional[str] = os.getenv("HOME_ASSISTANT_WEATHER_ENTITY")
     MANUAL_WEATHER: Optional[str] = os.getenv("MANUAL_WEATHER")
 
+    # News headlines (in LLM context). NEWS_PROVIDER unset auto-selects rss
+    # with the NPR default feed, so headlines are on out-of-the-box.
+    # Set NEWS_PROVIDER=none to disable.
+    NEWS_PROVIDER: Optional[str] = os.getenv("NEWS_PROVIDER")
+    NEWS_RSS_URL: Optional[str] = os.getenv("NEWS_RSS_URL")
+    MANUAL_NEWS: Optional[str] = os.getenv("MANUAL_NEWS")
+    NEWS_HEADLINE_LIMIT: int = int(os.getenv("NEWS_HEADLINE_LIMIT", "5"))
+    NEWS_CACHE_TTL_MINUTES: int = int(os.getenv("NEWS_CACHE_TTL_MINUTES", "30"))
+
     # Proactive scheduler (per-personality scheduled_events.yaml)
     SCHEDULER_ENABLED: bool = os.getenv("SCHEDULER_ENABLED", "true").lower() == "true"
     # Global quiet hours override (HH:MM); empty = let the personality YAML decide.
@@ -141,6 +150,16 @@ class Settings:
             if cls.WEATHER_PROVIDER.lower() not in valid:
                 errors.append(
                     f"Invalid WEATHER_PROVIDER: '{cls.WEATHER_PROVIDER}'. "
+                    f"Valid values: {', '.join(sorted(valid))}"
+                )
+
+        # Validate news provider name (if explicitly set)
+        if cls.NEWS_PROVIDER:
+            from jf_sebastian.utils.news import VALID_PROVIDER_NAMES as NEWS_VALID
+            valid = NEWS_VALID | {"none", "auto"}
+            if cls.NEWS_PROVIDER.lower() not in valid:
+                errors.append(
+                    f"Invalid NEWS_PROVIDER: '{cls.NEWS_PROVIDER}'. "
                     f"Valid values: {', '.join(sorted(valid))}"
                 )
 
