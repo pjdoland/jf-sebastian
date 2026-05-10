@@ -114,8 +114,10 @@ def test_warm_cache_no_op_without_provider(settings_overrides):
     context_provider.warm_weather_cache()
 
 
-def test_no_http_calls_when_unconfigured(settings_overrides):
-    """A fresh install with no env vars (and news disabled) should never call requests.get."""
+def test_no_http_calls_when_explicitly_disabled(settings_overrides):
+    """When weather is unconfigured AND news is explicitly NEWS_PROVIDER=none,
+    neither subsystem should make any HTTP calls. (Out-of-the-box, news is
+    on by default — see test_default_news_uses_npr_rss for that path.)"""
     settings_overrides()  # NEWS_PROVIDER defaults to "none" in conftest
     with patch(
         "jf_sebastian.utils.weather.requests.get",
@@ -177,6 +179,19 @@ def test_news_negative_caches_on_failure(settings_overrides):
 def test_warm_news_cache_no_op_without_provider(settings_overrides):
     settings_overrides()  # NEWS_PROVIDER=none from conftest
     context_provider.warm_news_cache()  # should not raise
+
+
+def test_default_news_uses_npr_rss(settings_overrides):
+    """Pin behavior: out-of-box default (no NEWS_* env vars) auto-selects RSS
+    with the NPR fallback URL. This is the 'always-on' default the user chose."""
+    settings_overrides(NEWS_PROVIDER=None)  # explicit unset, not "none"
+    provider = context_provider._get_news_provider_cached()
+    # Provider is RssNewsProvider with the NPR default URL
+    assert provider is not None
+    assert provider.name == "rss"
+    description = provider.describe()
+    assert "NPR" in description
+    assert "default" in description
 
 
 def test_context_includes_both_weather_and_news(settings_overrides):

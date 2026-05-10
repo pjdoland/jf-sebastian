@@ -12,8 +12,11 @@ first conversation doesn't pay for an HTTP round trip.
 import logging
 import re
 from abc import ABC, abstractmethod
+from concurrent.futures import ThreadPoolExecutor
 from typing import Optional
+from urllib.parse import urlsplit
 
+import feedparser
 import requests
 
 from jf_sebastian.config import settings
@@ -21,23 +24,32 @@ from jf_sebastian.config import settings
 logger = logging.getLogger(__name__)
 
 _HTTP_TIMEOUT = 5
+_HN_ITEM_TIMEOUT = 2  # per-item; we fan out in parallel so total ≈ slowest call
 _HEADLINE_MAX_CHARS = 120  # truncate longer titles so context stays tight
+# Polite identifying User-Agent. Some feeds (BBC, NYT, Cloudflare-fronted)
+# 403 the default `python-requests/X.Y` UA, and feed publishers prefer to
+# see who's polling them every 30 minutes.
+_USER_AGENT = "jf-sebastian/1.0 (+https://github.com/pjdoland/jf-sebastian)"
 
-# Required env vars per provider — used in "selected but not configured" warnings
-# so users know exactly what they're missing.
+# Strip any HTML tags that survive feedparser. Some feeds emit
+# `<b>BREAKING:</b> Foo` or `<a href="…">Foo</a>` in <title>; without this
+# the LLM gets the markup verbatim and TTS reads it literally.
+_HTML_TAG_RE = re.compile(r"<[^>]+>")
+
+# Required env vars per provider — used in "selected but not configured" warnings.
 _REQUIRED_VARS = {
     "rss": "NEWS_RSS_URL",
     "manual": "MANUAL_NEWS",
-    "hackernews": "(no env vars required)",
 }
 
 # NPR Topics: News feed — used as the default if NEWS_RSS_URL is not set
 # and the user has news enabled.
 _DEFAULT_RSS_URL = "https://feeds.npr.org/1001/rss.xml"
+_DEFAULT_RSS_LABEL = "NPR Topics: News"
 
 
 def _truncate(text: str, max_chars: int = _HEADLINE_MAX_CHARS) -> str:
-    text = text.strip()
+    text = _HTML_TAG_RE.sub("", text).strip()
     if len(text) <= max_chars:
         return text
     return text[: max_chars - 1].rstrip() + "…"
@@ -56,50 +68,90 @@ class NewsProvider(ABC):
     def fetch(self) -> Optional[list[str]]:
         """Fetch top headlines. Return a list of strings or None on failure.
 
-        Up to `settings.NEWS_HEADLINE_LIMIT` headlines, ordered most-relevant
-        first. Empty list and None both mean "no headlines available."
+        Implementations MUST NOT raise — return None on any failure so the
+        caller can negative-cache uniformly. Up to `settings.NEWS_HEADLINE_LIMIT`
+        headlines, ordered most-relevant first.
         """
+
+    def describe(self) -> str:
+        """Human-readable identifier for logs (e.g., 'rss (NPR Topics: News)')."""
+        return self.name
 
 
 class RssNewsProvider(NewsProvider):
-    """Fetches headlines from any RSS or Atom feed via feedparser."""
+    """Fetches headlines from any RSS or Atom feed via feedparser.
+
+    Defaults to NPR Topics: News if NEWS_RSS_URL is unset, so headlines are on
+    out-of-the-box. URL is scheme-validated (http(s) only) before the request
+    fires, and redirects are disabled so a misconfigured feed doesn't silently
+    chain through arbitrary hosts.
+    """
 
     name = "rss"
 
     def is_configured(self) -> bool:
-        # NPR default applies if the user enabled news but didn't set a URL.
-        return bool(self._url())
+        url = self._url()
+        if not url:
+            return False
+        try:
+            parsed = urlsplit(url)
+        except ValueError as e:
+            logger.warning("NEWS_RSS_URL=%r is unparseable: %s", url, e)
+            return False
+        if parsed.scheme not in ("http", "https") or not parsed.hostname:
+            logger.warning(
+                "NEWS_RSS_URL=%r is not a valid http(s) URL — refusing to fetch", url
+            )
+            return False
+        return True
 
     def _url(self) -> str:
         return (settings.NEWS_RSS_URL or _DEFAULT_RSS_URL).strip()
 
-    def fetch(self) -> Optional[list[str]]:
-        # Lazy import — feedparser is only needed when this provider runs.
-        import feedparser
-
+    def describe(self) -> str:
         url = self._url()
-        # Use requests so we share the same timeout/headers conventions as
-        # the weather providers; feedparser then parses the body.
-        response = requests.get(url, timeout=_HTTP_TIMEOUT)
-        response.raise_for_status()
-        feed = feedparser.parse(response.content)
+        if url == _DEFAULT_RSS_URL:
+            return f"rss ({_DEFAULT_RSS_LABEL}, default; {url})"
+        return f"rss ({url})"
 
-        if feed.bozo and not feed.entries:
-            logger.warning("RSS feed %s parsed with errors: %s", url, feed.bozo_exception)
+    def fetch(self) -> Optional[list[str]]:
+        url = self._url()
+        try:
+            response = requests.get(
+                url,
+                timeout=_HTTP_TIMEOUT,
+                headers={"User-Agent": _USER_AGENT},
+                allow_redirects=False,
+            )
+            response.raise_for_status()
+        except requests.RequestException as e:
+            logger.warning("RSS fetch %s failed: %s: %s", url, type(e).__name__, str(e)[:200])
             return None
+
+        feed = feedparser.parse(response.content)
+        if feed.bozo:
+            if not feed.entries:
+                logger.warning("RSS feed %s parsed with errors: %s", url, feed.bozo_exception)
+                return None
+            logger.debug("RSS feed %s parsed with warnings (entries usable): %s", url, feed.bozo_exception)
 
         limit = max(1, int(settings.NEWS_HEADLINE_LIMIT))
         headlines: list[str] = []
         for entry in feed.entries[:limit]:
             title = getattr(entry, "title", "")
-            if not title:
-                continue
-            headlines.append(_truncate(title))
+            if title:
+                headlines.append(_truncate(str(title)))
         return headlines or None
 
 
 class HackerNewsProvider(NewsProvider):
-    """Fetches top stories from the Hacker News public API."""
+    """Fetches top stories from the Hacker News public API.
+
+    Top-stories returns a list of N item IDs; we then fetch each item in
+    parallel via a shared `requests.Session` so connection setup amortizes
+    across calls. Per-item timeout is tighter than the top-stories timeout
+    so the worst-case cold-miss latency stays bounded.
+    """
 
     name = "hackernews"
     _TOP_STORIES_URL = "https://hacker-news.firebaseio.com/v0/topstories.json"
@@ -111,21 +163,37 @@ class HackerNewsProvider(NewsProvider):
 
     def fetch(self) -> Optional[list[str]]:
         limit = max(1, int(settings.NEWS_HEADLINE_LIMIT))
-        ids_response = requests.get(self._TOP_STORIES_URL, timeout=_HTTP_TIMEOUT)
-        ids_response.raise_for_status()
-        story_ids = ids_response.json()
-        if not isinstance(story_ids, list):
+        try:
+            with requests.Session() as session:
+                session.headers.update({"User-Agent": _USER_AGENT})
+                ids_response = session.get(self._TOP_STORIES_URL, timeout=_HTTP_TIMEOUT)
+                ids_response.raise_for_status()
+                story_ids = ids_response.json()
+                if not isinstance(story_ids, list):
+                    return None
+                ids = story_ids[:limit]
+
+                def _fetch_item(sid):
+                    try:
+                        resp = session.get(
+                            self._ITEM_URL.format(id=sid), timeout=_HN_ITEM_TIMEOUT
+                        )
+                        resp.raise_for_status()
+                        return resp.json()
+                    except Exception as e:
+                        logger.debug("HN item %s failed: %s", sid, e)
+                        return None
+
+                with ThreadPoolExecutor(max_workers=min(8, max(1, len(ids)))) as pool:
+                    items = list(pool.map(_fetch_item, ids))
+        except requests.RequestException as e:
+            logger.warning(
+                "HN fetch failed: %s: %s", type(e).__name__, str(e)[:200]
+            )
             return None
 
         headlines: list[str] = []
-        for story_id in story_ids[:limit]:
-            try:
-                item = requests.get(
-                    self._ITEM_URL.format(id=story_id), timeout=_HTTP_TIMEOUT
-                ).json()
-            except Exception as e:
-                logger.debug("HN item %s failed: %s", story_id, e)
-                continue
+        for item in items:
             title = (item or {}).get("title")
             if title:
                 headlines.append(_truncate(str(title)))
@@ -186,10 +254,12 @@ def get_news_provider() -> Optional[NewsProvider]:
         else:
             provider = cls()
             if not provider.is_configured():
+                # Hacker News needs no env vars, so it can never trip this path.
+                hint = _REQUIRED_VARS.get(explicit, "(see docs)")
                 logger.warning(
                     "NEWS_PROVIDER=%r selected but provider is not fully configured. "
                     "Set: %s. News context will be omitted.",
-                    explicit, _REQUIRED_VARS.get(explicit, "(see docs)"),
+                    explicit, hint,
                 )
             return provider
 

@@ -169,7 +169,12 @@ def _get_news_provider_cached() -> Optional[NewsProvider]:
         if _news_provider is None:
             _news_provider = get_news_provider()
             if _news_provider:
-                logger.info("News provider: %s", _news_provider.name)
+                # describe() includes the URL/feed name when available, so a
+                # user can grep the log to see exactly where headlines come from.
+                logger.info(
+                    "News provider: %s. Set NEWS_PROVIDER=none in .env to disable.",
+                    _news_provider.describe(),
+                )
             else:
                 logger.info(
                     "News context disabled (no provider configured). "
@@ -190,7 +195,8 @@ def warm_news_cache() -> None:
                 return
             time.sleep(2)
         logger.warning(
-            "News pre-warm via %s failed after 3 attempts; will retry on first conversation",
+            "News pre-warm via %s failed after 3 attempts; headlines will be skipped "
+            "until the next successful fetch (toy operation otherwise unaffected).",
             provider.name,
         )
 

@@ -27,6 +27,12 @@ class TestTruncate:
         assert len(result) == 10
         assert result.endswith("…")
 
+    def test_strips_html_tags(self):
+        # Real-world feeds occasionally embed markup in <title>; without
+        # stripping, the LLM sees and TTS would speak the tag literally.
+        assert _truncate("<b>BREAKING:</b> Storm warning") == "BREAKING: Storm warning"
+        assert _truncate('<a href="x">Foo</a>') == "Foo"
+
 
 class TestRssProvider:
     def _make_response(self, body: bytes):
@@ -40,6 +46,24 @@ class TestRssProvider:
         settings_overrides(NEWS_PROVIDER="rss")
         assert RssNewsProvider().is_configured() is True
 
+    def test_not_configured_with_invalid_url_scheme(self, settings_overrides, caplog):
+        settings_overrides(NEWS_PROVIDER="rss", NEWS_RSS_URL="file:///etc/passwd")
+        with caplog.at_level("WARNING"):
+            assert RssNewsProvider().is_configured() is False
+        assert any("not a valid http(s) URL" in r.message for r in caplog.records)
+
+    def test_not_configured_with_unparseable_url(self, settings_overrides):
+        settings_overrides(NEWS_PROVIDER="rss", NEWS_RSS_URL="http://[invalid")
+        assert RssNewsProvider().is_configured() is False
+
+    def test_describe_includes_url(self, settings_overrides):
+        settings_overrides(NEWS_PROVIDER="rss", NEWS_RSS_URL="https://example.com/feed.xml")
+        assert "https://example.com/feed.xml" in RssNewsProvider().describe()
+
+    def test_describe_npr_default_marked(self, settings_overrides):
+        settings_overrides(NEWS_PROVIDER="rss")
+        assert "NPR" in RssNewsProvider().describe()
+
     def test_fetch_extracts_titles(self, settings_overrides):
         settings_overrides(NEWS_PROVIDER="rss", NEWS_RSS_URL="https://example.com/rss", NEWS_HEADLINE_LIMIT=3)
         body = b"""<?xml version="1.0"?>
@@ -52,9 +76,35 @@ class TestRssProvider:
     <item><title>Fourth headline (over limit)</title></item>
   </channel>
 </rss>"""
-        with patch("jf_sebastian.utils.news.requests.get", return_value=self._make_response(body)):
+        with patch(
+            "jf_sebastian.utils.news.requests.get", return_value=self._make_response(body)
+        ) as mock_get:
             headlines = RssNewsProvider().fetch()
         assert headlines == ["First headline", "Second headline", "Third headline"]
+        # Verify we send a User-Agent and disable redirects (security/politeness).
+        kwargs = mock_get.call_args.kwargs
+        assert "User-Agent" in kwargs["headers"]
+        assert kwargs["allow_redirects"] is False
+
+    def test_fetch_strips_html_in_titles(self, settings_overrides):
+        settings_overrides(NEWS_PROVIDER="rss", NEWS_RSS_URL="https://example.com/rss")
+        body = b"""<?xml version="1.0"?>
+<rss version="2.0"><channel>
+  <item><title>&lt;b&gt;BREAKING:&lt;/b&gt; Storm warning</title></item>
+</channel></rss>"""
+        with patch("jf_sebastian.utils.news.requests.get", return_value=self._make_response(body)):
+            headlines = RssNewsProvider().fetch()
+        assert headlines == ["BREAKING: Storm warning"]
+
+    def test_fetch_returns_none_on_request_exception(self, settings_overrides):
+        """Network errors must not propagate — caller relies on None for negative-cache."""
+        import requests as _requests
+        settings_overrides(NEWS_PROVIDER="rss", NEWS_RSS_URL="https://example.com/rss")
+        with patch(
+            "jf_sebastian.utils.news.requests.get",
+            side_effect=_requests.ConnectionError("network down"),
+        ):
+            assert RssNewsProvider().fetch() is None
 
     def test_fetch_truncates_long_titles(self, settings_overrides):
         settings_overrides(NEWS_PROVIDER="rss", NEWS_RSS_URL="https://example.com/rss", NEWS_HEADLINE_LIMIT=1)
@@ -96,56 +146,80 @@ class TestRssProvider:
 
 
 class TestHackerNewsProvider:
+    """HN uses a `requests.Session` for connection reuse and parallel item fetches.
+    Tests patch `Session.get` so the test doubles match the production call path.
+    """
+
+    def _patched_session_get(self, url_to_response):
+        """Build a side_effect for Session.get(self, url, timeout=...) that
+        returns canned responses keyed by URL substring."""
+
+        def _side_effect(self, url, timeout):
+            for needle, resp in url_to_response.items():
+                if url.endswith(needle):
+                    return resp
+            raise AssertionError(f"unexpected URL {url!r}")
+
+        return _side_effect
+
+    def _make_resp(self, json_value):
+        resp = MagicMock()
+        resp.raise_for_status = MagicMock()
+        resp.json.return_value = json_value
+        return resp
+
     def test_always_configured(self, settings_overrides):
         settings_overrides()
         assert HackerNewsProvider().is_configured() is True
 
     def test_fetch_returns_top_titles(self, settings_overrides):
         settings_overrides(NEWS_HEADLINE_LIMIT=3)
-
-        def fake_get(url, timeout):
-            resp = MagicMock()
-            resp.raise_for_status = MagicMock()
-            if url.endswith("topstories.json"):
-                resp.json.return_value = [101, 102, 103, 999]
-            elif url.endswith("/item/101.json"):
-                resp.json.return_value = {"title": "Story one"}
-            elif url.endswith("/item/102.json"):
-                resp.json.return_value = {"title": "Story two"}
-            elif url.endswith("/item/103.json"):
-                resp.json.return_value = {"title": "Story three"}
-            return resp
-
-        with patch("jf_sebastian.utils.news.requests.get", side_effect=fake_get):
+        url_map = {
+            "topstories.json": self._make_resp([101, 102, 103, 999]),
+            "/item/101.json": self._make_resp({"title": "Story one"}),
+            "/item/102.json": self._make_resp({"title": "Story two"}),
+            "/item/103.json": self._make_resp({"title": "Story three"}),
+        }
+        with patch.object(
+            __import__("requests").Session, "get",
+            self._patched_session_get(url_map),
+        ):
             headlines = HackerNewsProvider().fetch()
+        # Order is preserved (HN ranking) — pool.map is order-preserving.
         assert headlines == ["Story one", "Story two", "Story three"]
 
     def test_fetch_skips_items_with_no_title(self, settings_overrides):
         settings_overrides(NEWS_HEADLINE_LIMIT=3)
-
-        def fake_get(url, timeout):
-            resp = MagicMock()
-            resp.raise_for_status = MagicMock()
-            if url.endswith("topstories.json"):
-                resp.json.return_value = [201, 202, 203]
-            elif url.endswith("/item/201.json"):
-                resp.json.return_value = {"title": "Has title"}
-            elif url.endswith("/item/202.json"):
-                resp.json.return_value = None  # deleted item
-            elif url.endswith("/item/203.json"):
-                resp.json.return_value = {}  # malformed
-            return resp
-
-        with patch("jf_sebastian.utils.news.requests.get", side_effect=fake_get):
+        url_map = {
+            "topstories.json": self._make_resp([201, 202, 203]),
+            "/item/201.json": self._make_resp({"title": "Has title"}),
+            "/item/202.json": self._make_resp(None),    # deleted
+            "/item/203.json": self._make_resp({}),       # malformed
+        }
+        with patch.object(
+            __import__("requests").Session, "get",
+            self._patched_session_get(url_map),
+        ):
             headlines = HackerNewsProvider().fetch()
         assert headlines == ["Has title"]
 
     def test_fetch_returns_none_on_non_list_topstories(self, settings_overrides):
         settings_overrides()
-        resp = MagicMock()
-        resp.raise_for_status = MagicMock()
-        resp.json.return_value = {"unexpected": "shape"}
-        with patch("jf_sebastian.utils.news.requests.get", return_value=resp):
+        url_map = {"topstories.json": self._make_resp({"unexpected": "shape"})}
+        with patch.object(
+            __import__("requests").Session, "get",
+            self._patched_session_get(url_map),
+        ):
+            assert HackerNewsProvider().fetch() is None
+
+    def test_fetch_returns_none_on_request_exception(self, settings_overrides):
+        """Network errors must not propagate — caller relies on None for negative-cache."""
+        import requests as _requests
+        settings_overrides()
+        with patch.object(
+            _requests.Session, "get",
+            side_effect=_requests.ConnectionError("network down"),
+        ):
             assert HackerNewsProvider().fetch() is None
 
 
