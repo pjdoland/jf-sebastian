@@ -796,7 +796,7 @@ Now respond to their question naturally, as if your filler phrase was the beginn
             ConversationState.IDLE, ConversationState.SPEAKING, trigger="scheduled_event"
         ):
             logger.info(
-                "Scheduled event %r lost race to another transition (state=%s)",
+                "Scheduled event %r could not enter SPEAKING (state=%s)",
                 event.name, self.state_machine.state,
             )
             return
