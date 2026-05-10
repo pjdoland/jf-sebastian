@@ -631,6 +631,37 @@ Leopold: "Just reviewing my notes from the second abduction... Twice, actually. 
 | `SILENCE_TIMEOUT` | Max silence before timeout (seconds) | 5.0 |
 | `SPEECH_END_SILENCE_SECONDS` | Silence required to end speech after talking (seconds) | 0.5 |
 | `MIN_LISTEN_SECONDS` | Minimum listen window after wake word (seconds) | 1.0 |
+| `MIN_AUDIO_RMS` | Min peak RMS amplitude to send audio to Whisper (filters silence) | 60 |
+| `MIN_SPEECH_RATIO` | Min ratio of speech-bearing frames (0.0–1.0) before transcribing | 0.3 |
+
+#### Weather Context (in LLM context)
+
+| Setting | Description | Default |
+|---------|-------------|---------|
+| `WEATHER_PROVIDER` | `wttr` / `homeassistant` / `manual` / `none` / `auto` (unset) | unset → auto |
+| `ZIPCODE` | US zipcode for the wttr.in provider | - |
+| `HOME_ASSISTANT_URL` | HA URL for the homeassistant provider | - |
+| `HOME_ASSISTANT_TOKEN` | Long-lived HA access token | - |
+| `HOME_ASSISTANT_WEATHER_ENTITY` | HA entity_id (e.g., `weather.home`) | - |
+| `MANUAL_WEATHER` | Free-form description for the manual provider (no network egress) | - |
+
+#### News Headlines (in LLM context, on by default)
+
+| Setting | Description | Default |
+|---------|-------------|---------|
+| `NEWS_PROVIDER` | `rss` / `hackernews` / `manual` / `none` / `auto` | unset → auto |
+| `NEWS_RSS_URL` | Any RSS or Atom feed URL | NPR Topics: News |
+| `MANUAL_NEWS` | Newline-separated headlines (no network egress) | - |
+| `NEWS_HEADLINE_LIMIT` | Max headlines injected per turn | 5 |
+| `NEWS_CACHE_TTL_MINUTES` | Headline cache duration (minimum 60 seconds) | 30 |
+
+#### Proactive Scheduler
+
+| Setting | Description | Default |
+|---------|-------------|---------|
+| `SCHEDULER_ENABLED` | Run per-personality `scheduled_events.yaml` (when present) | true |
+| `QUIET_HOURS_START` | Global quiet-hours start (HH:MM, overrides personality YAML) | - |
+| `QUIET_HOURS_END` | Global quiet-hours end (HH:MM) | - |
 
 #### Conversation Settings
 
@@ -686,6 +717,20 @@ Leopold: "Just reviewing my notes from the second abduction... Twice, actually. 
 | `SAVE_DEBUG_AUDIO` | Save audio files for debugging | false |
 | `DEBUG_AUDIO_PATH` | Directory for debug audio files | ./debug_audio/ |
 
+#### Supervisor / Watchdog
+
+These settings only apply when running under `scripts/supervisor.py`. See [Running Unattended](#running-unattended-recommended-for-permanent-installations).
+
+| Setting | Description | Default |
+|---------|-------------|---------|
+| `HEARTBEAT_FILE` | Path to liveness file (set to opt the main process into reporting) | - |
+| `HEARTBEAT_INTERVAL` | Seconds between liveness touches | 10.0 |
+| `WATCHDOG_TIMEOUT` | Seconds without heartbeat before child is considered hung | 60.0 |
+| `RESTART_BACKOFF_INITIAL` | Initial restart delay (seconds) | 1.0 |
+| `RESTART_BACKOFF_MAX` | Cap on restart delay (seconds) | 60.0 |
+| `CRASH_REPORT_DIR` | Directory for per-crash reports | ./crash_reports/ |
+| `CRASH_REPORT_KEEP` | Max crash reports retained (older are pruned) | 200 |
+
 
 ### Creating Custom Personalities
 
@@ -721,7 +766,7 @@ See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed system design, componen
 
 ### Key Components
 
-1. **State Machine**: Manages conversation flow (IDLE → LISTENING → PROCESSING → SPEAKING)
+1. **State Machine**: Manages conversation flow (IDLE → LISTENING → PROCESSING → SPEAKING). Atomic `try_transition` CAS lets the scheduler enter SPEAKING without racing the wake-word detector.
 2. **Wake Word Detector**: Always-on personality-specific wake word detection (OpenWakeWord)
 3. **Audio Input Pipeline**: Microphone capture with voice activity detection
 4. **Speech-to-Text**: OpenAI Whisper transcription
@@ -731,6 +776,9 @@ See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed system design, componen
 8. **PPM Generator**: Creates precise PPM control signals (60Hz, 400µs pulses, 630-1590µs gaps)
 9. **Device Output Processors**: Device-specific audio processing (Teddy Ruxpin with PPM, Squawkers McCaw simple stereo)
 10. **Audio Output Pipeline**: Stereo playback with parallel chunk processing for minimal latency
+11. **Real-World Context Provider**: Injects current date/time, weather (pluggable: wttr / Home Assistant / manual), and top news headlines (pluggable: RSS / Hacker News / manual) into the LLM context every turn
+12. **Proactive Scheduler**: Per-personality `scheduled_events.yaml` for proactive utterances (greetings, bedtime stories) — fires only when state is IDLE, never interrupts a conversation
+13. **Process Supervisor** (Optional): `scripts/supervisor.py` keeps the app alive across crashes with exponential-backoff restart, watchdog kill of hung children, and crash reports — for unattended deployments via launchd / systemd
 
 ## Troubleshooting
 

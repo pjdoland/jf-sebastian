@@ -53,6 +53,8 @@ Each personality is completely self-contained:
 your_personality/
 ├── personality.yaml          # Character definition (this is what you edit!)
 ├── hey_your_name.onnx       # Wake word model (trained separately)
+├── scheduled_events.yaml    # Optional: proactive utterances on a schedule
+├── *.pth, *.index           # Optional: RVC voice conversion models
 └── filler_audio/            # Device-specific generated audio files (auto-created)
     ├── teddy_ruxpin/        # Filler audio with PPM control signals
     │   ├── filler_01.wav
@@ -65,6 +67,8 @@ your_personality/
 ```
 
 **Note:** The filler audio is generated per output device type, so each personality automatically gets device-specific versions based on the registered output devices in the system.
+
+**Optional `scheduled_events.yaml`** — drop one in your personality folder to make the character speak proactively at specific times (morning greetings, bedtime stories, holiday surprises). Events only fire when the device is IDLE, never interrupting an in-progress conversation. See [personalities/README.md → Scheduled Events](../personalities/README.md#scheduled-events-optional) and the working sample at `personalities/johnny/scheduled_events.yaml`.
 
 ### The personality.yaml File
 
