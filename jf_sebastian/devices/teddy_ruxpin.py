@@ -109,10 +109,12 @@ class TeddyRuxpinDevice(OutputDevice):
             voice_resampled = voice_resampled[:min_length]
             ppm_signal = ppm_signal[:min_length]
 
-            # Apply channel-specific gains
-            # RVC output is already properly leveled - don't apply gain if RVC was used
-            if not rvc_applied:
-                voice_resampled = voice_resampled * settings.VOICE_GAIN
+            # Apply channel-specific gains. VOICE_GAIN now applies to RVC-
+            # converted audio too — some RVC models output quieter than OpenAI
+            # TTS and the user shouldn't need to know which path ran. Clip to
+            # the float32 range so any boost past unity doesn't wrap when
+            # converted to int16 downstream.
+            voice_resampled = np.clip(voice_resampled * settings.VOICE_GAIN, -1.0, 1.0)
             ppm_signal = ppm_signal * settings.CONTROL_GAIN
 
             # Create stereo: LEFT=voice, RIGHT=PPM control

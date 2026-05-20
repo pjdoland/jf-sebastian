@@ -94,10 +94,12 @@ class HeadlessDevice(OutputDevice):
                 voice_audio = scipy_signal.resample(voice_audio, voice_samples_needed)
                 logger.debug(f"Resampled audio from {current_sample_rate}Hz to {self.output_sample_rate}Hz")
 
-            # RVC output is already properly leveled - don't apply gain
-            # (Only apply gain if RVC was not used)
-            if not rvc_applied:
-                voice_audio = voice_audio * settings.VOICE_GAIN
+            # Apply VOICE_GAIN to both RVC-converted and raw TTS paths. Some RVC
+            # models output noticeably quieter than OpenAI TTS, and a single user-
+            # facing volume knob is more useful than asking people to characterize
+            # which path produced the audio. Clip to the float32 range so any
+            # boost past unity doesn't wrap when converted to int16 downstream.
+            voice_audio = np.clip(voice_audio * settings.VOICE_GAIN, -1.0, 1.0)
 
             # Create stereo: duplicate voice on both channels
             stereo_audio = np.column_stack((voice_audio, voice_audio))
