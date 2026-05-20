@@ -59,6 +59,13 @@ class AudioRecorder:
         # Continuous conversation mode - if True, keep recording after speech ends
         self._continuous = False
 
+        # Paused state: stream keeps draining so the OS buffer doesn't overflow,
+        # but captured frames are discarded and VAD state is suppressed. Used to
+        # mute the recorder while the app is playing audio so the bot doesn't
+        # capture its own voice into the next "user said" buffer.
+        self._paused = False
+        self._loop_reset_requested = False
+
         logger.info("Audio recorder initialized")
 
     @property
@@ -140,6 +147,8 @@ class AudioRecorder:
 
             self._speech_active = False
             self._silence_start_time = None
+            self._paused = False
+            self._loop_reset_requested = False
 
             # Start recording thread
             self._recording = True
@@ -152,6 +161,33 @@ class AudioRecorder:
             logger.error(f"Failed to start audio recording: {e}", exc_info=True)
             self._cleanup()
             raise
+
+    def pause(self):
+        """Mute the recorder's buffer and VAD while keeping the stream alive.
+
+        The audio stream keeps reading frames to prevent OS buffer overflow,
+        but frames are discarded and speech-state is cleared. Use during
+        playback so the bot doesn't capture its own audio into the next
+        "user said" buffer. No-op if not currently recording.
+        """
+        if not self._recording or self._paused:
+            return
+        self._paused = True
+        self._frames.clear()
+        self._speech_active = False
+        self._silence_start_time = None
+        logger.info("Audio recorder paused")
+
+    def resume(self):
+        """Re-enable buffering and VAD after a pause()."""
+        if not self._recording or not self._paused:
+            return
+        self._frames.clear()
+        self._speech_active = False
+        self._silence_start_time = None
+        self._loop_reset_requested = True
+        self._paused = False
+        logger.info("Audio recorder resumed")
 
     def stop_recording(self):
         """Stop recording and return collected audio."""
@@ -182,6 +218,27 @@ class AudioRecorder:
 
         try:
             while self._recording:
+                # Read first so the OS buffer keeps draining even while paused.
+                try:
+                    frame = self._audio_stream.read(
+                        self._vad_frame_size,
+                        exception_on_overflow=False
+                    )
+                except Exception as e:
+                    logger.error(f"Error reading audio frame: {e}")
+                    continue
+
+                # While paused, drop the frame and skip all VAD/timeout logic so
+                # the bot's own playback audio doesn't accumulate in the buffer.
+                if self._paused:
+                    continue
+
+                # If we just resumed, restart the timeout window so the silence
+                # heuristics measure from when listening actually resumed.
+                if self._loop_reset_requested:
+                    start_time = time.time()
+                    self._loop_reset_requested = False
+
                 # Check timeout
                 if time.time() - start_time > settings.SILENCE_TIMEOUT:
                     logger.info(f"Recording timeout reached ({settings.SILENCE_TIMEOUT}s)")
@@ -190,16 +247,6 @@ class AudioRecorder:
                         break
                     # Reset start time for next turn
                     start_time = time.time()
-                    continue
-
-                # Read audio frame
-                try:
-                    frame = self._audio_stream.read(
-                        self._vad_frame_size,
-                        exception_on_overflow=False
-                    )
-                except Exception as e:
-                    logger.error(f"Error reading audio frame: {e}")
                     continue
 
                 # Store frame

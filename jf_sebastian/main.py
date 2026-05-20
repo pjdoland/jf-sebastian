@@ -332,6 +332,9 @@ class TeddyRuxpinApp:
             self.audio_recorder.start_recording(initial_audio=post_wake_audio, continuous=True)
         else:
             logger.info("Continuing conversation - recorder already running in continuous mode")
+            # Recorder was paused for playback; resume so the user's follow-up
+            # gets captured. Wake-word stays paused for the rest of the session.
+            self.audio_recorder.resume()
 
     def _on_enter_processing(self):
         """Handle entering PROCESSING state."""
@@ -345,6 +348,10 @@ class TeddyRuxpinApp:
     def _on_enter_speaking(self):
         """Handle entering SPEAKING state."""
         logger.info("Entering SPEAKING state - playing response...")
+
+        # Mute the recorder so the bot's playback doesn't end up in the next
+        # captured buffer. Idempotent if already paused for a preceding filler.
+        self.audio_recorder.pause()
 
         # Speaking will be handled by _process_and_speak method
 
@@ -604,6 +611,7 @@ Now respond to their question naturally, as if your filler phrase was the beginn
                 time.sleep(0.5)
                 playback_queue.put((stereo_audio, sample_rate, "filler", "filler"))
                 self._pause_wake_for_playback()  # Pause wake detection during entire playback sequence
+                self.audio_recorder.pause()  # Stop capturing the bot's own audio into the next "user said" buffer
             else:
                 # No filler, transition to SPEAKING immediately when first chunk plays
                 pass
