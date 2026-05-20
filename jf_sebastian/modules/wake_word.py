@@ -254,7 +254,8 @@ class WakeWordDetector:
                     stereo_data = np.frombuffer(pcm, dtype=np.int16)
                     audio_data = stereo_data[::2]  # Take every other sample (left channel)
 
-                # Add to rolling buffer
+                # Keep the rolling buffer for the post-wake capture path; it's
+                # not used for inference anymore.
                 self._audio_buffer.extend(audio_data)
 
                 # If capturing post-wake-word audio, add to that buffer too
@@ -265,23 +266,17 @@ class WakeWordDetector:
                         self._capture_post_wake = False
                         logger.debug(f"Post-wake-word buffer captured: {len(self._post_wake_buffer)} samples")
 
-                # Only process when buffer is full (have enough context)
-                if len(self._audio_buffer) < self._audio_buffer.maxlen:
-                    continue
-
-                # Get buffered audio window
-                audio_window = np.array(list(self._audio_buffer))
-
-                # Use predict_clip for custom models (like easy-oww does)
-                # This gives better results than streaming predict()
-                predictions = self._model.predict_clip(audio_window, padding=1, chunk_size=1280)
-
-                # Extract max score from all frames
+                # Streaming inference: feed the new 80 ms chunk into the model's
+                # internal state. predict_clip on a 2 s window measured at
+                # ~360 ms per call on Jetson (vs 80 ms loop budget), which
+                # backed up the PortAudio queue and produced multi-second lag.
+                # predict() on a single chunk benches at ~6 ms.
+                scores_dict = self._model.predict(audio_data)
                 model_name = list(self._model.models.keys())[0]
-                scores = [pred[model_name] for pred in predictions if model_name in pred]
+                score = scores_dict.get(model_name)
 
-                if scores:
-                    max_score = max(scores)
+                if score is not None:
+                    max_score = score
 
                     # Check if wake word was detected
                     if max_score >= self._detection_threshold:

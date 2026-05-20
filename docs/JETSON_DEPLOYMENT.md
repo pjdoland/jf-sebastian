@@ -102,69 +102,63 @@ during boot rather than the persistent one.
 
 To undo: `sudo systemctl disable --now jetson-clocks.service`.
 
-## Acoustic Echo Cancellation (AEC)
+## Microphone tuning
 
-macOS gives you AEC for free via CoreAudio's Voice Processing IO unit;
-Linux does not. Without AEC, the microphone picks up the bot's own
-playback and the system can trigger on itself (mostly during the
-"continue conversation" listen window — wake-word self-trigger is
-already prevented in code).
-
-The Jetson runs PulseAudio by default. Load `module-echo-cancel` (which
-uses WebRTC's AEC — the same algorithm Chrome / Google Meet uses) and
-make the virtual devices PulseAudio's defaults so PortAudio routes
-through them transparently.
-
-Create `~/.config/pulse/default.pa`:
-
-```
-#!/usr/bin/pulseaudio -nF
-# Loaded INSTEAD of /etc/pulse/default.pa, so we include the system
-# defaults first and then add our own.
-
-.include /etc/pulse/default.pa
-
-# WebRTC AEC binding the USB mic to the USB speaker. Adjust the
-# source_master / sink_master values to match your hardware — get the
-# exact ALSA names from `pactl list short sources` / `… short sinks`.
-load-module module-echo-cancel \
-    aec_method=webrtc \
-    source_master=alsa_input.usb-…analog-mono \
-    sink_master=alsa_output.usb-…analog-stereo \
-    source_name=echocancel \
-    sink_name=echocancel-sink \
-    source_properties=device.description=EchoCancelMic \
-    sink_properties=device.description=EchoCancelSpeaker
-
-# PyAudio/PortAudio only sees PulseAudio as a single "pulse" device, so
-# the only way to route through the AEC is to make the virtual devices
-# the PulseAudio defaults.
-set-default-source echocancel
-set-default-sink echocancel-sink
-```
-
-Then point the app at the generic `pulse` device in `.env`:
-
-```
-INPUT_DEVICE_NAME=pulse
-OUTPUT_DEVICE_NAME=pulse
-```
-
-Reload PulseAudio (`pulseaudio -k` — autospawn restarts it) and verify
-the app's source-output and sink-input show source 7 (`echocancel`) and
-sink 4 (`echocancel-sink`) while it's running:
+USB conference mics often ship with hardware Auto Gain Control enabled,
+which pumps the level up between phrases and down during speech — bad
+for both volume consistency and wake-word detection (the model expects
+stable spectral content). Disable it via ALSA and persist:
 
 ```bash
-pactl list source-outputs | grep -E "Source:|application.name"
-pactl list sink-inputs    | grep -E "Sink:|application.name"
+# Find the card index for your mic
+arecord -l | grep -i "your_mic_name_here"
+
+# Disable AGC (replace 3 with your card index) and any other unwanted
+# auto-processing the card exposes
+amixer -c 3 set "Auto Gain Control" off
+
+# Set capture volume to max (hardware mic gain, not PulseAudio mixer)
+amixer -c 3 set "Mic Capture Volume" 100%
+
+# Persist across reboots (alsa-restore.service reads this at boot)
+sudo alsactl store
 ```
 
-If you want to crank the suppression further, add to the load-module
-line:
+Also set the PulseAudio source volume to 100% so the app gets unattenuated
+audio:
 
+```bash
+pactl set-source-volume alsa_input.usb-…analog-mono 100%
 ```
-aec_args="analog_gain_control=0 digital_gain_control=1 noise_suppression=1 high_pass_filter=1"
+
+PulseAudio remembers the per-source volume across restarts via
+`module-stream-restore`.
+
+### Echo cancellation: not needed
+
+The app stops the PortAudio capture stream at the OS level whenever it's
+about to play audio (`AudioRecorder.pause()` calls `stream.stop_stream()`,
+and the wake-word detector pauses similarly). No mic input is captured
+while the bot speaks, so the OS-level AEC layer that macOS provides via
+CoreAudio's Voice Processing IO isn't actually doing useful work on Mac
+either — it's just been benign.
+
+If you previously enabled `module-echo-cancel` on Linux, **remove it**:
+the WebRTC AEC pipeline reshapes spectral content in ways that degrade
+wake-word accuracy noticeably, and any noise suppression or AGC it
+applies isn't worth its cost without a self-trigger problem to solve.
+
+```bash
+# Unload the running instance
+pactl unload-module module-echo-cancel
+
+# Restore raw devices as defaults (no virtual sources in the path)
+pactl set-default-source alsa_input.usb-…analog-mono
+pactl set-default-sink   alsa_output.usb-…analog-stereo
 ```
+
+And remove or comment out the `load-module module-echo-cancel …` block
+from `~/.config/pulse/default.pa` so it doesn't come back at next start.
 
 ## PyTorch CUDA allocator tuning
 
