@@ -163,25 +163,35 @@ class AudioRecorder:
             raise
 
     def pause(self):
-        """Mute the recorder's buffer and VAD while keeping the stream alive.
+        """Stop capturing audio during playback so the bot doesn't record itself.
 
-        The audio stream keeps reading frames to prevent OS buffer overflow,
-        but frames are discarded and speech-state is cleared. Use during
-        playback so the bot doesn't capture its own audio into the next
-        "user said" buffer. No-op if not currently recording.
+        Calls stop_stream() on the underlying PortAudio stream so no frames are
+        queued at the OS level — earlier versions just dropped frames in the
+        loop, but PortAudio kept buffering and dumped tens of seconds of stale
+        audio on resume. No-op if not currently recording.
         """
         if not self._recording or self._paused:
             return
         self._paused = True
+        try:
+            if self._audio_stream is not None and not self._audio_stream.is_stopped():
+                self._audio_stream.stop_stream()
+        except Exception as e:
+            logger.warning(f"Error stopping audio stream on pause: {e}")
         self._frames.clear()
         self._speech_active = False
         self._silence_start_time = None
         logger.info("Audio recorder paused")
 
     def resume(self):
-        """Re-enable buffering and VAD after a pause()."""
+        """Restart capture after a pause()."""
         if not self._recording or not self._paused:
             return
+        try:
+            if self._audio_stream is not None and self._audio_stream.is_stopped():
+                self._audio_stream.start_stream()
+        except Exception as e:
+            logger.error(f"Error starting audio stream on resume: {e}")
         self._frames.clear()
         self._speech_active = False
         self._silence_start_time = None
@@ -218,7 +228,19 @@ class AudioRecorder:
 
         try:
             while self._recording:
-                # Read first so the OS buffer keeps draining even while paused.
+                # While paused the underlying stream is stopped — don't call
+                # read() (it would raise) and don't busy-loop.
+                if self._paused:
+                    time.sleep(0.05)
+                    continue
+
+                # If we just resumed, restart the timeout window so the silence
+                # heuristics measure from when listening actually resumed.
+                if self._loop_reset_requested:
+                    start_time = time.time()
+                    self._loop_reset_requested = False
+
+                # Read audio frame
                 try:
                     frame = self._audio_stream.read(
                         self._vad_frame_size,
@@ -227,17 +249,6 @@ class AudioRecorder:
                 except Exception as e:
                     logger.error(f"Error reading audio frame: {e}")
                     continue
-
-                # While paused, drop the frame and skip all VAD/timeout logic so
-                # the bot's own playback audio doesn't accumulate in the buffer.
-                if self._paused:
-                    continue
-
-                # If we just resumed, restart the timeout window so the silence
-                # heuristics measure from when listening actually resumed.
-                if self._loop_reset_requested:
-                    start_time = time.time()
-                    self._loop_reset_requested = False
 
                 # Check timeout
                 if time.time() - start_time > settings.SILENCE_TIMEOUT:
