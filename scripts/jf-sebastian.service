@@ -28,6 +28,9 @@ Environment=CRASH_REPORT_DIR=%h/jf-sebastian/crash_reports
 Environment=LOG_PATH=%h/jf-sebastian/jf_sebastian.log
 Environment=SUPERVISOR_LOG_PATH=%h/jf-sebastian/supervisor.log
 Environment=PYTHONUNBUFFERED=1
+# Reduce CUDA caching-allocator fragmentation on Jetson during long RVC sessions.
+# Ignored on non-CUDA platforms.
+Environment=PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 # Locale: systemd user units inherit very little; explicit is safer for ffmpeg
 # subprocess output and any non-ASCII personality strings.
 Environment=LANG=en_US.UTF-8

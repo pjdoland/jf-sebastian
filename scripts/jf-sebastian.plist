@@ -53,6 +53,9 @@
         <string>en_US.UTF-8</string>
         <key>PYTHONUNBUFFERED</key>
         <string>1</string>
+        <!-- Reduce CUDA allocator fragmentation on Jetson; ignored on Mac (MPS/CPU). -->
+        <key>PYTORCH_CUDA_ALLOC_CONF</key>
+        <string>expandable_segments:True</string>
     </dict>
 
     <key>RunAtLoad</key>

@@ -13,5 +13,9 @@ if [ ! -f ".env" ]; then
     exit 1
 fi
 
+# Reduce CUDA caching-allocator fragmentation during long RVC sessions.
+# Harmless on platforms without CUDA (PyTorch ignores it on MPS/CPU).
+export PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:True}"
+
 # Run the application
 python3 -m jf_sebastian.main

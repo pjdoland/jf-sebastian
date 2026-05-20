@@ -255,6 +255,16 @@ class RVCProcessor:
                 elapsed = time.time() - start_time
                 logger.info(f"RVC conversion completed in {elapsed:.2f}s")
 
+                # Release cached CUDA blocks so the allocator can hand them back
+                # to the system. Fragmentation across long sessions has caused
+                # NVML_SUCCESS assertion failures on Jetson; cheap insurance.
+                try:
+                    import torch
+                    if torch.cuda.is_available():
+                        torch.cuda.empty_cache()
+                except Exception:
+                    pass
+
                 return converted_audio, converted_sr
 
             except RuntimeError as e:
