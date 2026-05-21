@@ -59,7 +59,8 @@ def calculate_rms(audio_data: bytes, window_ms: int = 100, sample_rate: int = 16
 
 
 def contains_speech(audio_data: bytes, sample_rate: int = 16000,
-                    vad_aggressiveness: int = 3, min_speech_ratio: float = 0.3) -> bool:
+                    min_speech_ratio: float = 0.3,
+                    threshold: float = _vad.SILERO_DEFAULT_THRESHOLD) -> bool:
     """
     Return True if at least `min_speech_ratio` of `audio_data` is human
     speech per Silero VAD's neural-net classification.
@@ -70,13 +71,13 @@ def contains_speech(audio_data: bytes, sample_rate: int = 16000,
     Args:
         audio_data: Raw audio bytes (16-bit PCM format)
         sample_rate: Audio sample rate in Hz (default: 16000)
-        vad_aggressiveness: Legacy WebRTC parameter, unused. Kept for caller
-            compatibility — Silero uses a probability threshold instead.
         min_speech_ratio: Minimum ratio of speech to total audio (default 0.3)
+        threshold: Per-window speech probability cutoff, 0.0-1.0 (default 0.5)
     """
     try:
         return _vad.contains_speech(
-            audio_data, sample_rate=sample_rate, min_speech_ratio=min_speech_ratio
+            audio_data, sample_rate=sample_rate,
+            min_speech_ratio=min_speech_ratio, threshold=threshold,
         )
     except Exception as e:
         logger.error(f"Error analyzing speech content: {e}", exc_info=True)

@@ -159,7 +159,7 @@ class AudioRecorder:
             self._thread = threading.Thread(target=self._recording_loop, daemon=True)
             self._thread.start()
 
-            logger.info(f"Audio recording started (rate={settings.SAMPLE_RATE}Hz, vad_aggressiveness={settings.VAD_AGGRESSIVENESS})")
+            logger.info(f"Audio recording started (rate={settings.SAMPLE_RATE}Hz, vad_threshold={settings.VAD_THRESHOLD})")
 
         except Exception as e:
             logger.error(f"Failed to start audio recording: {e}", exc_info=True)
@@ -303,7 +303,10 @@ class AudioRecorder:
         """Classify a 512-sample int16 frame as speech via Silero VAD."""
         try:
             window = np.frombuffer(frame, dtype=np.int16)
-            return _vad.is_speech_window(window, sample_rate=settings.SAMPLE_RATE)
+            return _vad.is_speech_window(
+                window, sample_rate=settings.SAMPLE_RATE,
+                threshold=settings.VAD_THRESHOLD,
+            )
         except Exception as e:
             logger.error(f"VAD error: {e}")
             return False

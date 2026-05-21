@@ -627,7 +627,7 @@ Leopold: "Just reviewing my notes from the second abduction... Twice, actually. 
 
 | Setting | Description | Default |
 |---------|-------------|---------|
-| `VAD_AGGRESSIVENESS` | Voice activity detection aggressiveness (0-3, higher = more aggressive) | 3 |
+| `VAD_THRESHOLD` | Silero VAD per-window speech probability cutoff (0.0-1.0, higher = stricter) | 0.5 |
 | `SILENCE_TIMEOUT` | Max silence before timeout (seconds) | 5.0 |
 | `SPEECH_END_SILENCE_SECONDS` | Silence required to end speech after talking (seconds) | 0.5 |
 | `MIN_LISTEN_SECONDS` | Minimum listen window after wake word (seconds) | 1.0 |

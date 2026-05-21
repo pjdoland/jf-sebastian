@@ -16,7 +16,7 @@ def test_settings_default_values():
         f"Configured personality '{Settings.PERSONALITY}' has no directory in personalities/"
     assert Settings.SAMPLE_RATE in [16000, 22050, 44100, 48000]
     assert Settings.CHUNK_SIZE > 0
-    assert 0 <= Settings.VAD_AGGRESSIVENESS <= 3
+    assert 0.0 <= Settings.VAD_THRESHOLD <= 1.0
     assert Settings.SILENCE_TIMEOUT > 0
     assert Settings.CONVERSATION_TIMEOUT > 0
     assert Settings.MAX_HISTORY_LENGTH > 0
@@ -30,7 +30,7 @@ def test_settings_audio_config_defaults():
     # SAMPLE_RATE can be any valid rate, just verify it's valid
     assert Settings.SAMPLE_RATE in [16000, 22050, 44100, 48000]
     assert Settings.CHUNK_SIZE == 1024
-    assert Settings.VAD_AGGRESSIVENESS == 3
+    assert Settings.VAD_THRESHOLD == 0.5
     assert Settings.SILENCE_TIMEOUT > 0  # Can be configured in .env
 
 
@@ -55,7 +55,7 @@ def test_settings_env_variable_loading(monkeypatch):
     monkeypatch.setenv("PERSONALITY", "rich")
     monkeypatch.setenv("SAMPLE_RATE", "16000")
     monkeypatch.setenv("CHUNK_SIZE", "2048")
-    monkeypatch.setenv("VAD_AGGRESSIVENESS", "2")
+    monkeypatch.setenv("VAD_THRESHOLD", "0.6")
     monkeypatch.setenv("DEBUG_MODE", "true")
 
     # Reload the Settings class to pick up new env vars
@@ -95,14 +95,14 @@ def test_settings_validate_invalid_sample_rate():
     assert any("SAMPLE_RATE" in err for err in errors)
 
 
-def test_settings_validate_invalid_vad_aggressiveness():
-    """Test validation fails for invalid VAD aggressiveness."""
+def test_settings_validate_invalid_vad_threshold():
+    """Test validation fails for invalid VAD threshold."""
     class TestSettings(Settings):
         OPENAI_API_KEY = "test-key"
-        VAD_AGGRESSIVENESS = 5  # Invalid (must be 0-3)
+        VAD_THRESHOLD = 1.5  # Invalid (must be 0.0-1.0)
 
     errors = TestSettings.validate()
-    assert any("VAD_AGGRESSIVENESS" in err for err in errors)
+    assert any("VAD_THRESHOLD" in err for err in errors)
 
 
 def test_settings_validate_all_valid():
@@ -110,7 +110,7 @@ def test_settings_validate_all_valid():
     class TestSettings(Settings):
         OPENAI_API_KEY = "test-key"
         SAMPLE_RATE = 44100
-        VAD_AGGRESSIVENESS = 2
+        VAD_THRESHOLD = 0.5
 
     errors = TestSettings.validate()
     assert len(errors) == 0
@@ -205,7 +205,7 @@ def test_settings_validate_multiple_errors():
     class TestSettings(Settings):
         OPENAI_API_KEY = ""
         SAMPLE_RATE = 32000  # Invalid
-        VAD_AGGRESSIVENESS = 5  # Invalid
+        VAD_THRESHOLD = 1.5  # Invalid
 
     errors = TestSettings.validate()
 
@@ -213,7 +213,7 @@ def test_settings_validate_multiple_errors():
     assert len(errors) >= 3
     assert any("OPENAI_API_KEY" in err for err in errors)
     assert any("SAMPLE_RATE" in err for err in errors)
-    assert any("VAD_AGGRESSIVENESS" in err for err in errors)
+    assert any("VAD_THRESHOLD" in err for err in errors)
 
 
 def test_settings_sample_rate_options():
@@ -230,13 +230,12 @@ def test_settings_sample_rate_options():
         assert not any("SAMPLE_RATE" in err for err in errors)
 
 
-def test_settings_vad_aggressiveness_range():
-    """Test all valid VAD aggressiveness values."""
-    for level in range(4):  # 0, 1, 2, 3
+def test_settings_vad_threshold_range():
+    """Test representative valid VAD threshold values."""
+    for threshold in (0.0, 0.3, 0.5, 0.7, 1.0):
         class TestSettings(Settings):
             OPENAI_API_KEY = "test-key"
-            VAD_AGGRESSIVENESS = level
+            VAD_THRESHOLD = threshold
 
         errors = TestSettings.validate()
-        # Should not have VAD error
-        assert not any("VAD_AGGRESSIVENESS" in err for err in errors)
+        assert not any("VAD_THRESHOLD" in err for err in errors)

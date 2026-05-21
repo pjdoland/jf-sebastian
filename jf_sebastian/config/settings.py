@@ -32,8 +32,11 @@ class Settings:
     SAMPLE_RATE: int = int(os.getenv("SAMPLE_RATE", "44100"))
     CHUNK_SIZE: int = int(os.getenv("CHUNK_SIZE", "1024"))
 
-    # Voice Activity Detection
-    VAD_AGGRESSIVENESS: int = int(os.getenv("VAD_AGGRESSIVENESS", "3"))
+    # Voice Activity Detection (Silero). Probability above which a 32 ms
+    # window is classified as speech (0.0 = call everything speech,
+    # 1.0 = call nothing speech). 0.5 is balanced; raise toward 0.7 if
+    # noise is leaking through, lower toward 0.3 if real speech is rejected.
+    VAD_THRESHOLD: float = float(os.getenv("VAD_THRESHOLD", "0.5"))
     SILENCE_TIMEOUT: float = float(os.getenv("SILENCE_TIMEOUT", "10.0"))
     SPEECH_END_SILENCE_SECONDS: float = float(os.getenv("SPEECH_END_SILENCE_SECONDS", "1.5"))
     MIN_LISTEN_SECONDS: float = float(os.getenv("MIN_LISTEN_SECONDS", "1.0"))
@@ -135,8 +138,8 @@ class Settings:
         if cls.SAMPLE_RATE not in [16000, 22050, 44100, 48000]:
             errors.append(f"Invalid SAMPLE_RATE: {cls.SAMPLE_RATE}. Must be 16000, 22050, 44100, or 48000")
 
-        if not 0 <= cls.VAD_AGGRESSIVENESS <= 3:
-            errors.append(f"VAD_AGGRESSIVENESS must be 0-3, got {cls.VAD_AGGRESSIVENESS}")
+        if not 0.0 <= cls.VAD_THRESHOLD <= 1.0:
+            errors.append(f"VAD_THRESHOLD must be 0.0-1.0, got {cls.VAD_THRESHOLD}")
 
         # Validate device type
         from jf_sebastian.devices import DeviceRegistry

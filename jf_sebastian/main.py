@@ -412,8 +412,8 @@ class TeddyRuxpinApp:
         # This catches cases where audio has sufficient volume but no actual speech
         # (e.g., background noise, music, rustling) that would cause Whisper hallucinations
         if not contains_speech(audio_data, sample_rate=16000,
-                              vad_aggressiveness=settings.VAD_AGGRESSIVENESS,
-                              min_speech_ratio=settings.MIN_SPEECH_RATIO):
+                              min_speech_ratio=settings.MIN_SPEECH_RATIO,
+                              threshold=settings.VAD_THRESHOLD):
             logger.info(f"No meaningful speech detected in audio - likely background noise - returning to IDLE")
             self.state_machine.transition_to(ConversationState.IDLE, trigger="no_speech_detected")
             return

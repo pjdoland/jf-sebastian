@@ -260,7 +260,7 @@ The system uses a **defense-in-depth approach** to filter out silence and backgr
 - Increase `MIN_AUDIO_RMS` if transcribing too much quiet noise (typical speech: 1500-5000)
 - Increase `MIN_SPEECH_RATIO` (0.4-0.5) if still getting hallucinations
 - Decrease `MIN_SPEECH_RATIO` (0.2-0.25) if valid speech being rejected
-- Use `VAD_AGGRESSIVENESS` (0-3) to control sensitivity (3 = most strict)
+- Use `VAD_THRESHOLD` (0.0-1.0, default 0.5) to control Silero sensitivity (higher = stricter)
 
 ### RVC Voice Conversion
 - Optional feature requiring Python 3.10.x specifically
@@ -324,7 +324,7 @@ Pre-generated personality-specific audio fills response gap:
 
 ### Modifying Audio Pipeline
 - Audio input: Modify `jf_sebastian/modules/audio_input.py` (AudioRecorder class)
-- VAD settings: Adjust in `.env` (VAD_AGGRESSIVENESS, SPEECH_END_SILENCE_SECONDS)
+- VAD settings: Adjust in `.env` (VAD_THRESHOLD, SPEECH_END_SILENCE_SECONDS)
 - PPM generation: Modify `jf_sebastian/modules/ppm_generator.py` (PPMGenerator class)
 - Lip sync: Adjust syllable detection in PPMGenerator
 - Eye control: Modify sentiment thresholds in `.env` or `sentiment_analyzer.py`

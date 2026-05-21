@@ -255,7 +255,7 @@ See `personalities/johnny/scheduled_events.yaml` for a full working example, and
 ### Wake word not working?
 - Speak clearly and slightly louder
 - Check microphone permissions in System Settings
-- Try adjusting `VAD_AGGRESSIVENESS` in `.env` (0-3)
+- Try adjusting `VAD_THRESHOLD` in `.env` (0.0-1.0; lower = more sensitive)
 - Verify your microphone device is correctly configured
 
 ### No audio output?
