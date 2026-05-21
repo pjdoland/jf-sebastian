@@ -40,7 +40,7 @@ This application enables real-time voice conversations with ChatGPT through vint
         │
         ├─► Audio Input Pipeline
         │   - Microphone capture (PyAudio/sounddevice)
-        │   - Voice Activity Detection (WebRTC VAD)
+        │   - Voice Activity Detection (Silero VAD)
         │   - Buffer management
         │
         ├─► Speech-to-Text Module
@@ -263,7 +263,7 @@ The original mechanism uses:
 
 ### Sample Rate Architecture
 
-- **Processing**: 16kHz (WebRTC VAD compatibility, efficient Whisper input, RVC input)
+- **Processing**: 16kHz (Silero VAD requirement, efficient Whisper input, RVC input)
 - **RVC Conversion**: 16kHz → 48kHz (when RVC enabled)
 - **PPM Generation**: 44.1kHz (precise pulse timing, no resampling artifacts)
 - **Voice Resampling**: Voice audio resampled to output sample rate:
@@ -330,7 +330,7 @@ Core libraries:
 - `openwakeword` - Wake word detection (free & open source)
 - `onnxruntime` - ONNX model inference for wake word detection
 - `pyaudio` or `sounddevice` - Audio I/O
-- `webrtcvad` - Voice activity detection
+- `silero-vad` - Voice activity detection (neural)
 - `openai` - Whisper, GPT-4o, TTS APIs
 - `numpy` - Audio signal processing
 - `scipy` - Signal filtering, resampling, and PPM waveform generation

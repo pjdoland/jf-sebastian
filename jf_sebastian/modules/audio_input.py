@@ -48,9 +48,6 @@ class AudioRecorder:
         # This also becomes the PyAudio read chunk size — keeps VAD and stream
         # frame-aligned so we evaluate every captured frame.
         self._vad_frame_size = _vad.SILERO_WINDOW_SAMPLES
-        self._vad_frame_duration_ms = int(
-            self._vad_frame_size * 1000 / settings.SAMPLE_RATE
-        )
 
         # Speech detection state
         self._speech_active = False

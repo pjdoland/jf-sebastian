@@ -13,7 +13,6 @@ new recording session so prior context doesn't bleed in.
 
 import logging
 from threading import Lock
-from typing import Optional
 
 import numpy as np
 
@@ -21,6 +20,9 @@ logger = logging.getLogger(__name__)
 
 SILERO_WINDOW_SAMPLES = 512  # required at 16 kHz; 256 at 8 kHz
 SILERO_DEFAULT_THRESHOLD = 0.5
+
+# Silero accepts only these (sample_rate, window_samples) pairs.
+_SILERO_VALID_RATES = {16000: 512, 8000: 256}
 
 _model = None
 _model_lock = Lock()
@@ -58,8 +60,19 @@ def is_speech_window(
     Maintains the model's RNN state across calls. Call reset_state() to
     start a new session.
     """
-    if len(window_int16) != SILERO_WINDOW_SAMPLES:
-        return False  # Silero requires exact window size at 16 kHz
+    expected = _SILERO_VALID_RATES.get(sample_rate)
+    if expected is None:
+        logger.warning(
+            f"is_speech_window: Silero only supports 16000/8000 Hz, got {sample_rate} — "
+            f"returning False. Capture at 16 kHz or resample before VAD."
+        )
+        return False
+    if len(window_int16) != expected:
+        logger.warning(
+            f"is_speech_window expected {expected} samples at {sample_rate} Hz, "
+            f"got {len(window_int16)} — returning False."
+        )
+        return False
 
     import torch
     model = _get_model()
