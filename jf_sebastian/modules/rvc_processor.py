@@ -188,14 +188,21 @@ class RVCProcessor:
                 logger.debug(f"Converting audio through RVC (f0={f0_method}, pitch={pitch_shift}, device={self._device}, sr={sample_rate}Hz)")
                 start_time = time.time()
 
-                # Debug: Save input audio before RVC (async - non-blocking)
+                # Debug: save input audio before RVC, only if explicitly enabled.
+                # Was unconditional, which racked up 300+ MB of /debug_audio per
+                # session and kept the in-flight audio array referenced by the
+                # async writer queue.
+                from jf_sebastian.config import settings as _settings
+                debug_enabled = bool(getattr(_settings, "SAVE_DEBUG_AUDIO", False))
                 debug_path = Path('debug_audio')
-                debug_path.mkdir(exist_ok=True)
-                from datetime import datetime
-                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-                input_debug = debug_path / f'rvc_input_{timestamp}.wav'
-                save_async(sf.write, str(input_debug), audio, sample_rate, subtype='PCM_16')
-                logger.info(f"Saving RVC input to {input_debug} (async)")
+                timestamp = None
+                if debug_enabled:
+                    debug_path.mkdir(exist_ok=True)
+                    from datetime import datetime
+                    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                    input_debug = debug_path / f'rvc_input_{timestamp}.wav'
+                    save_async(sf.write, str(input_debug), audio, sample_rate, subtype='PCM_16')
+                    logger.info(f"Saving RVC input to {input_debug} (async)")
 
                 # Write input audio to temp file (expecting 16kHz)
                 sf.write(input_path, audio, sample_rate, subtype='PCM_16')
@@ -288,10 +295,11 @@ class RVCProcessor:
                     )
                     return None
 
-                # Debug: Save RVC raw output (async - non-blocking)
-                output_debug = debug_path / f'rvc_output_{timestamp}.wav'
-                save_async(sf.write, str(output_debug), converted_audio.copy(), converted_sr, subtype='PCM_16')
-                logger.info(f"Saving RVC output to {output_debug} ({converted_sr}Hz, async)")
+                # Debug: save RVC raw output, only if SAVE_DEBUG_AUDIO is enabled.
+                if debug_enabled and timestamp is not None:
+                    output_debug = debug_path / f'rvc_output_{timestamp}.wav'
+                    save_async(sf.write, str(output_debug), converted_audio.copy(), converted_sr, subtype='PCM_16')
+                    logger.info(f"Saving RVC output to {output_debug} ({converted_sr}Hz, async)")
 
                 # RVC library returns audio in int16 value range (-32768 to 32767) as float32 dtype
                 # Normalize to proper float32 range (-1.0 to 1.0)
