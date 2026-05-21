@@ -7,7 +7,7 @@ scipy>=1.11.0
 pyaudio>=0.2.13
 sounddevice>=0.4.6
 soundfile>=0.12.1
-webrtcvad>=2.0.10
+silero-vad>=6.0.0
 pydub>=0.25.1
 
 # RVC Voice Conversion (OPTIONAL - for custom voice personalities)

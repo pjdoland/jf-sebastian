@@ -12,11 +12,11 @@ from typing import Optional, Callable
 from collections import deque
 
 import pyaudio
-import webrtcvad
 import numpy as np
 
 from jf_sebastian.config import settings
 from jf_sebastian.utils import find_audio_device_by_name
+from jf_sebastian.utils import vad as _vad
 
 logger = logging.getLogger(__name__)
 
@@ -40,14 +40,17 @@ class AudioRecorder:
         self._audio_stream: Optional[pyaudio.Stream] = None
         # Initialize PyAudio once and reuse it to avoid CoreAudio issues on macOS
         self._pyaudio = pyaudio.PyAudio()
-        self._vad: Optional[webrtcvad.Vad] = None
 
         # Audio buffer for collected frames
         self._frames: deque = deque()
 
-        # VAD frame buffer (30ms frames as required by WebRTC VAD)
-        self._vad_frame_duration_ms = 30
-        self._vad_frame_size = int(settings.SAMPLE_RATE * self._vad_frame_duration_ms / 1000)
+        # Silero requires exactly 512 samples per call at 16 kHz (32 ms).
+        # This also becomes the PyAudio read chunk size — keeps VAD and stream
+        # frame-aligned so we evaluate every captured frame.
+        self._vad_frame_size = _vad.SILERO_WINDOW_SAMPLES
+        self._vad_frame_duration_ms = int(
+            self._vad_frame_size * 1000 / settings.SAMPLE_RATE
+        )
 
         # Speech detection state
         self._speech_active = False
@@ -92,8 +95,9 @@ class AudioRecorder:
             # Store continuous mode setting
             self._continuous = continuous
 
-            # Initialize VAD
-            self._vad = webrtcvad.Vad(settings.VAD_AGGRESSIVENESS)
+            # Fresh Silero state for this recording session — don't let RNN
+            # context from a prior turn bleed in.
+            _vad.reset_state()
 
             # Get input device by name (None = system default)
             device_index = None
@@ -296,17 +300,10 @@ class AudioRecorder:
             logger.info("Recording loop ended")
 
     def _is_speech(self, frame: bytes) -> bool:
-        """
-        Check if audio frame contains speech using VAD.
-
-        Args:
-            frame: Audio frame (must be 10, 20, or 30ms)
-
-        Returns:
-            True if speech detected, False otherwise
-        """
+        """Classify a 512-sample int16 frame as speech via Silero VAD."""
         try:
-            return self._vad.is_speech(frame, settings.SAMPLE_RATE)
+            window = np.frombuffer(frame, dtype=np.int16)
+            return _vad.is_speech_window(window, sample_rate=settings.SAMPLE_RATE)
         except Exception as e:
             logger.error(f"VAD error: {e}")
             return False
@@ -358,7 +355,6 @@ class AudioRecorder:
         # Don't terminate PyAudio - we reuse it to avoid CoreAudio issues
         # It will be terminated when the application shuts down
 
-        self._vad = None
         self._frames.clear()
 
     def cleanup_on_shutdown(self):
