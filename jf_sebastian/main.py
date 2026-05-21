@@ -11,6 +11,8 @@ import sys
 import time
 import signal
 import os
+import queue
+import threading
 from pathlib import Path
 from typing import Optional
 import numpy as np
@@ -450,69 +452,8 @@ class TeddyRuxpinApp:
             filler_context: Text of the filler phrase being played (for seamless transition)
         """
         try:
-            # Step 1: Transcribe audio
-            logger.info("Step 1: Transcribing speech...")
-            transcript = self.speech_to_text.transcribe_with_retry(audio_data)
-
-            if not transcript:
-                logger.warning("Transcription failed or empty")
-                self.state_machine.transition_to(ConversationState.IDLE, trigger="transcription_failed")
-                return
-
-            # Validate transcript is meaningful (not just noise/silence/filler words)
-            transcript_clean = transcript.strip()
-            # Remove common punctuation that Whisper adds for silence
-            transcript_words = transcript_clean.strip('.,!?;:-').strip()
-
-            # Check against common Whisper hallucinations for silence
-            if transcript_words.lower() in WHISPER_SILENCE_HALLUCINATIONS:
-                logger.info(f"Detected Whisper silence hallucination: \"{transcript}\" - returning to IDLE")
-                self.state_machine.transition_to(ConversationState.IDLE, trigger="silence_hallucination")
-                return
-
-            # Check if transcript is too short or just common filler sounds
-            meaningless_words = {'um', 'uh', 'er', 'ah', 'hmm', 'mhmm', 'mm'}
-            if (len(transcript_words) < 2 or
-                transcript_words.lower() in meaningless_words or
-                not any(c.isalnum() for c in transcript_words)):
-                logger.info(f"Transcript too short or meaningless: \"{transcript}\" - returning to IDLE")
-                self.state_machine.transition_to(ConversationState.IDLE, trigger="empty_speech")
-                return
-
-            logger.info(f"Transcript: \"{transcript}\"")
-
-            # Step 2-4: Stream LLM → process each sentence through TTS+RVC → queue for playback
-            logger.info("Step 2: Streaming response with sentence-by-sentence pipeline...")
-
-            # Build context prompt if we have filler
-            if filler_context:
-                context_prompt = f"""[IMPORTANT CONTEXT: You just said this to the customer while thinking: "{filler_context}"]
-
-Your response must create a seamless, natural continuation. Follow these guidelines:
-1. Pick up grammatically and syntactically where the filler left off
-2. If the filler ended with "Now..." or "So..." or "Alright..." - continue directly without repeating these words
-3. Match the tone and energy of how you ended the filler phrase
-4. Don't acknowledge or reference that you were doing something else - stay in character
-5. Make it sound like one continuous thought, not two separate statements
-
-Now respond to their question naturally, as if your filler phrase was the beginning of this same thought."""
-            else:
-                context_prompt = None
-
-            # Stream audio chunks with true async processing
-            # Process chunks in parallel with playback to eliminate gaps
-            import threading
-            import queue
-
-            full_response_text = ""
-            chunk_num = 0
-            first_chunk = True
-            chunks_attempted = 0  # Track chunk attempts for recovery
-
-            # Save all chunks for debug
-            debug_chunks = []
-
-            # Queue for chunks ready to play
+            # Start the playback worker and enqueue the filler before calling
+            # Whisper so the filler plays in parallel with transcription.
             playback_queue = queue.Queue()
             playback_done = threading.Event()
             playback_error = None
@@ -603,18 +544,77 @@ Now respond to their question naturally, as if your filler phrase was the beginn
             playback_thread = threading.Thread(target=playback_worker, daemon=True)
             playback_thread.start()
 
-            # Add filler to queue FIRST (before any chunks) if available
+            # Enqueue the filler before Whisper. _on_speech_end's validation
+            # already gave us high confidence in the audio; the post-Whisper
+            # transcript checks (hallucination / empty / meaningless) are rare
+            # fallbacks that we accept may leave the filler playing through to
+            # its natural end.
             if self._selected_filler:
                 stereo_audio, sample_rate, _ = self._selected_filler
-                logger.info("Adding filler to playback queue (will play before response chunks)")
-                # Wait 0.5 seconds before adding filler for natural pause
-                time.sleep(0.5)
+                logger.info("Adding filler to playback queue (will play in parallel with Whisper)")
                 playback_queue.put((stereo_audio, sample_rate, "filler", "filler"))
-                self._pause_wake_for_playback()  # Pause wake detection during entire playback sequence
-                self.audio_recorder.pause()  # Stop capturing the bot's own audio into the next "user said" buffer
+                self._pause_wake_for_playback()
+                self.audio_recorder.pause()
+
+            def _abort_playback():
+                # Sentinel is appended behind any in-flight filler, so this
+                # blocks until the filler finishes naturally (up to ~15 s).
+                # That's preferable to chopping mid-phrase.
+                playback_queue.put(None)
+                playback_thread.join(timeout=15)
+                self._sequential_playback_active = False
+
+            def _abort_to_idle(trigger: str):
+                _abort_playback()
+                self.state_machine.transition_to(ConversationState.IDLE, trigger=trigger)
+
+            # Step 1: Transcribe audio (filler is already playing in parallel)
+            logger.info("Step 1: Transcribing speech...")
+            transcript = self.speech_to_text.transcribe_with_retry(audio_data)
+
+            if not transcript:
+                logger.warning("Transcription failed or empty")
+                _abort_to_idle("transcription_failed")
+                return
+
+            transcript_clean = transcript.strip()
+            transcript_words = transcript_clean.strip('.,!?;:-').strip()
+
+            if transcript_words.lower() in WHISPER_SILENCE_HALLUCINATIONS:
+                logger.info(f"Detected Whisper silence hallucination: \"{transcript}\" - returning to IDLE")
+                _abort_to_idle("silence_hallucination")
+                return
+
+            meaningless_words = {'um', 'uh', 'er', 'ah', 'hmm', 'mhmm', 'mm'}
+            if (len(transcript_words) < 2 or
+                transcript_words.lower() in meaningless_words or
+                not any(c.isalnum() for c in transcript_words)):
+                logger.info(f"Transcript too short or meaningless: \"{transcript}\" - returning to IDLE")
+                _abort_to_idle("empty_speech")
+                return
+
+            logger.info(f"Transcript: \"{transcript}\"")
+            logger.info("Step 2: Streaming response with sentence-by-sentence pipeline...")
+
+            if filler_context:
+                context_prompt = f"""[IMPORTANT CONTEXT: You just said this to the customer while thinking: "{filler_context}"]
+
+Your response must create a seamless, natural continuation. Follow these guidelines:
+1. Pick up grammatically and syntactically where the filler left off
+2. If the filler ended with "Now..." or "So..." or "Alright..." - continue directly without repeating these words
+3. Match the tone and energy of how you ended the filler phrase
+4. Don't acknowledge or reference that you were doing something else - stay in character
+5. Make it sound like one continuous thought, not two separate statements
+
+Now respond to their question naturally, as if your filler phrase was the beginning of this same thought."""
             else:
-                # No filler, transition to SPEAKING immediately when first chunk plays
-                pass
+                context_prompt = None
+
+            full_response_text = ""
+            chunk_num = 0
+            first_chunk = True
+            chunks_attempted = 0
+            debug_chunks = []
 
             # Stream LLM response and process each sentence
             for sentence_text, is_final in self.conversation_engine.generate_response_streaming(
@@ -687,8 +687,7 @@ Now respond to their question naturally, as if your filler phrase was the beginn
 
             if chunk_num == 0:
                 logger.warning("No audio chunks generated")
-                self._sequential_playback_active = False
-                self.state_machine.transition_to(ConversationState.IDLE, trigger="generation_failed")
+                _abort_to_idle("generation_failed")
                 return
 
             logger.info(f"Streaming playback complete: {chunk_num} chunks, full text: \"{full_response_text.strip()}\"")
