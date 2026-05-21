@@ -3,6 +3,7 @@ RVC (Retrieval-based Voice Conversion) processor module.
 Uses rvc-python library for direct in-process voice conversion.
 """
 
+import gc
 import logging
 import time
 import tempfile
@@ -97,6 +98,23 @@ class RVCProcessor:
     def available(self) -> bool:
         """Check if RVC library is available."""
         return self._available
+
+    def _release_gpu_memory(self):
+        """Drop Python refs and free PyTorch's CUDA cache between RVC attempts.
+
+        Jetson's nvmap allocator (the kernel-level GPU memory manager backing
+        the unified-memory pool) intermittently returns ENOMEM under load,
+        which surfaces as NVML_SUCCESS asserts inside PyTorch's caching
+        allocator. Running gc.collect + empty_cache between retries clears
+        whatever is freeable so the next attempt has a clean budget.
+        """
+        gc.collect()
+        try:
+            import torch
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+        except Exception:
+            pass
 
     def _get_rvc_instance(self) -> Optional['RVCInference']:
         """Get or create RVC inference instance."""
@@ -199,46 +217,75 @@ class RVCProcessor:
                     protect=protect
                 )
 
-                # Perform conversion using underlying VC module directly
-                logger.debug("Performing RVC conversion...")
-                result = rvc.vc.vc_single(
-                    sid=0,
-                    input_audio_path=input_path,
-                    f0_up_key=pitch_shift,
-                    f0_file=None,
-                    f0_method=f0_method,
-                    file_index=index_path or '',
-                    file_index2='',
-                    index_rate=index_rate,
-                    filter_radius=filter_radius,
-                    resample_sr=0,
-                    rms_mix_rate=rms_mix_rate,
-                    protect=protect
-                )
+                # Perform conversion. Retry once on inner failure — on Jetson
+                # the first attempt sometimes hits nvmap ENOMEM / NVML asserts
+                # under memory pressure and succeeds after a gc.collect +
+                # empty_cache.
+                MAX_ATTEMPTS = 2
+                converted_audio = None
+                converted_sr = None
+                failure_reason = "unknown"
 
-                # Parse result - can be either direct numpy array, tuple, or None on failure
-                if result is None:
-                    logger.error("RVC conversion returned None (internal error)")
-                    return None
-                elif isinstance(result, np.ndarray):
-                    # Direct numpy array result
-                    converted_audio = result
-                    converted_sr = rvc.vc.tgt_sr
-                    logger.debug(f"RVC conversion successful (output={converted_sr}Hz, {len(result)} samples)")
-                elif isinstance(result, tuple) and len(result) == 2:
-                    # Tuple result (message, (sr, audio_data))
-                    message, audio_result = result
-                    if audio_result is not None and isinstance(audio_result, tuple):
-                        converted_sr, converted_audio = audio_result
-                        if converted_audio is None:
-                            logger.error(f"RVC conversion produced no audio: {message}")
-                            return None
-                        logger.debug(f"Conversion result: {message}")
-                    else:
-                        logger.error(f"RVC conversion failed: {message}")
-                        return None
-                else:
-                    logger.error(f"Unexpected RVC result format: {type(result)}")
+                for attempt in range(1, MAX_ATTEMPTS + 1):
+                    succeeded = False
+                    try:
+                        logger.debug(f"Performing RVC conversion (attempt {attempt}/{MAX_ATTEMPTS})...")
+                        result = rvc.vc.vc_single(
+                            sid=0,
+                            input_audio_path=input_path,
+                            f0_up_key=pitch_shift,
+                            f0_file=None,
+                            f0_method=f0_method,
+                            file_index=index_path or '',
+                            file_index2='',
+                            index_rate=index_rate,
+                            filter_radius=filter_radius,
+                            resample_sr=0,
+                            rms_mix_rate=rms_mix_rate,
+                            protect=protect
+                        )
+
+                        # Parse result - direct ndarray, (message, (sr, audio)), or None
+                        if result is None:
+                            failure_reason = "vc_single returned None"
+                        elif isinstance(result, np.ndarray):
+                            converted_audio = result
+                            converted_sr = rvc.vc.tgt_sr
+                            succeeded = True
+                            logger.debug(f"RVC conversion successful (output={converted_sr}Hz, {len(result)} samples)")
+                        elif isinstance(result, tuple) and len(result) == 2:
+                            message, audio_result = result
+                            if audio_result is not None and isinstance(audio_result, tuple):
+                                _sr, _audio = audio_result
+                                if _audio is None:
+                                    failure_reason = f"produced no audio: {message}"
+                                else:
+                                    converted_sr, converted_audio = _sr, _audio
+                                    succeeded = True
+                                    logger.debug(f"Conversion result: {message}")
+                            else:
+                                failure_reason = f"failed: {message}"
+                        else:
+                            failure_reason = f"unexpected result format: {type(result)}"
+                    except Exception as e:
+                        # Inner CUDA/torch failure (e.g. NVML allocator on Jetson)
+                        failure_reason = f"raised: {e}"
+
+                    if succeeded:
+                        break
+
+                    if attempt < MAX_ATTEMPTS:
+                        logger.warning(
+                            f"RVC attempt {attempt}/{MAX_ATTEMPTS} failed ({failure_reason}); "
+                            f"freeing GPU memory and retrying"
+                        )
+                        self._release_gpu_memory()
+                        time.sleep(0.1)
+
+                if converted_audio is None:
+                    logger.error(
+                        f"RVC conversion failed after {MAX_ATTEMPTS} attempts: {failure_reason}"
+                    )
                     return None
 
                 # Debug: Save RVC raw output (async - non-blocking)
