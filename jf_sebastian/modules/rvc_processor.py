@@ -8,11 +8,13 @@ import logging
 import time
 import tempfile
 import os
+from datetime import datetime
 from typing import Optional, Tuple
 from pathlib import Path
 import numpy as np
 import soundfile as sf
 
+from jf_sebastian.config import settings
 from jf_sebastian.utils.async_file_utils import save_async
 
 logger = logging.getLogger(__name__)
@@ -100,13 +102,13 @@ class RVCProcessor:
         return self._available
 
     def _release_gpu_memory(self):
-        """Drop Python refs and free PyTorch's CUDA cache between RVC attempts.
+        """Drop Python refs and free PyTorch's CUDA cache.
 
         Jetson's nvmap allocator (the kernel-level GPU memory manager backing
         the unified-memory pool) intermittently returns ENOMEM under load,
         which surfaces as NVML_SUCCESS asserts inside PyTorch's caching
-        allocator. Running gc.collect + empty_cache between retries clears
-        whatever is freeable so the next attempt has a clean budget.
+        allocator. Running gc.collect + empty_cache clears whatever is
+        freeable so the next allocation has a clean budget.
         """
         gc.collect()
         try:
@@ -115,6 +117,35 @@ class RVCProcessor:
                 torch.cuda.empty_cache()
         except Exception:
             pass
+
+    @staticmethod
+    def _parse_vc_result(result, target_sr: int) -> Tuple[Optional[np.ndarray], Optional[int], str]:
+        """Unpack a vc_single() return value.
+
+        rvc-python returns either a raw ndarray, a (message, (sr, audio))
+        tuple, or None. Returns (audio, sr, reason) where audio is None on
+        failure and reason describes why.
+        """
+        if result is None:
+            return None, None, "vc_single returned None"
+        if isinstance(result, np.ndarray):
+            return result, target_sr, ""
+        if isinstance(result, tuple) and len(result) == 2:
+            message, audio_result = result
+            if audio_result is None or not isinstance(audio_result, tuple):
+                return None, None, f"failed: {message}"
+            sr, audio = audio_result
+            if audio is None:
+                return None, None, f"produced no audio: {message}"
+            return audio, sr, ""
+        return None, None, f"unexpected result format: {type(result)}"
+
+    @staticmethod
+    def _save_debug_audio(audio: np.ndarray, sample_rate: int, kind: str, timestamp: str) -> None:
+        """Async-save a debug snapshot of audio (input or output of RVC)."""
+        path = Path('debug_audio') / f'rvc_{kind}_{timestamp}.wav'
+        save_async(sf.write, str(path), audio, sample_rate, subtype='PCM_16')
+        logger.info(f"Saving RVC {kind} to {path} ({sample_rate}Hz, async)")
 
     def _get_rvc_instance(self) -> Optional['RVCInference']:
         """Get or create RVC inference instance."""
@@ -188,21 +219,11 @@ class RVCProcessor:
                 logger.debug(f"Converting audio through RVC (f0={f0_method}, pitch={pitch_shift}, device={self._device}, sr={sample_rate}Hz)")
                 start_time = time.time()
 
-                # Debug: save input audio before RVC, only if explicitly enabled.
-                # Was unconditional, which racked up 300+ MB of /debug_audio per
-                # session and kept the in-flight audio array referenced by the
-                # async writer queue.
-                from jf_sebastian.config import settings as _settings
-                debug_enabled = bool(getattr(_settings, "SAVE_DEBUG_AUDIO", False))
-                debug_path = Path('debug_audio')
                 timestamp = None
-                if debug_enabled:
-                    debug_path.mkdir(exist_ok=True)
-                    from datetime import datetime
+                if settings.SAVE_DEBUG_AUDIO:
+                    Path('debug_audio').mkdir(exist_ok=True)
                     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-                    input_debug = debug_path / f'rvc_input_{timestamp}.wav'
-                    save_async(sf.write, str(input_debug), audio, sample_rate, subtype='PCM_16')
-                    logger.info(f"Saving RVC input to {input_debug} (async)")
+                    self._save_debug_audio(audio, sample_rate, 'input', timestamp)
 
                 # Write input audio to temp file (expecting 16kHz)
                 sf.write(input_path, audio, sample_rate, subtype='PCM_16')
@@ -224,17 +245,15 @@ class RVCProcessor:
                     protect=protect
                 )
 
-                # Perform conversion. Retry once on inner failure — on Jetson
-                # the first attempt sometimes hits nvmap ENOMEM / NVML asserts
-                # under memory pressure and succeeds after a gc.collect +
-                # empty_cache.
+                # Retry once on inner failure — on Jetson the first attempt
+                # sometimes hits nvmap ENOMEM / NVML asserts under memory
+                # pressure and succeeds after a gc.collect + empty_cache.
                 MAX_ATTEMPTS = 2
-                converted_audio = None
-                converted_sr = None
+                converted_audio: Optional[np.ndarray] = None
+                converted_sr: Optional[int] = None
                 failure_reason = "unknown"
 
                 for attempt in range(1, MAX_ATTEMPTS + 1):
-                    succeeded = False
                     try:
                         logger.debug(f"Performing RVC conversion (attempt {attempt}/{MAX_ATTEMPTS})...")
                         result = rvc.vc.vc_single(
@@ -251,34 +270,13 @@ class RVCProcessor:
                             rms_mix_rate=rms_mix_rate,
                             protect=protect
                         )
-
-                        # Parse result - direct ndarray, (message, (sr, audio)), or None
-                        if result is None:
-                            failure_reason = "vc_single returned None"
-                        elif isinstance(result, np.ndarray):
-                            converted_audio = result
-                            converted_sr = rvc.vc.tgt_sr
-                            succeeded = True
-                            logger.debug(f"RVC conversion successful (output={converted_sr}Hz, {len(result)} samples)")
-                        elif isinstance(result, tuple) and len(result) == 2:
-                            message, audio_result = result
-                            if audio_result is not None and isinstance(audio_result, tuple):
-                                _sr, _audio = audio_result
-                                if _audio is None:
-                                    failure_reason = f"produced no audio: {message}"
-                                else:
-                                    converted_sr, converted_audio = _sr, _audio
-                                    succeeded = True
-                                    logger.debug(f"Conversion result: {message}")
-                            else:
-                                failure_reason = f"failed: {message}"
-                        else:
-                            failure_reason = f"unexpected result format: {type(result)}"
+                        converted_audio, converted_sr, failure_reason = self._parse_vc_result(result, rvc.vc.tgt_sr)
                     except Exception as e:
                         # Inner CUDA/torch failure (e.g. NVML allocator on Jetson)
+                        converted_audio = None
                         failure_reason = f"raised: {e}"
 
-                    if succeeded:
+                    if converted_audio is not None:
                         break
 
                     if attempt < MAX_ATTEMPTS:
@@ -295,11 +293,8 @@ class RVCProcessor:
                     )
                     return None
 
-                # Debug: save RVC raw output, only if SAVE_DEBUG_AUDIO is enabled.
-                if debug_enabled and timestamp is not None:
-                    output_debug = debug_path / f'rvc_output_{timestamp}.wav'
-                    save_async(sf.write, str(output_debug), converted_audio.copy(), converted_sr, subtype='PCM_16')
-                    logger.info(f"Saving RVC output to {output_debug} ({converted_sr}Hz, async)")
+                if timestamp is not None:
+                    self._save_debug_audio(converted_audio.copy(), converted_sr, 'output', timestamp)
 
                 # RVC library returns audio in int16 value range (-32768 to 32767) as float32 dtype
                 # Normalize to proper float32 range (-1.0 to 1.0)
@@ -310,16 +305,7 @@ class RVCProcessor:
                 elapsed = time.time() - start_time
                 logger.info(f"RVC conversion completed in {elapsed:.2f}s")
 
-                # Release cached CUDA blocks so the allocator can hand them back
-                # to the system. Fragmentation across long sessions has caused
-                # NVML_SUCCESS assertion failures on Jetson; cheap insurance.
-                try:
-                    import torch
-                    if torch.cuda.is_available():
-                        torch.cuda.empty_cache()
-                except Exception:
-                    pass
-
+                self._release_gpu_memory()
                 return converted_audio, converted_sr
 
             except RuntimeError as e:

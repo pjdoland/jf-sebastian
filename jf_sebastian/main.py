@@ -189,7 +189,7 @@ class TeddyRuxpinApp:
             settings.OUTPUT_DEVICE_TYPE
         )
         if self.filler_manager.has_fillers:
-            logger.info(f"Filler phrases ready ({len(self.filler_manager.filler_index)} phrases indexed)")
+            logger.info(f"Filler phrases ready ({len(self.filler_manager.filler_entries)} phrases catalogued)")
         else:
             logger.warning("No filler phrases found - run scripts/generate_fillers.py to create them")
 
