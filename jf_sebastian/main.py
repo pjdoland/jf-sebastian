@@ -692,6 +692,13 @@ Now respond to their question naturally, as if your filler phrase was the beginn
 
             logger.info(f"Streaming playback complete: {chunk_num} chunks, full text: \"{full_response_text.strip()}\"")
 
+            # Wait for the speaker buffer to drain before re-opening the mic.
+            # Without this, residual playback audio leaks into the recorder
+            # as soon as continue_conversation resumes capture, and VAD
+            # treats it as the user's next turn.
+            if settings.PLAYBACK_TAIL_GUARD_MS > 0:
+                time.sleep(settings.PLAYBACK_TAIL_GUARD_MS / 1000.0)
+
             # All chunks done - transition to LISTENING to continue conversation
             # If no speech is detected within SILENCE_TIMEOUT, the audio recorder will timeout
             # and we'll transition to IDLE in _on_speech_end

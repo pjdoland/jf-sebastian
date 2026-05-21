@@ -107,6 +107,10 @@ class Settings:
     SAVE_DEBUG_AUDIO: bool = os.getenv("SAVE_DEBUG_AUDIO", "false").lower() == "true"
     DEBUG_AUDIO_PATH: Path = Path(os.getenv("DEBUG_AUDIO_PATH", "./debug_audio/"))
     PLAYBACK_PREROLL_MS: int = int(os.getenv("PLAYBACK_PREROLL_MS", "240"))
+    # Wait this long after the audio stream closes before re-opening the
+    # microphone for the next turn. Covers speaker buffer drain and acoustic
+    # decay so the bot doesn't capture its own tail audio as the user's input.
+    PLAYBACK_TAIL_GUARD_MS: int = int(os.getenv("PLAYBACK_TAIL_GUARD_MS", "500"))
 
     # Note: System prompt is now defined per-personality
 
