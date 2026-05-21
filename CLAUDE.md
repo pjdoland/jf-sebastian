@@ -282,6 +282,7 @@ Pre-generated personality-specific audio fills response gap:
 - Settings class in `jf_sebastian/config/settings.py` loads with validation
 - No hardcoded values - all configurable
 - Per-personality settings in `personalities/{name}/personality.yaml`
+- **Layered env overlays** (highest precedence first): `personalities/{PERSONALITY}/.env` → `device_overrides/{OUTPUT_DEVICE_TYPE}/.env` → `.env`. Loaded once at import in `config/settings.py`; loaded overlay paths are exposed as `settings.LOADED_ENV_OVERLAYS` and logged at startup. Overlay files are `.gitignore`-d by the existing `.env` rule. Don't put `PERSONALITY` or `OUTPUT_DEVICE_TYPE` inside an overlay — they're the selection keys.
 - Weather context uses a pluggable provider selected by `WEATHER_PROVIDER` (`wttr`, `homeassistant`, `manual`, `none`, or `auto`/unset). Auto-selection picks the first configured provider in order: `homeassistant > wttr > manual`. Existing `ZIPCODE`-only setups keep working unchanged. Cached 30 minutes; failed fetches negative-cache for 60s.
 
 ## File Locations and Conventions

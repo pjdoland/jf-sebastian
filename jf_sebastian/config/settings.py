@@ -1,6 +1,15 @@
 """
 Configuration management for J.F. Sebastian AI system.
 Loads settings from environment variables with sensible defaults.
+
+Layered configuration (highest precedence wins):
+  1. Personality:  personalities/{PERSONALITY}/.env
+  2. Device:       device_overrides/{OUTPUT_DEVICE_TYPE}/.env
+  3. Base:         .env
+
+PERSONALITY and OUTPUT_DEVICE_TYPE are read from base (.env) or the
+process environment to select which overlay files to load; do not set
+them inside overlay files.
 """
 
 import os
@@ -8,12 +17,34 @@ from typing import Optional
 from pathlib import Path
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+LOADED_ENV_OVERLAYS: list[str] = []  # repo-relative paths for logging
+
 load_dotenv()
+
+
+def _apply_overlay(path: Path) -> None:
+    if path.exists():
+        load_dotenv(path, override=True)
+        LOADED_ENV_OVERLAYS.append(str(path.relative_to(_REPO_ROOT)))
+
+
+_device = os.getenv("OUTPUT_DEVICE_TYPE")
+if _device:
+    _apply_overlay(_REPO_ROOT / "device_overrides" / _device / ".env")
+
+_personality = os.getenv("PERSONALITY")
+if _personality:
+    _apply_overlay(_REPO_ROOT / "personalities" / _personality / ".env")
 
 
 class Settings:
     """Central configuration class for all application settings."""
+
+    # Override files (device, personality) that were applied on top of the
+    # base .env. Populated at module import; exposed via the Settings instance
+    # for logging at startup. See module docstring for layering rules.
+    LOADED_ENV_OVERLAYS: list[str] = LOADED_ENV_OVERLAYS
 
     # Personality Selection
     PERSONALITY: str = os.getenv("PERSONALITY", "johnny")  # 'johnny' or 'rich'

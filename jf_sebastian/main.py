@@ -94,6 +94,8 @@ class TeddyRuxpinApp:
             self.personality = get_personality(settings.PERSONALITY)
             logger.info(f"Personality: {self.personality.name}")
             logger.info(f"Wake word: Hey {self.personality.name}")
+            for overlay in settings.LOADED_ENV_OVERLAYS:
+                logger.info(f"Loaded env overlay: {overlay}")
         except ValueError as e:
             logger.error(f"Failed to load personality: {e}")
             raise
