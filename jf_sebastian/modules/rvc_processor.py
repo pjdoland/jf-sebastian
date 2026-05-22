@@ -245,10 +245,14 @@ class RVCProcessor:
                     protect=protect
                 )
 
-                # Retry once on inner failure — on Jetson the first attempt
-                # sometimes hits nvmap ENOMEM / NVML asserts under memory
-                # pressure and succeeds after a gc.collect + empty_cache.
-                MAX_ATTEMPTS = 2
+                # Retry on inner failure. On Jetson the first inference after
+                # a long idle period (e.g. a scheduled event after 20+ min of
+                # quiet) sometimes hits nvmap ENOMEM / NVML asserts because
+                # the allocator state went cold. 100 ms between attempts isn't
+                # enough for the allocator to recover, so we use a multi-second
+                # backoff and one more attempt — total worst-case ~5 s, which
+                # is fine since the user is already waiting on speech.
+                MAX_ATTEMPTS = 3
                 converted_audio: Optional[np.ndarray] = None
                 converted_sr: Optional[int] = None
                 failure_reason = "unknown"
@@ -280,12 +284,17 @@ class RVCProcessor:
                         break
 
                     if attempt < MAX_ATTEMPTS:
+                        # Exponential-ish backoff: 0.5 s before attempt 2, 1.5 s
+                        # before attempt 3. The 100 ms used previously was too
+                        # short for the nvmap allocator to recover after an
+                        # idle-period cold start.
+                        backoff_s = 0.5 * attempt
                         logger.warning(
                             f"RVC attempt {attempt}/{MAX_ATTEMPTS} failed ({failure_reason}); "
-                            f"freeing GPU memory and retrying"
+                            f"freeing GPU memory and retrying after {backoff_s:.1f}s"
                         )
                         self._release_gpu_memory()
-                        time.sleep(0.1)
+                        time.sleep(backoff_s)
 
                 if converted_audio is None:
                     logger.error(
