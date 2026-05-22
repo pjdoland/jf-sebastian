@@ -5,6 +5,7 @@ Uses rvc-python library for direct in-process voice conversion.
 
 import gc
 import logging
+import threading
 import time
 import tempfile
 import os
@@ -55,6 +56,13 @@ except ImportError as e:
     RVCInference = None
 
 
+# Backoff (seconds) before each retry attempt of vc_single. Index 0 = wait
+# before attempt 2, index 1 = wait before attempt 3, etc. The first retry
+# is short because most transient failures recover quickly; later retries
+# wait longer for the nvmap allocator to settle after a true cold start.
+_RETRY_BACKOFFS = (0.5, 1.5, 3.0)
+
+
 class RVCProcessor:
     """
     Handles RVC voice conversion using rvc-python library.
@@ -74,6 +82,13 @@ class RVCProcessor:
         self._rvc_instance = None
         self._loaded_model_path = None
         self._permanently_failed = False
+        # Serializes concurrent convert_audio() callers. rvc.vc.set_params and
+        # rvc.load_model mutate shared instance state on the rvc-python side;
+        # without this lock, a scheduler-thread warmup running concurrently
+        # with a wake-word-triggered conversion (during the IDLE window
+        # before the scheduled event's atomic SPEAKING CAS) can tear the
+        # parameter set or model-load state.
+        self._conversion_lock = threading.Lock()
 
         if not self._available:
             logger.error("rvc-python library not available")
@@ -173,7 +188,8 @@ class RVCProcessor:
         f0_method: str = "harvest",
         filter_radius: int = 3,
         rms_mix_rate: float = 0.25,
-        protect: float = 0.33
+        protect: float = 0.33,
+        max_attempts: int = 3,
     ) -> Optional[Tuple[np.ndarray, int]]:
         """
         Convert audio through RVC model using rvc-python library.
@@ -215,124 +231,137 @@ class RVCProcessor:
         with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as input_file:
             input_path = input_file.name
 
-            try:
-                logger.debug(f"Converting audio through RVC (f0={f0_method}, pitch={pitch_shift}, device={self._device}, sr={sample_rate}Hz)")
-                start_time = time.time()
+            # Serialize across threads — rvc.load_model / rvc.set_params /
+            # rvc.vc.vc_single all mutate shared state on the wrapped rvc
+            # instance. Most reachable race: a scheduled-event warmup running
+            # on the scheduler thread while a wake-word-triggered conversion
+            # runs on the recorder thread.
+            with self._conversion_lock:
+                try:
+                    logger.debug(f"Converting audio through RVC (f0={f0_method}, pitch={pitch_shift}, device={self._device}, sr={sample_rate}Hz)")
+                    start_time = time.time()
 
-                timestamp = None
-                if settings.SAVE_DEBUG_AUDIO:
-                    Path('debug_audio').mkdir(exist_ok=True)
-                    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-                    self._save_debug_audio(audio, sample_rate, 'input', timestamp)
+                    timestamp = None
+                    if settings.SAVE_DEBUG_AUDIO:
+                        Path('debug_audio').mkdir(exist_ok=True)
+                        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                        self._save_debug_audio(audio, sample_rate, 'input', timestamp)
 
-                # Write input audio to temp file (expecting 16kHz)
-                sf.write(input_path, audio, sample_rate, subtype='PCM_16')
+                    # Write input audio to temp file (expecting 16kHz)
+                    sf.write(input_path, audio, sample_rate, subtype='PCM_16')
 
-                # Load model if not already loaded or if different model
-                if self._loaded_model_path != model_path:
-                    logger.debug(f"Loading RVC model: {model_path}")
-                    rvc.load_model(model_path, index_path=index_path or '')
-                    self._loaded_model_path = model_path
+                    # Load model if not already loaded or if different model
+                    if self._loaded_model_path != model_path:
+                        logger.debug(f"Loading RVC model: {model_path}")
+                        rvc.load_model(model_path, index_path=index_path or '')
+                        self._loaded_model_path = model_path
 
-                # Set conversion parameters
-                logger.debug(f"Setting RVC parameters (f0={f0_method}, pitch={pitch_shift})...")
-                rvc.set_params(
-                    f0method=f0_method,
-                    f0up_key=pitch_shift,
-                    index_rate=index_rate,
-                    filter_radius=filter_radius,
-                    rms_mix_rate=rms_mix_rate,
-                    protect=protect
-                )
-
-                # Retry on inner failure. On Jetson the first inference after
-                # a long idle period (e.g. a scheduled event after 20+ min of
-                # quiet) sometimes hits nvmap ENOMEM / NVML asserts because
-                # the allocator state went cold. 100 ms between attempts isn't
-                # enough for the allocator to recover, so we use a multi-second
-                # backoff and one more attempt — total worst-case ~5 s, which
-                # is fine since the user is already waiting on speech.
-                MAX_ATTEMPTS = 3
-                converted_audio: Optional[np.ndarray] = None
-                converted_sr: Optional[int] = None
-                failure_reason = "unknown"
-
-                for attempt in range(1, MAX_ATTEMPTS + 1):
-                    try:
-                        logger.debug(f"Performing RVC conversion (attempt {attempt}/{MAX_ATTEMPTS})...")
-                        result = rvc.vc.vc_single(
-                            sid=0,
-                            input_audio_path=input_path,
-                            f0_up_key=pitch_shift,
-                            f0_file=None,
-                            f0_method=f0_method,
-                            file_index=index_path or '',
-                            file_index2='',
-                            index_rate=index_rate,
-                            filter_radius=filter_radius,
-                            resample_sr=0,
-                            rms_mix_rate=rms_mix_rate,
-                            protect=protect
-                        )
-                        converted_audio, converted_sr, failure_reason = self._parse_vc_result(result, rvc.vc.tgt_sr)
-                    except Exception as e:
-                        # Inner CUDA/torch failure (e.g. NVML allocator on Jetson)
-                        converted_audio = None
-                        failure_reason = f"raised: {e}"
-
-                    if converted_audio is not None:
-                        break
-
-                    if attempt < MAX_ATTEMPTS:
-                        # Exponential-ish backoff: 0.5 s before attempt 2, 1.5 s
-                        # before attempt 3. The 100 ms used previously was too
-                        # short for the nvmap allocator to recover after an
-                        # idle-period cold start.
-                        backoff_s = 0.5 * attempt
-                        logger.warning(
-                            f"RVC attempt {attempt}/{MAX_ATTEMPTS} failed ({failure_reason}); "
-                            f"freeing GPU memory and retrying after {backoff_s:.1f}s"
-                        )
-                        self._release_gpu_memory()
-                        time.sleep(backoff_s)
-
-                if converted_audio is None:
-                    logger.error(
-                        f"RVC conversion failed after {MAX_ATTEMPTS} attempts: {failure_reason}"
+                    # Set conversion parameters
+                    logger.debug(f"Setting RVC parameters (f0={f0_method}, pitch={pitch_shift})...")
+                    rvc.set_params(
+                        f0method=f0_method,
+                        f0up_key=pitch_shift,
+                        index_rate=index_rate,
+                        filter_radius=filter_radius,
+                        rms_mix_rate=rms_mix_rate,
+                        protect=protect
                     )
+
+                    # Retry on inner failure. On Jetson the first inference
+                    # after a long idle period sometimes hits nvmap ENOMEM /
+                    # NVML asserts because the allocator state went cold; the
+                    # backoff gives it time to recover. Backoffs are explicit
+                    # rather than computed so they match the docstring above.
+                    # Worst-case sleep total: sum(_RETRY_BACKOFFS[:max_attempts-1])
+                    # plus per-attempt inference time (~1.3 s on Jetson).
+                    converted_audio: Optional[np.ndarray] = None
+                    converted_sr: Optional[int] = None
+                    failure_reason = "unknown"
+
+                    for attempt in range(1, max_attempts + 1):
+                        try:
+                            logger.debug(f"Performing RVC conversion (attempt {attempt}/{max_attempts})...")
+                            result = rvc.vc.vc_single(
+                                sid=0,
+                                input_audio_path=input_path,
+                                f0_up_key=pitch_shift,
+                                f0_file=None,
+                                f0_method=f0_method,
+                                file_index=index_path or '',
+                                file_index2='',
+                                index_rate=index_rate,
+                                filter_radius=filter_radius,
+                                resample_sr=0,
+                                rms_mix_rate=rms_mix_rate,
+                                protect=protect
+                            )
+                            converted_audio, converted_sr, failure_reason = self._parse_vc_result(result, rvc.vc.tgt_sr)
+                        except Exception as e:
+                            # Inner CUDA/torch failure (e.g. NVML allocator on Jetson)
+                            converted_audio = None
+                            failure_reason = f"raised: {type(e).__name__}: {e}"
+
+                        if converted_audio is not None:
+                            break
+
+                        if attempt < max_attempts:
+                            # Backoff before the next attempt. Indexed by
+                            # (attempt - 1): 0.5 s before attempt 2, 1.5 s
+                            # before attempt 3, 3.0 s before attempt 4. Use
+                            # the last entry for any attempt past the table.
+                            backoff_s = _RETRY_BACKOFFS[min(attempt - 1, len(_RETRY_BACKOFFS) - 1)]
+                            logger.warning(
+                                f"RVC attempt {attempt}/{max_attempts} failed ({failure_reason}); "
+                                f"freeing GPU memory and retrying after {backoff_s:.1f}s"
+                            )
+                            self._release_gpu_memory()
+                            time.sleep(backoff_s)
+
+                    if converted_audio is None:
+                        logger.error(
+                            f"RVC conversion failed after {max_attempts} attempts: {failure_reason}"
+                        )
+                        # Forget the cached model path so the next call
+                        # force-reloads. The rvc-python instance state may
+                        # be torn after a string of failed inferences and
+                        # we don't want the next caller to skip load_model
+                        # based on a stale cache hit.
+                        self._loaded_model_path = None
+                        return None
+
+                    if timestamp is not None:
+                        self._save_debug_audio(converted_audio.copy(), converted_sr, 'output', timestamp)
+
+                    # RVC library returns audio in int16 value range (-32768 to 32767) as float32 dtype
+                    # Normalize to proper float32 range (-1.0 to 1.0)
+                    converted_audio = converted_audio.astype(np.float32) / 32768.0
+
+                    logger.info(f"RVC output normalized and ready at {converted_sr}Hz")
+
+                    elapsed = time.time() - start_time
+                    logger.info(f"RVC conversion completed in {elapsed:.2f}s")
+
+                    self._release_gpu_memory()
+                    return converted_audio, converted_sr
+
+                except RuntimeError as e:
+                    # Device errors (MPS/CUDA unavailable) are permanent — don't retry
+                    logger.error(f"RVC conversion failed permanently: {e}", exc_info=True)
+                    self._permanently_failed = True
+                    self._loaded_model_path = None
                     return None
 
-                if timestamp is not None:
-                    self._save_debug_audio(converted_audio.copy(), converted_sr, 'output', timestamp)
-
-                # RVC library returns audio in int16 value range (-32768 to 32767) as float32 dtype
-                # Normalize to proper float32 range (-1.0 to 1.0)
-                converted_audio = converted_audio.astype(np.float32) / 32768.0
-
-                logger.info(f"RVC output normalized and ready at {converted_sr}Hz")
-
-                elapsed = time.time() - start_time
-                logger.info(f"RVC conversion completed in {elapsed:.2f}s")
-
-                self._release_gpu_memory()
-                return converted_audio, converted_sr
-
-            except RuntimeError as e:
-                # Device errors (MPS/CUDA unavailable) are permanent — don't retry
-                logger.error(f"RVC conversion failed permanently: {e}", exc_info=True)
-                self._permanently_failed = True
-                return None
-
-            except Exception as e:
-                logger.error(f"RVC conversion failed: {e}", exc_info=True)
-                return None
-
-            finally:
-                # Clean up temporary file
-                try:
-                    Path(input_path).unlink(missing_ok=True)
                 except Exception as e:
-                    logger.warning(f"Failed to clean up temp file: {e}")
+                    logger.error(f"RVC conversion failed: {e}", exc_info=True)
+                    self._loaded_model_path = None
+                    return None
+
+                finally:
+                    # Clean up temporary file (still inside the lock — cheap)
+                    try:
+                        Path(input_path).unlink(missing_ok=True)
+                    except Exception as e:
+                        logger.warning(f"Failed to clean up temp file: {e}")
 
     def warmup(
         self,
@@ -367,12 +396,21 @@ class RVCProcessor:
             logger.info(f"Warming up RVC model: {model_path}")
             start_time = time.time()
 
-            # Create a short dummy audio clip (0.5 seconds of silence at 16kHz)
+            # Create a short dummy audio clip. Pure silence makes f0 extractors
+            # (harvest/rmvpe/pm) short-circuit at the energy-detection step on
+            # some rvc-python versions, which means the GPU kernels and nvmap
+            # allocator never actually exercise — defeating the warmup's whole
+            # point. Use a low-amplitude tone instead so f0 returns real pitch.
             sample_rate = 16000
             duration = 0.5
-            dummy_audio = np.zeros(int(sample_rate * duration), dtype=np.float32)
+            t = np.linspace(0, duration, int(sample_rate * duration), endpoint=False, dtype=np.float32)
+            dummy_audio = (0.05 * np.sin(2 * np.pi * 220.0 * t)).astype(np.float32)
 
-            # Run a quick conversion to warm up the model
+            # Run a quick conversion to warm up the model. max_attempts=1
+            # because the caller (e.g. _on_scheduled_event) already has its
+            # own real convert_audio call right after this with the full
+            # retry budget; doubling the retries here just wastes time on a
+            # cold-start failure that the real call will hit anyway.
             result = self.convert_audio(
                 audio=dummy_audio,
                 sample_rate=sample_rate,
@@ -381,6 +419,7 @@ class RVCProcessor:
                 pitch_shift=pitch_shift,
                 f0_method=f0_method,
                 index_rate=0.0,  # Disable index for faster warmup
+                max_attempts=1,
             )
 
             if result is not None:

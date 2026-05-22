@@ -795,12 +795,18 @@ Now respond to their question naturally, as if your filler phrase was the beginn
         # nothing in between), and the nvmap allocator goes cold during that
         # gap. A small dummy inference warms it up so the real conversion
         # below hits a hot allocator and doesn't fall back to raw TTS.
-        # No-op when RVC is disabled. Cost: ~0.5-1s and invisible since
-        # nobody's waiting on a scheduled event.
-        try:
-            self.output_device.audio_processor.warmup_rvc(self.personality)
-        except Exception as e:
-            logger.warning("Scheduled event %r: RVC warmup raised: %s", event.name, e)
+        #
+        # No-op when RVC is disabled. Typical cost ~0.5-1 s when warm; on a
+        # true first-ever cold start (initial RVCProcessor instantiation +
+        # model load + first inference) it can be 5-10 s.
+        if self._shutting_down:
+            return
+        audio_processor = getattr(self.output_device, "audio_processor", None)
+        if audio_processor is not None:
+            try:
+                audio_processor.warmup_rvc(self.personality)
+            except Exception as e:
+                logger.warning("Scheduled event %r: RVC warmup raised: %s", event.name, e)
         if self._shutting_down:
             return
 
