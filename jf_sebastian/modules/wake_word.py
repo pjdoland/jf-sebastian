@@ -54,6 +54,13 @@ class WakeWordDetector:
         self._last_detection_time: float = 0.0
         self._debounce_seconds: float = 2.0  # Minimum time between detections
         self._detection_threshold: float = settings.WAKE_WORD_THRESHOLD
+        # Near-miss diagnostics: score range that's almost-but-not-quite a
+        # detection. Useful for tuning the threshold when users report
+        # flakiness — without this, the loop logs only successful fires
+        # and you can't tell whether a missed wake word scored 0.92 or 0.40.
+        self._near_miss_threshold: float = 0.5
+        self._last_near_miss_log_time: float = 0.0
+        self._near_miss_log_interval: float = 1.0  # rate-limit, seconds
 
         # Post-wake-word buffer to capture immediate speech after detection
         # Keeps last 800ms of audio to pass to audio recorder
@@ -307,6 +314,19 @@ class WakeWordDetector:
                         else:
                             # Detection within debounce period - ignore it
                             logger.debug(f"Ignoring detection (debounce): score {max_score:.3f}")
+                    elif max_score >= self._near_miss_threshold:
+                        # Sub-threshold but high enough that something
+                        # speech-like was detected — log so operators can
+                        # tell whether misses are close (lower the threshold)
+                        # or far (audio path / mic issue). Rate-limited.
+                        now = time.time()
+                        if now - self._last_near_miss_log_time >= self._near_miss_log_interval:
+                            logger.info(
+                                f"Wake word near-miss: score={max_score:.3f} "
+                                f"(threshold={self._detection_threshold:.2f}; "
+                                f"short by {self._detection_threshold - max_score:.3f})"
+                            )
+                            self._last_near_miss_log_time = now
 
         except Exception as e:
             logger.error(f"Error in wake word detection loop: {e}", exc_info=True)
