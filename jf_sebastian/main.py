@@ -790,6 +790,20 @@ Now respond to their question naturally, as if your filler phrase was the beginn
 
         logger.info("Scheduled event %r speaking: %s", event.name, text_to_speak)
 
+        # Prime RVC before the real conversion. Scheduled events often fire
+        # after long idle periods (a 6 AM wake-up, a 5 PM quit cue with
+        # nothing in between), and the nvmap allocator goes cold during that
+        # gap. A small dummy inference warms it up so the real conversion
+        # below hits a hot allocator and doesn't fall back to raw TTS.
+        # No-op when RVC is disabled. Cost: ~0.5-1s and invisible since
+        # nobody's waiting on a scheduled event.
+        try:
+            self.output_device.audio_processor.warmup_rvc(self.personality)
+        except Exception as e:
+            logger.warning("Scheduled event %r: RVC warmup raised: %s", event.name, e)
+        if self._shutting_down:
+            return
+
         # Synthesize and play through the device pipeline
         voice_audio_mp3 = self.text_to_speech.synthesize_with_retry(text_to_speak)
         if not voice_audio_mp3:
