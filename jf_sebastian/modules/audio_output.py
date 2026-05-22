@@ -101,7 +101,13 @@ class AudioPlayer:
                     rate=sample_rate,
                     output=True,
                     output_device_index=device_index,
-                    frames_per_buffer=1024,
+                    # 4096 frames ≈ 85 ms at 48 kHz — gives the device enough
+                    # headroom that brief writer stalls (RVC GPU latency, GIL
+                    # contention with TTS/Whisper threads) don't drain the
+                    # buffer mid-playback. 1024 (~21 ms) was too tight on
+                    # Jetson and we were seeing snd_pcm_recover underruns
+                    # at every chunk boundary.
+                    frames_per_buffer=4096,
                 )
                 open_success = True
             except Exception as e:
