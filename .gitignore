@@ -82,3 +82,6 @@ personalities/all_might/
 personalities/jose/
 personalities/jiminy_cricket/
 personalities/pj_doland/
+
+# Local operational notes (per-host service install, not for sharing)
+SERVICE.md
