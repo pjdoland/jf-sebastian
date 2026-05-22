@@ -122,7 +122,7 @@ State transitions managed in `jf_sebastian/modules/state_machine.py` (StateMachi
 **jf_sebastian/modules/**
 - `state_machine.py`: StateMachine class managing conversation states. `try_transition(expected, target, trigger)` is the atomic CAS used by the scheduler to enter SPEAKING without racing the wake-word detector.
 - `wake_word.py`: WakeWordDetector using OpenWakeWord with debouncing (2s minimum)
-- `audio_input.py`: AudioRecorder with PyAudio/sounddevice and WebRTC VAD
+- `audio_input.py`: AudioRecorder with PyAudio/sounddevice and Silero VAD
 - `speech_to_text.py`: SpeechToText wrapping OpenAI Whisper API
 - `conversation.py`: ConversationEngine managing GPT-4o-mini with streaming, word-chunked responses, and real-world context injection
 - `text_to_speech.py`: TextToSpeech wrapping OpenAI TTS with per-personality voice/speed/style
@@ -230,9 +230,9 @@ The system uses a **defense-in-depth approach** to filter out silence and backgr
 - Filters: Pure silence, very quiet audio
 - Returns to IDLE if RMS below threshold
 
-**Stage 3: VAD Speech Content Analysis** (`main.py:_on_speech_end` → `utils/audio_utils.py:contains_speech`)
-- Analyzes entire audio buffer frame-by-frame using WebRTC VAD
-- Calculates percentage of frames containing actual speech vs. noise
+**Stage 3: VAD Speech Content Analysis** (`main.py:_on_speech_end` → `utils/audio_utils.py:contains_speech` → `utils/vad.py`)
+- Analyzes the audio buffer in 512-sample (32 ms at 16 kHz) windows using Silero VAD
+- Calculates percentage of windows containing actual speech vs. noise
 - Configurable threshold: `MIN_SPEECH_RATIO` (default: 0.3 = 30% of frames must be speech)
 - Filters: Background noise, music, rustling, humming - anything with volume but no speech
 - Returns to IDLE if speech ratio below threshold
@@ -337,7 +337,7 @@ Pre-generated personality-specific audio fills response gap:
 - RVC installation requires pip downgrade to 24.0, then upgrade back
 - Filler audio must be regenerated when personality settings change
 - Wake word debouncing is 2 seconds minimum (hardcoded in wake_word.py)
-- Sample rate must be 16000, 22050, 44100, or 48000 (WebRTC VAD constraint)
+- `SAMPLE_RATE` must be 16000 in practice — Silero VAD only supports 16 kHz (or 8 kHz). The validator still accepts 22050/44100/48000 but VAD silently rejects those windows with a warning in the log.
 
 ### Performance Optimization
 - RVC warmup on startup eliminates first-use delay
@@ -376,4 +376,5 @@ LOG_LEVEL=DEBUG
 - `docs/CREATING_PERSONALITIES.md`: Step-by-step guide for adding personalities
 - `docs/QUICKSTART.md`: 5-minute getting started guide
 - `docs/TRAIN_WAKE_WORDS.md`: Custom wake word training instructions
+- `docs/JETSON_DEPLOYMENT.md`: Jetson Orin Nano deployment notes (system packages, power tuning, mic AGC, AEC rationale)
 - `personalities/README.md`: Technical personality system reference

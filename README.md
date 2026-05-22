@@ -606,6 +606,14 @@ Leopold: "Just reviewing my notes from the second abduction... Twice, actually. 
 
 ### .env Settings
 
+Settings are loaded with three layers, highest precedence first:
+
+1. `personalities/{PERSONALITY}/.env` — per-personality overrides
+2. `device_overrides/{OUTPUT_DEVICE_TYPE}/.env` — per-device-type overrides
+3. `.env` — base configuration
+
+Use the overlays for things like `VOICE_GAIN` that differ by speaker hardware or by personality (some RVC models output quieter than others). `PERSONALITY` and `OUTPUT_DEVICE_TYPE` must come from the base — they're the selection keys, so setting them inside an overlay has no effect on overlay loading. Overlay files are git-ignored automatically by the existing `.env` rule. Loaded overlay paths are logged at startup.
+
 #### Personality & API Configuration
 
 | Setting | Description | Default |
@@ -620,7 +628,7 @@ Leopold: "Just reviewing my notes from the second abduction... Twice, actually. 
 | `INPUT_DEVICE_NAME` | Microphone device name | - |
 | `OUTPUT_DEVICE_NAME` | Speaker device name | - |
 | `OUTPUT_DEVICE_TYPE` | Output device type ('teddy_ruxpin', 'squawkers_mccaw', 'headless') | teddy_ruxpin |
-| `SAMPLE_RATE` | Audio sample rate (Hz) - must be 16000, 22050, 44100, or 48000 | 16000 |
+| `SAMPLE_RATE` | Audio capture sample rate (Hz). 16000 in practice — Silero VAD requires it. Validator still accepts 22050/44100/48000, but VAD warns and disables itself at those rates. | 16000 |
 | `CHUNK_SIZE` | Audio chunk size for processing | 1024 |
 
 #### Voice Activity Detection
@@ -688,7 +696,8 @@ Leopold: "Just reviewing my notes from the second abduction... Twice, actually. 
 | Setting | Description | Default |
 |---------|-------------|---------|
 | `PLAYBACK_PREROLL_MS` | Audio playback preroll (milliseconds) to prevent clipped starts | 240 |
-| `VOICE_GAIN` | Voice audio volume level (0.0 to 2.0) | 1.05 |
+| `PLAYBACK_TAIL_GUARD_MS` | Wait after playback ends before re-opening mic; covers speaker drain so the bot doesn't capture its own tail | 500 |
+| `VOICE_GAIN` | Voice audio volume level (0.0 to 2.0; applied to both RVC and non-RVC paths) | 1.05 |
 | `CONTROL_GAIN` | Control track volume level (0.0 to 1.0) | 0.52 |
 | `SENTIMENT_POSITIVE_THRESHOLD` | Sentiment threshold for positive eye expressions | 0.3 |
 | `SENTIMENT_NEGATIVE_THRESHOLD` | Sentiment threshold for negative eye expressions | -0.3 |
@@ -763,6 +772,8 @@ No programming required - just copy an existing personality folder and edit the 
 ## Architecture
 
 See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed system design, component descriptions, and technical specifications.
+
+Deploying on an NVIDIA Jetson Orin Nano? See [JETSON_DEPLOYMENT.md](docs/JETSON_DEPLOYMENT.md) for system packages, GPU power tuning, USB-mic AGC, and other host-level setup that isn't covered by `setup.sh`.
 
 ### Key Components
 
@@ -924,6 +935,7 @@ jf-sebastian/
 ├── docs/
 │   ├── ARCHITECTURE.md
 │   ├── CREATING_PERSONALITIES.md
+│   ├── JETSON_DEPLOYMENT.md
 │   ├── QUICKSTART.md
 │   └── TRAIN_WAKE_WORDS.md
 ├── CLAUDE.md                  # Guidance for AI coding tools working in this repo
@@ -993,7 +1005,7 @@ Teddy Ruxpin is a trademark of Wicked Cool Toys. This project is not affiliated 
 - Named after J.F. Sebastian from Blade Runner (1982)
 - Built with Python, OpenAI APIs, and OpenWakeWord
 - Inspired by the classic 1985 Teddy Ruxpin animatronic
-- Uses VADER sentiment analysis, syllable-based lip sync, and WebRTC VAD
+- Uses VADER sentiment analysis, syllable-based lip sync, and Silero VAD
 - PPM format based on analysis of Svengali and original Teddy Ruxpin tapes
 
 ## Contributing
