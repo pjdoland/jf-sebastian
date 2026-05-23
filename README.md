@@ -265,7 +265,7 @@ Edit `.env` and add your API keys:
 
 ```bash
 # Personality Selection
-PERSONALITY=johnny  # Options: 'johnny', 'mr_lincoln', 'leopold', 'fred', 'kitt', 'teddy_ruxpin'
+PERSONALITY=johnny  # Options: fred, jarvis, johnny, kitt, leopold, mr_lincoln, teddy_ruxpin
 
 # Required API Keys
 OPENAI_API_KEY=sk-your-openai-api-key
@@ -286,18 +286,16 @@ OUTPUT_DEVICE_NAME=Arsvita
 
 No API key required! OpenWakeWord is completely free and open source.
 
-Each personality includes its own wake word model file:
-- Johnny: `personalities/johnny/hey_johnny.onnx`
-- Mr. Lincoln: `personalities/mr_lincoln/hey_mr_lincoln.onnx`
-- Leopold: `personalities/leopold/hey_leopold.onnx`
-- Fred: `personalities/fred/hey_fred.onnx`
-- K.I.T.T.: `personalities/kitt/hey_kitt.onnx`
-- Teddy Ruxpin: `personalities/teddy_ruxpin/hey_teddy_ruxpin.onnx`
+Each personality includes its own wake word model file at `personalities/{name}/hey_{name}.onnx`. Run `ls personalities/*/hey_*.onnx` to see which models are currently installed.
+
+Some personalities (e.g. Jarvis) use OpenWakeWord's bundled pre-trained models (`hey_jarvis_v0.1`); others ship custom-trained models.
 
 To create a custom wake word for a new personality:
 1. Follow the guide in `docs/TRAIN_WAKE_WORDS.md`
 2. Train a model for your desired wake phrase
 3. Place the `.onnx` model file in your personality's directory
+
+To use a bundled OpenWakeWord model instead of training one, download with `python3 -c "from openwakeword import utils; utils.download_models(['hey_jarvis'])"` and copy from `venv/lib/python3.10/site-packages/openwakeword/resources/models/`.
 
 #### 8. Finding Audio Devices
 

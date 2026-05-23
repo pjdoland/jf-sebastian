@@ -176,7 +176,7 @@ Zero-code personality definition via YAML files in `personalities/` directory:
   - Optional `scheduled_events.yaml` for proactive utterances (see `personalities/johnny/scheduled_events.yaml` for the working example)
 - Filler audio stored in device-specific subdirectories: `filler_audio/teddy_ruxpin/`, `filler_audio/squawkers_mccaw/`, `filler_audio/headless/`
 
-**Available personalities:** johnny, mr_lincoln, leopold, fred, kitt, teddy_ruxpin, all_might, computer, el_rey, hal_9000, jose, rich
+**Available personalities:** fred, jarvis, johnny, kitt, leopold, mr_lincoln, teddy_ruxpin
 
 ### Streaming Response Pipeline
 Advanced **word-based sentence chunking** for parallel processing:
@@ -264,18 +264,23 @@ The system uses a **defense-in-depth approach** to filter out silence and backgr
 
 ### RVC Voice Conversion
 - Optional feature requiring Python 3.10.x specifically
-- Warmup performed on startup to eliminate first-use delay
+- Warmup performed on startup to eliminate first-use delay; also re-warmed before each scheduled event so idle-period cold starts don't stall the first chunk
+- Conversion is retried up to 3 times with backoff on transient CUDA allocator failures (relevant on memory-constrained Jetson devices)
+- `VOICE_GAIN` is applied to RVC-converted audio in addition to the raw TTS path
 - Lazy import of openwakeword (heavy ML library)
 - Per-personality enable/disable in `personality.yaml`
-- RVC settings: `rvc_enabled`, `rvc_model_path`, `rvc_index_path`, `rvc_pitch_shift`
+- Core RVC settings: `rvc_enabled`, `rvc_model`, `rvc_index_file`, `rvc_pitch_shift`
+- Per-personality tuning knobs (see `personalities/jarvis/personality.yaml` for a fully-tuned example): `rvc_index_rate`, `rvc_f0_method` (`pm` is fast, `rmvpe` is higher quality), `rvc_filter_radius`, `rvc_rms_mix_rate`, `rvc_protect`
 
 ### Low-Latency Filler System
-Pre-generated personality-specific audio fills response gap:
-1. User speaks, VAD detects speech end
-2. Filler phrase plays immediately (0.5s pause + 8-15s filler)
-3. During filler: Whisper transcribes, GPT processes, TTS generates
-4. Real response seamlessly transitions from filler
-5. Creates perceived instant response despite 4-6s actual processing
+Pre-generated personality-specific audio fills the response gap:
+1. User speaks; VAD detects speech end
+2. Audio passes Stages 1-3 validation (length, RMS, speech ratio)
+3. Filler playback and Whisper transcription kick off **in parallel** (filler is no longer gated on the Whisper response), so the filler covers the full transcribe + GPT + TTS latency
+4. GPT response streams back in word-based chunks while the filler is still playing; TTS (and optional RVC) generates each chunk
+5. Real response seamlessly transitions from filler as soon as the first chunk's audio is ready
+6. Filler audio is loaded lazily on first use to keep startup fast
+7. Creates perceived instant response despite 4-6s actual processing
 
 ### Configuration Management
 - Environment-based configuration via `.env` file
