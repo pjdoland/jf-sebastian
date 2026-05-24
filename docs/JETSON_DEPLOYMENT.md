@@ -134,6 +134,69 @@ pactl set-source-volume alsa_input.usb-…analog-mono 100%
 PulseAudio remembers the per-source volume across restarts via
 `module-stream-restore`.
 
+### PulseAudio resampler
+
+The C-Media USB mic captures at 48 kHz; OpenWakeWord and Whisper both want
+16 kHz, so every capture path goes through a 48 → 16 kHz resample. PA's
+`auto` resampler default on Linux maps to **speex-float-1**, the cheapest
+and lowest-fidelity option. On Mac the equivalent path goes through
+CoreAudio's much higher-quality resampler, which is why a wake-word model
+trained on Mac-captured audio scores noticeably worse when fed Jetson's
+speex-float-1-resampled audio of the same speaker. Symptom: the user
+reports "the wake word used to work much better on my Mac."
+
+Fix: pin a high-quality resampler in the per-user PA config. Costs a few
+percent CPU; negligible on Orin Nano. SoX-VHQ is the highest quality PA
+supports.
+
+```bash
+mkdir -p ~/.config/pulse
+cat > ~/.config/pulse/daemon.conf <<'EOF'
+# Upgrade resampler from speex-float-1 (PA's Linux default) to soxr-vhq.
+# Preserves the spectral content the wake-word model was trained against.
+resample-method = soxr-vhq
+EOF
+
+# Restart PulseAudio so the new daemon.conf takes effect, then restart
+# anything that was holding a stream open.
+pulseaudio -k && sleep 2 && pulseaudio --start
+systemctl --user restart jf-sebastian.service
+```
+
+Verify with:
+
+```bash
+pulseaudio --dump-conf | grep resample-method
+# resample-method = soxr-vhq
+```
+
+Other usable options if `soxr-vhq` isn't compiled into your PA build (rare):
+`speex-float-10` (close second), `soxr-hq` (slightly lighter, still much
+better than the default).
+
+### Pin the default source and sink
+
+PulseAudio's "best device" heuristic can flip between USB mic / onboard
+audio on every restart, especially if devices enumerate in different
+orders. PortAudio sees PulseAudio as a single `pulse` device, so the only
+way to control routing from PortAudio's side is to make the right devices
+PulseAudio's defaults.
+
+Add to `~/.config/pulse/default.pa` (create the file if needed; it
+includes the system default automatically):
+
+```
+.include /etc/pulse/default.pa
+
+# Hardcode the USB devices as the defaults — keeps the wake-word and
+# recorder talking to the right hardware across reboots and replug events.
+set-default-source alsa_input.usb-C-Media_Electronics_Inc._USB_PnP_Sound_Device-00.analog-mono
+set-default-sink   alsa_output.usb-Generic_AB13X_USB_Audio_20210726905926-00.analog-stereo
+```
+
+Replace the ALSA device names with whatever `pactl list short sources` and
+`pactl list short sinks` show for your hardware.
+
 ### Echo cancellation: not needed
 
 The app stops the PortAudio capture stream at the OS level whenever it's
@@ -209,3 +272,60 @@ If you skipped RVC at first-run setup and want to add it later:
 The compile of `praat-parselmouth` (a transitive dep) takes 20–40 min
 from source on aarch64 — there's no prebuilt wheel and it bundles the
 entire Praat C++ codebase. This is normal; let it cook.
+
+## Audio settings reference
+
+Everything that affects audio capture or playback, in one place. The
+defaults in `.env.example` are tuned for a quiet room and a MacBook mic;
+the values below are what worked on the Jetson + C-Media USB mic + AB13X
+USB speaker. Adjust to your room.
+
+### Input (capture) settings
+
+| Setting | Jetson value | Default | What it does |
+|---|---|---|---|
+| `INPUT_DEVICE_NAME` | `pulse` | `pulse` | PortAudio device name. `pulse` routes through PulseAudio's default source — set the default via `~/.config/pulse/default.pa`. |
+| `SAMPLE_RATE` | `16000` | `16000` | Capture sample rate fed to wake-word + Whisper. **Must be 16000** — Silero VAD requires it, OpenWakeWord requires it. PA resamples from the mic's native 48 kHz. |
+| `MIN_AUDIO_RMS` | `1000`–`1600` | `60` | Stage-2 silence filter. C-Media USB mics have a noise floor around 800–1200; the default 60 lets all of that pass to Whisper which then hallucinates ("Thanks for watching!"). Tune upward until ambient room passes through silently. |
+| `MIN_SPEECH_RATIO` | `0.2` | `0.3` | Stage-3 Silero VAD threshold — % of audio frames that must be classified as speech. With Silero VAD (vs the old WebRTC VAD) this can be lower than the historical default. |
+| `VAD_THRESHOLD` | `0.5`–`0.6` | `0.5` | Per-window Silero speech-probability cutoff. Higher = stricter. Raise toward 0.7 if noise still leaks through; lower toward 0.3 if real speech is rejected. |
+| `SPEECH_END_SILENCE_SECONDS` | `2.0` | `1.0` | How long of silence ends user speech. Bump up if you tend to pause mid-question. |
+| `MIN_LISTEN_SECONDS` | `2.0` | `1.0` | Min recording window after wake-word fires (prevents premature cutoff on the "Hey José... [pause] ...what time is it" pattern). |
+| `WAKE_WORD_THRESHOLD` | `0.93` | `0.99` | OpenWakeWord confidence cutoff. 0.99 is very strict (default). 0.93 catches some borderline utterances; going below ~0.85 starts catching not-wake-word audio (false fires on TV/conversation). |
+| `SILENCE_TIMEOUT` | `5.0` | `10.0` | Max recording duration regardless of speech. Forces a return to IDLE on stuck-open recordings. |
+
+### Output (playback) settings
+
+| Setting | Jetson value | Default | What it does |
+|---|---|---|---|
+| `OUTPUT_DEVICE_NAME` | `pulse` | `pulse` | PortAudio device name for playback. Pin via PulseAudio default sink. |
+| `OUTPUT_DEVICE_TYPE` | `squawkers_mccaw` | `teddy_ruxpin` | Selects the audio-processing pipeline. Headless = simple stereo; Teddy = stereo with PPM control track in the right channel; Squawkers = simple stereo for the Squawkers McCaw animatronic. |
+| `VOICE_GAIN` | `1.05`–`1.8` | `1.05` | Voice volume multiplier applied to both RVC-converted and raw TTS paths. Bump up for quiet RVC models; clip to 2.0 max. |
+| `CONTROL_GAIN` | `0.52` | `0.52` | PPM control-track amplitude (Teddy only). Affects motor strength. |
+| `PLAYBACK_PREROLL_MS` | `240` | `240` | Silence before playback starts, to avoid clipping the first syllable while the audio device warms up. |
+| `PLAYBACK_TAIL_GUARD_MS` | `500` | `500` | Silence after playback ends before reopening the mic. Covers speaker buffer drain and acoustic decay so the bot doesn't self-trigger on its own tail audio. Raise if the bot still triggers on itself. |
+
+### Per-device overrides
+
+If a setting needs to differ between output devices (e.g. `VOICE_GAIN`
+needs to be louder on the Squawkers' speaker than on the Teddy's), put it
+in `device_overrides/{OUTPUT_DEVICE_TYPE}/.env`:
+
+```
+# device_overrides/squawkers_mccaw/.env
+VOICE_GAIN=1.8
+```
+
+Personality-specific overrides go in `personalities/{name}/.env` and
+beat the device-level ones. See the README for the full precedence order.
+
+### Code-level defaults worth knowing
+
+These aren't `.env` settings but are values baked into the audio path that
+affect Jetson-class hardware specifically:
+
+| Where | Value | Why |
+|---|---|---|
+| `audio_output.py` output stream `frames_per_buffer` | 4096 | ~85 ms of buffer headroom. The PyAudio default (1024 ≈ 21 ms) was too tight on Jetson and triggered `snd_pcm_recover` underruns whenever the playback worker stalled briefly. |
+| `audio_input.py` capture stream | Silero's required 512-sample windows | Locked to 16 kHz / 512-sample chunks for Silero VAD frame alignment. |
+| `wake_word.py` chunk size | 1280 samples (80 ms at 16 kHz) | OpenWakeWord's required input granularity. |
