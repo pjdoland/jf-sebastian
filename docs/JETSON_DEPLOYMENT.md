@@ -7,6 +7,74 @@ Orin Nano Super** (8 GB unified memory) running Ubuntu 22.04 (JetPack 6.x).
 Most of it also applies to the non-Super Orin Nano with one footnote on
 power mode.
 
+## Reference hardware
+
+The configuration values throughout this document were tuned against this
+specific peripheral setup. Different mic / speaker hardware will need
+different gain, RMS, and threshold values, but the structure of the setup
+(disabling AGC, pinning PA defaults, upgrading the resampler) carries
+over.
+
+### USB microphone
+
+**Generic USB PnP Sound Device (C-Media chipset)** — [Amazon B0CNVZ27YH](https://www.amazon.com/dp/B0CNVZ27YH)
+
+| | |
+|---|---|
+| ALSA name | `alsa_input.usb-C-Media_Electronics_Inc._USB_PnP_Sound_Device-00.analog-mono` |
+| USB vendor:product | `0d8c:` (C-Media Electronics) |
+| Native rate | 48 kHz mono, 16-bit signed |
+| Hardware AGC | Present + enabled by default (must be disabled — see Microphone tuning) |
+| Connector | USB-A, plug-and-play, no driver needed on Ubuntu |
+| Cost | ~$10 |
+
+Notes: this is the kind of chipset that gets put in every cheap USB mic.
+The audio quality is workable for wake-word + Whisper after the tuning
+below, but it's a real downgrade from a MacBook's built-in mic with
+Apple's DSP — expect to tune `MIN_AUDIO_RMS` upward (noise floor sits
+around 800–1200) and to upgrade the PulseAudio resampler.
+
+### USB speaker
+
+**Generic AB13X USB Audio** — [Amazon B09MPL4LRD](https://www.amazon.com/dp/B09MPL4LRD)
+
+| | |
+|---|---|
+| ALSA name | `alsa_output.usb-Generic_AB13X_USB_Audio_20210726905926-00.analog-stereo` |
+| Native rate | 48 kHz stereo, 16-bit signed |
+| Connector | USB-A, plug-and-play |
+| Cost | ~$15 |
+
+Notes: outputs at 48 kHz natively, which matches the app's 48 kHz playback
+session — no playback-side resampling. Volume curve is fine; we drive at
+100% via PulseAudio and let the per-device `VOICE_GAIN` overlay handle
+voice loudness.
+
+### Audio routing summary
+
+```
+   USB mic (C-Media, 48 kHz mono)
+        │
+        ▼
+   ALSA → PulseAudio (soxr-vhq resampler) → "pulse" PortAudio device
+        │
+        ▼
+   App: wake-word detector @ 16 kHz, recorder @ 16 kHz
+
+   App TTS+RVC output (48 kHz stereo)
+        │
+        ▼
+   "pulse" PortAudio device → PulseAudio → ALSA
+        │
+        ▼
+   USB speaker (AB13X, 48 kHz stereo)
+```
+
+`INPUT_DEVICE_NAME=pulse` and `OUTPUT_DEVICE_NAME=pulse` in `.env`; the
+actual hardware selection happens via PulseAudio's defaults (pinned in
+`~/.config/pulse/default.pa` — see "Pin the default source and sink"
+below).
+
 ## System packages
 
 `setup.sh` installs Python deps but not the OS libraries those deps link
