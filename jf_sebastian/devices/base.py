@@ -71,3 +71,56 @@ class OutputDevice(ABC):
             List of error messages (empty if valid)
         """
         return []
+
+    # -------------------------------------------------------------------------
+    # Optional visual hooks
+    #
+    # Most devices are pure audio transforms. A device that also drives an
+    # on-screen talking head (e.g. the optional visual_device device) sets
+    # requires_visual=True and overrides the hooks below. The application
+    # (main.py) calls them only when requires_visual is True, so the default
+    # no-op implementations keep every other device unaffected and keep all
+    # rendering code out of the core. Method contract:
+    #
+    #   visual_start()              once, on the MAIN thread, before the app loop
+    #   visual_step()               once per main-loop iteration (pumps one frame)
+    #   visual_on_playback_start()  when a chunk begins playing (playback thread)
+    #   visual_on_playback_end()    when a response finishes playing
+    #   visual_set_mode(mode)       on state transitions: "idle"/"listening"/
+    #                               "processing"/"speaking"
+    #   visual_stop()               once, on the MAIN thread, during teardown
+    # -------------------------------------------------------------------------
+
+    @property
+    def requires_visual(self) -> bool:
+        """Whether this device drives an on-screen renderer (a GUI window)."""
+        return False
+
+    def visual_start(self) -> None:
+        """Create the renderer/window. Called on the main thread before the loop."""
+        return None
+
+    def visual_step(self) -> None:
+        """Render one frame. Called each main-loop iteration on the main thread."""
+        return None
+
+    def visual_on_playback_start(
+        self,
+        stereo_audio: np.ndarray,
+        sample_rate: int,
+        chunk_type: str = "chunk",
+    ) -> None:
+        """Notify that a chunk is about to play (drives lip-sync timing/envelope)."""
+        return None
+
+    def visual_on_playback_end(self) -> None:
+        """Notify that the current response finished playing."""
+        return None
+
+    def visual_set_mode(self, mode: str) -> None:
+        """Reflect a conversation-state change in the visuals."""
+        return None
+
+    def visual_stop(self) -> None:
+        """Tear down the renderer/window. Called on the main thread during shutdown."""
+        return None

@@ -133,13 +133,19 @@ State transitions managed in `jf_sebastian/modules/state_machine.py` (StateMachi
 - `scheduler.py`: `ProactiveScheduler` background thread that fires personality-defined events (greet at 7am, bedtime story at 9pm, holiday surprises) when state is IDLE. Tiny schedule syntax (`HH:MM`, `HH:MM weekdays`, `HH:MM YYYY-MM-DD`); per-personality `scheduled_events.yaml`; suppressed during quiet hours.
 
 **jf_sebastian/devices/** (Modular Output Device Architecture)
-- `base.py`: OutputDevice abstract base class defining the interface
+- `base.py`: OutputDevice abstract base class defining the interface. Also defines the **optional visual seam**: `requires_visual` (default `False`) plus six no-op `visual_*` hooks (`visual_start`, `visual_step`, `visual_on_playback_start`, `visual_on_playback_end`, `visual_set_mode`, `visual_stop`). Audio-only devices inherit the no-ops and are unaffected; a device that drives an on-screen renderer overrides them.
 - `factory.py`: DeviceRegistry providing plugin-style registration/creation
 - `teddy_ruxpin.py`: TeddyRuxpinDevice generating stereo (LEFT=voice, RIGHT=PPM)
 - `headless.py`: HeadlessDevice base class for simple stereo output (computer playback)
 - `squawkers_mccaw.py`: SquawkersMcCawDevice thin subclass of HeadlessDevice
 - `shared/audio_processor.py`: MP3→PCM conversion via FFmpeg
 - `shared/sentiment_analyzer.py`: VADER sentiment analysis for eye control
+- `__init__.py`: best-effort imports the optional private `jf_sebastian.visual` package so the `visual_device` device self-registers when present (silently skipped when absent)
+
+**jf_sebastian/visual/** (OPTIONAL, private — gitignored, slated for a private submodule)
+- The `visual_device` output device: headless-style stereo audio **plus** an animated, lip-syncing 3D head (Panda3D) with a synthwave grid background, CRT post, and stutter glitches. Kept out of the public repo because it can bundle a licensed character asset.
+- Integrates only through the IP-free seam above. With the directory absent, the build is unchanged and `OUTPUT_DEVICE_TYPE` just won't list `visual_device`.
+- Lip-sync is amplitude-based (RMS envelope from the voice → jaw rotation); the renderer owns the main thread (`main.py` inverts its loop to pump `visual_step`), and the playback worker publishes per-chunk timing via `visual_on_playback_start`. Falls back to audio-only if no display or `VISUAL_ENABLED=false`. Deps in `requirements-visual.txt` (`panda3d`). Tunables: `VISUAL_*` / `VISUAL_DEVICE_ASSET_PATH` in `.env`. See `docs/VISUAL_DEVICE_DEVICE_PLAN.md`.
 
 **jf_sebastian/config/**
 - `settings.py`: Central Settings class loading from `.env` with validation

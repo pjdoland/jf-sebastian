@@ -146,6 +146,26 @@ class Settings:
     # decay so the bot doesn't capture its own tail audio as the user's input.
     PLAYBACK_TAIL_GUARD_MS: int = int(os.getenv("PLAYBACK_TAIL_GUARD_MS", "500"))
 
+    # Visual / talking-head rendering. Only consumed by the optional visual_device
+    # device (jf_sebastian/visual/, a private module); inert for every other
+    # device. VISUAL_ENABLED is a master off-switch so visual_device can fall back
+    # to audio-only (headless behaviour) on headless/SSH hosts with no display.
+    VISUAL_ENABLED: bool = os.getenv("VISUAL_ENABLED", "true").lower() == "true"
+    VISUAL_WINDOW_WIDTH: int = int(os.getenv("VISUAL_WINDOW_WIDTH", "800"))
+    VISUAL_WINDOW_HEIGHT: int = int(os.getenv("VISUAL_WINDOW_HEIGHT", "600"))
+    VISUAL_FULLSCREEN: bool = os.getenv("VISUAL_FULLSCREEN", "false").lower() == "true"
+    VISUAL_FPS: int = int(os.getenv("VISUAL_FPS", "60"))  # render frame cap
+    VISUAL_HEAD_FPS: int = int(os.getenv("VISUAL_HEAD_FPS", "15"))  # head/jaw update rate (jerkiness)
+    VISUAL_TARGET_FPS: int = int(os.getenv("VISUAL_TARGET_FPS", "60"))  # lip-sync envelope frames/sec
+    VISUAL_SYNC_OFFSET_MS: int = int(os.getenv("VISUAL_SYNC_OFFSET_MS", "-40"))  # mouth lead(-)/lag(+) vs audio
+    VISUAL_GRID_ENABLED: bool = os.getenv("VISUAL_GRID_ENABLED", "true").lower() == "true"
+    VISUAL_CRT_ENABLED: bool = os.getenv("VISUAL_CRT_ENABLED", "true").lower() == "true"
+    VISUAL_STUTTER_ENABLED: bool = os.getenv("VISUAL_STUTTER_ENABLED", "true").lower() == "true"
+    VISUAL_STUTTER_RATE: float = float(os.getenv("VISUAL_STUTTER_RATE", "0.05"))  # fraction of chunks that stutter
+    VISUAL_GLITCH_RATE: float = float(os.getenv("VISUAL_GLITCH_RATE", "0.05"))  # ambient video-glitch frequency
+    VISUAL_MAX_JAW_DEGREES: float = float(os.getenv("VISUAL_MAX_JAW_DEGREES", "18"))  # jaw rotation at full mouth-open
+    VISUAL_DEVICE_ASSET_PATH: Optional[str] = os.getenv("VISUAL_DEVICE_ASSET_PATH")  # override dir for the head rig
+
     # Note: System prompt is now defined per-personality
 
     @classmethod
@@ -200,6 +220,17 @@ class Settings:
                     f"Invalid NEWS_PROVIDER: '{cls.NEWS_PROVIDER}'. "
                     f"Valid values: {', '.join(sorted(valid))}"
                 )
+
+        # Validate visual settings (only meaningful for the visual_device device,
+        # but cheap to range-check unconditionally).
+        for name in ("VISUAL_FPS", "VISUAL_HEAD_FPS", "VISUAL_TARGET_FPS"):
+            if getattr(cls, name) <= 0:
+                errors.append(f"{name} must be > 0, got {getattr(cls, name)}")
+        for name in ("VISUAL_STUTTER_RATE", "VISUAL_GLITCH_RATE"):
+            if not 0.0 <= getattr(cls, name) <= 1.0:
+                errors.append(f"{name} must be 0.0-1.0, got {getattr(cls, name)}")
+        if not 0.0 <= cls.VISUAL_MAX_JAW_DEGREES <= 90.0:
+            errors.append(f"VISUAL_MAX_JAW_DEGREES must be 0-90, got {cls.VISUAL_MAX_JAW_DEGREES}")
 
         return errors
 

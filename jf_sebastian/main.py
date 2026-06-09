@@ -135,6 +135,12 @@ class TeddyRuxpinApp:
         self.output_device = DeviceRegistry.create(settings.OUTPUT_DEVICE_TYPE)
         logger.info(f"Output device: {self.output_device.device_name}")
 
+        # Cache whether this device drives an on-screen renderer (the optional
+        # visual_device device). When True, the main loop is inverted to pump the
+        # renderer (which must own the main thread) and playback/state hooks feed
+        # it lip-sync timing. False for every other device, leaving them untouched.
+        self._has_visual = self.output_device.requires_visual
+
         # Validate device-specific settings
         device_errors = self.output_device.validate_settings()
         if device_errors:
@@ -247,27 +253,53 @@ class TeddyRuxpinApp:
         if self.scheduler:
             self.scheduler.start()
 
+        # Bring up the renderer (visual_device only). It must be created and
+        # pumped on the main thread, so it happens here rather than in a worker.
+        # If it fails (no display, panda3d missing), the device degrades to
+        # audio-only and we keep the plain sleep loop below.
+        if self._has_visual:
+            try:
+                self.output_device.visual_start()
+            except Exception as e:
+                logger.error("Renderer failed to start, continuing audio-only: %s", e, exc_info=True)
+                self._has_visual = False
+
         logger.info("=" * 80)
         logger.info(f"System ready! Say 'Hey, {self.personality.name}' to start talking.")
         logger.info("Press Ctrl+C to exit.")
         logger.info("=" * 80)
 
-        # Main loop
+        # Main loop. Validation runs on a 5-second wall-clock cadence in both
+        # modes. The visual branch pumps one render frame per iteration (the
+        # renderer caps its own frame rate); the audio-only branch sleeps.
         try:
-            loop_iterations = 0
+            last_validate = time.monotonic()
             while self._running:
-                time.sleep(0.1)
-                loop_iterations += 1
+                if self._has_visual:
+                    self.output_device.visual_step()
+                else:
+                    time.sleep(0.1)
 
-                # Validate state every 5 seconds (50 iterations * 0.1s)
-                if loop_iterations % 50 == 0:
+                now = time.monotonic()
+                if now - last_validate >= 5.0:
                     self._validate_and_recover_state()
+                    last_validate = now
 
         except KeyboardInterrupt:
             logger.info("Shutdown requested by user")
 
         finally:
-            self.stop()
+            # Tear down audio/subsystems first, then the window. visual_stop runs
+            # here (not in stop(), which can early-return on the signal path) so
+            # the window is always destroyed on the main thread.
+            try:
+                self.stop()
+            finally:
+                if self._has_visual:
+                    try:
+                        self.output_device.visual_stop()
+                    except Exception as e:
+                        logger.error("Renderer teardown failed: %s", e, exc_info=True)
 
     def stop(self):
         """Stop the application and clean up resources."""
@@ -319,9 +351,20 @@ class TeddyRuxpinApp:
     # State Callbacks
     # -------------------------------------------------------------------------
 
+    def _visual_set_mode(self, mode: str):
+        """Reflect a conversation-state change in the optional renderer (no-op
+        for non-visual devices)."""
+        if not self._has_visual:
+            return
+        try:
+            self.output_device.visual_set_mode(mode)
+        except Exception as e:
+            logger.debug("visual_set_mode(%s) failed: %s", mode, e)
+
     def _on_enter_listening(self):
         """Handle entering LISTENING state."""
         logger.info("Entering LISTENING state - recording audio...")
+        self._visual_set_mode("listening")
 
         # Pause wake word detector while listening to user (and for rest of interaction)
         # (Will already be paused if continuing conversation)
@@ -343,6 +386,7 @@ class TeddyRuxpinApp:
     def _on_enter_processing(self):
         """Handle entering PROCESSING state."""
         logger.info("Entering PROCESSING state - transcribing and generating response...")
+        self._visual_set_mode("processing")
 
         # Filler will be added to playback queue in _process_and_speak
         # (no longer playing it separately to avoid race conditions)
@@ -352,6 +396,7 @@ class TeddyRuxpinApp:
     def _on_enter_speaking(self):
         """Handle entering SPEAKING state."""
         logger.info("Entering SPEAKING state - playing response...")
+        self._visual_set_mode("speaking")
 
         # Mute the recorder so the bot's playback doesn't end up in the next
         # captured buffer. Idempotent if already paused for a preceding filler.
@@ -362,6 +407,7 @@ class TeddyRuxpinApp:
     def _on_enter_idle(self):
         """Handle entering IDLE state."""
         logger.info("Entering IDLE state - waiting for wake word...")
+        self._visual_set_mode("idle")
 
         # Resume wake word detector FIRST (before stopping recorder which can block)
         self._resume_wake_after_playback()
@@ -501,6 +547,19 @@ class TeddyRuxpinApp:
                             logger.info(f"First response chunk ready, transitioning to SPEAKING state")
                             self.state_machine.transition_to(ConversationState.SPEAKING, trigger="response_ready")
                             is_first_real_chunk = False
+
+                        # Hand the just-starting audio to the renderer so the
+                        # talking head can lip-sync to it. Runs on this worker
+                        # thread; the device stamps a wall-clock start time and
+                        # computes its mouth envelope from the LEFT channel. No-op
+                        # for non-visual devices.
+                        if self._has_visual:
+                            try:
+                                self.output_device.visual_on_playback_start(
+                                    stereo_audio, sample_rate, chunk_type
+                                )
+                            except Exception as e:
+                                logger.debug("visual_on_playback_start failed: %s", e)
 
                         # Play this item using session (gapless for both filler and chunks)
                         logger.info(f"{chunk_type.capitalize()} {chunk_id}: Playing NOW...")
@@ -684,6 +743,12 @@ Now respond to their question naturally, as if your filler phrase was the beginn
             logger.info("Waiting for all chunks to finish playing...")
             playback_done.wait()
 
+            if self._has_visual:
+                try:
+                    self.output_device.visual_on_playback_end()
+                except Exception as e:
+                    logger.debug("visual_on_playback_end failed: %s", e)
+
             if playback_error:
                 raise playback_error
 
@@ -841,6 +906,13 @@ Now respond to their question naturally, as if your filler phrase was the beginn
         # Now that we hold SPEAKING, pause wake detection.
         self._pause_wake_for_playback()
 
+        # Feed the renderer for lip-sync (no-op for non-visual devices).
+        if self._has_visual:
+            try:
+                self.output_device.visual_on_playback_start(stereo_audio, sample_rate, "chunk")
+            except Exception as e:
+                logger.debug("visual_on_playback_start failed: %s", e)
+
         # Non-blocking play; _on_playback_complete returns us to IDLE.
         # If the player is busy (returns False), recover the state machine
         # so we don't leak a stuck SPEAKING.
@@ -861,6 +933,13 @@ Now respond to their question naturally, as if your filler phrase was the beginn
         if self._sequential_playback_active:
             logger.debug("Sequential playback active, ignoring premature callback")
             return
+
+        # Stop lip-sync for the single-shot (scheduled-event) playback path.
+        if self._has_visual:
+            try:
+                self.output_device.visual_on_playback_end()
+            except Exception as e:
+                logger.debug("visual_on_playback_end failed: %s", e)
 
         # Resume wake word detector after all playback finishes
         self._resume_wake_after_playback()

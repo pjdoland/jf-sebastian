@@ -85,3 +85,10 @@ personalities/pj_doland/
 
 # Local operational notes (per-host service install, not for sharing)
 SERVICE.md
+
+# Private visual subsystem: the visual_device device + its Panda3D renderer and
+# bundled character assets. Kept out of the public repo (likeness/IP) and slated
+# to become a private git submodule. The core integrates with it only through
+# the optional, IP-free hooks in devices/base.py and main.py, so its absence is
+# a no-op. When it becomes a submodule, remove this entry.
+jf_sebastian/visual/
