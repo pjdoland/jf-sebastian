@@ -2,7 +2,7 @@
 Tests for the optional visual-device seam on the OutputDevice base class.
 
 These cover the IP-free integration points that live in the core repo (the
-no-op hooks every device inherits), independent of the private visual_device
+no-op hooks every device inherits), independent of any private visual
 device, which may or may not be installed.
 """
 

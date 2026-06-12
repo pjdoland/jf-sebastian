@@ -76,7 +76,7 @@ class OutputDevice(ABC):
     # Optional visual hooks
     #
     # Most devices are pure audio transforms. A device that also drives an
-    # on-screen talking head (e.g. the optional visual_device device) sets
+    # on-screen talking head (e.g. an optional private talking-head device) sets
     # requires_visual=True and overrides the hooks below. The application
     # (main.py) calls them only when requires_visual is True, so the default
     # no-op implementations keep every other device unaffected and keep all

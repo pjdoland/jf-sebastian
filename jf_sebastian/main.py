@@ -136,7 +136,7 @@ class TeddyRuxpinApp:
         logger.info(f"Output device: {self.output_device.device_name}")
 
         # Cache whether this device drives an on-screen renderer (the optional
-        # visual_device device). When True, the main loop is inverted to pump the
+        # private talking-head device). When True, the main loop is inverted to pump the
         # renderer (which must own the main thread) and playback/state hooks feed
         # it lip-sync timing. False for every other device, leaving them untouched.
         self._has_visual = self.output_device.requires_visual
@@ -253,7 +253,7 @@ class TeddyRuxpinApp:
         if self.scheduler:
             self.scheduler.start()
 
-        # Bring up the renderer (visual_device only). It must be created and
+        # Bring up the renderer (visual devices only). It must be created and
         # pumped on the main thread, so it happens here rather than in a worker.
         # If it fails (no display, panda3d missing), the device degrades to
         # audio-only and we keep the plain sleep loop below.
