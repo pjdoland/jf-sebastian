@@ -145,7 +145,7 @@ State transitions managed in `jf_sebastian/modules/state_machine.py` (StateMachi
 **Drop-in device packages** (optional, not distributed with this repo)
 - Devices are modular like personalities: clone or symlink an extra device package into `jf_sebastian/devices/<name>/` and it self-registers; nothing else changes. Private packages are kept out of the repo via `.git/info/exclude` (local-only ignores), so the public tree carries no trace of them.
 - A visually-rendered device integrates through the IP-free **visual seam** in `base.py` (`requires_visual` + the `visual_*` hooks): `main.py` inverts its loop to pump `visual_step` (renderers own the main thread), and the playback worker publishes per-chunk timing via `visual_on_playback_start`. `VISUAL_ENABLED=false` (or a host with no display) falls back to audio-only.
-- A drop-in device owns its settings in its own `config.py` (read from the environment; generic visual conventions use the `VISUAL_` prefix, device-specific tunables use a device prefix) and documents them in its own README. Per-device tuning lives in `device_overrides/<name>/.env`, loaded automatically when that device is selected.
+- A drop-in device owns its settings in its own `config.py` (read from the environment; generic visual conventions use the `VISUAL_` prefix, device-specific tunables use a device prefix) and documents them in its own README. Per-device tuning lives in the bundle itself (`jf_sebastian/devices/<name>/.env`), loaded automatically when that device is selected.
 
 **jf_sebastian/config/**
 - `settings.py`: Central Settings class loading from `.env` with validation
@@ -293,7 +293,7 @@ Pre-generated personality-specific audio fills the response gap:
 - Settings class in `jf_sebastian/config/settings.py` loads with validation
 - No hardcoded values - all configurable
 - Per-personality settings in `personalities/{name}/personality.yaml`
-- **Layered env overlays** (highest precedence first): `personalities/{PERSONALITY}/.env` → `device_overrides/{OUTPUT_DEVICE_TYPE}/.env` → `.env`. Loaded once at import in `config/settings.py`; loaded overlay paths are exposed as `settings.LOADED_ENV_OVERLAYS` and logged at startup. Overlay files are `.gitignore`-d by the existing `.env` rule. Don't put `PERSONALITY` or `OUTPUT_DEVICE_TYPE` inside an overlay — they're the selection keys.
+- **Layered env overlays** (highest precedence first): `personalities/{PERSONALITY}/.env` → `jf_sebastian/devices/{OUTPUT_DEVICE_TYPE}/.env` → `.env`. Loaded once at import in `config/settings.py`; loaded overlay paths are exposed as `settings.LOADED_ENV_OVERLAYS` and logged at startup. Overlay files are `.gitignore`-d by the existing `.env` rule. Don't put `PERSONALITY` or `OUTPUT_DEVICE_TYPE` inside an overlay — they're the selection keys.
 - Weather context uses a pluggable provider selected by `WEATHER_PROVIDER` (`wttr`, `homeassistant`, `manual`, `none`, or `auto`/unset). Auto-selection picks the first configured provider in order: `homeassistant > wttr > manual`. Existing `ZIPCODE`-only setups keep working unchanged. Cached 30 minutes; failed fetches negative-cache for 60s.
 
 ## File Locations and Conventions

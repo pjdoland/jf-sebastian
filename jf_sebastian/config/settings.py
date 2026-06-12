@@ -4,7 +4,7 @@ Loads settings from environment variables with sensible defaults.
 
 Layered configuration (highest precedence wins):
   1. Personality:  personalities/{PERSONALITY}/.env
-  2. Device:       device_overrides/{OUTPUT_DEVICE_TYPE}/.env
+  2. Device:       jf_sebastian/devices/{OUTPUT_DEVICE_TYPE}/.env
   3. Base:         .env
 
 PERSONALITY and OUTPUT_DEVICE_TYPE are read from base (.env) or the
@@ -31,7 +31,7 @@ def _apply_overlay(path: Path) -> None:
 
 _device = os.getenv("OUTPUT_DEVICE_TYPE")
 if _device:
-    _apply_overlay(_REPO_ROOT / "device_overrides" / _device / ".env")
+    _apply_overlay(_REPO_ROOT / "jf_sebastian" / "devices" / _device / ".env")
 
 _personality = os.getenv("PERSONALITY")
 if _personality:
@@ -148,7 +148,7 @@ class Settings:
 
     # Note: settings consumed by exactly one device live in that device's own
     # package (devices/<name>/config.py), not here. The layered .env overlays
-    # (device_overrides/<name>/.env) are applied to the environment before any
+    # (jf_sebastian/devices/<name>/.env) are applied to the environment before any
     # device package loads, so device configs read them transparently.
 
     # Note: System prompt is now defined per-personality

@@ -607,7 +607,7 @@ Leopold: "Just reviewing my notes from the second abduction... Twice, actually. 
 Settings are loaded with three layers, highest precedence first:
 
 1. `personalities/{PERSONALITY}/.env` — per-personality overrides
-2. `device_overrides/{OUTPUT_DEVICE_TYPE}/.env` — per-device-type overrides
+2. `jf_sebastian/devices/{OUTPUT_DEVICE_TYPE}/.env` — per-device-type overrides
 3. `.env` — base configuration
 
 Use the overlays for things like `VOICE_GAIN` that differ by speaker hardware or by personality (some RVC models output quieter than others). `PERSONALITY` and `OUTPUT_DEVICE_TYPE` must come from the base — they're the selection keys, so setting them inside an overlay has no effect on overlay loading. Overlay files are git-ignored automatically by the existing `.env` rule. Loaded overlay paths are logged at startup.
