@@ -31,7 +31,9 @@ def _apply_overlay(path: Path) -> None:
 
 _device = os.getenv("OUTPUT_DEVICE_TYPE")
 if _device:
-    _apply_overlay(_REPO_ROOT / "jf_sebastian" / "devices" / _device / ".env")
+    # Derived from this package's location so the path follows the code, not
+    # an assumed repo layout.
+    _apply_overlay(Path(__file__).resolve().parents[1] / "devices" / _device / ".env")
 
 _personality = os.getenv("PERSONALITY")
 if _personality:

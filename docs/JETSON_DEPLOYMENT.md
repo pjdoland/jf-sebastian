@@ -377,10 +377,10 @@ USB speaker. Adjust to your room.
 
 If a setting needs to differ between output devices (e.g. `VOICE_GAIN`
 needs to be louder on the Squawkers' speaker than on the Teddy's), put it
-in `device_overrides/{OUTPUT_DEVICE_TYPE}/.env`:
+in `jf_sebastian/devices/{OUTPUT_DEVICE_TYPE}/.env`:
 
 ```
-# device_overrides/squawkers_mccaw/.env
+# jf_sebastian/devices/squawkers_mccaw/.env
 VOICE_GAIN=1.8
 ```
 
