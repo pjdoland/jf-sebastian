@@ -116,17 +116,27 @@ class ConversationEngine:
         """
         return not self._is_gpt5_or_newer()
 
+    def _reasoning_effort(self) -> Optional[str]:
+        """
+        reasoning_effort to send for GPT-5-family models.
+
+        Returns the configured GPT_REASONING_EFFORT (e.g. 'low'/'medium'/'high')
+        for GPT-5+ models, or None to omit the parameter and use the model
+        default. Always None for GPT-4 models, which have no reasoning parameter.
+        """
+        if not self._is_gpt5_or_newer():
+            return None
+        effort = (settings.GPT_REASONING_EFFORT or "").strip()
+        return effort or None
+
     def _get_effective_max_tokens(self, requested_tokens: int) -> int:
         """
         Get the effective max tokens value for the current model.
 
         GPT-5+ requires higher max_completion_tokens values than GPT-4's max_tokens.
-        Testing shows GPT-5-mini needs at least 3500 tokens when using system prompts
-        and context, while GPT-4 works fine with 200-300.
-
-        NOTE: GPT-5-mini has significantly higher latency (~15-20s to first token)
-        compared to GPT-4o-mini (~2-3s), making it less suitable for real-time
-        conversational applications. Consider using GPT-4o-mini for better UX.
+        Testing shows GPT-5 models need at least 3500 tokens when using system prompts
+        and context, while GPT-4 works fine with 200-300. This is only a ceiling;
+        short conversational replies consume far fewer tokens.
 
         Args:
             requested_tokens: The configured token limit
@@ -201,6 +211,11 @@ class ConversationEngine:
                 api_params["max_completion_tokens"] = effective_tokens
             else:
                 api_params["max_tokens"] = effective_tokens
+
+            # Add reasoning effort for the GPT-5 family (omitted for GPT-4)
+            effort = self._reasoning_effort()
+            if effort:
+                api_params["reasoning_effort"] = effort
 
             response = self.client.chat.completions.create(**api_params)
 
@@ -332,6 +347,11 @@ class ConversationEngine:
                 api_params["max_completion_tokens"] = effective_tokens
             else:
                 api_params["max_tokens"] = effective_tokens
+
+            # Add reasoning effort for the GPT-5 family (omitted for GPT-4)
+            effort = self._reasoning_effort()
+            if effort:
+                api_params["reasoning_effort"] = effort
 
             # Offer playback tools only when the personality opted in. On a normal
             # turn the model streams content and this is a no-op; on an action turn

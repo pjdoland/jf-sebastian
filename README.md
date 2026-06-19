@@ -719,7 +719,8 @@ Off by default. Requires Spotify Premium, a one-time browser login (`python scri
 | Setting | Description | Default |
 |---------|-------------|---------|
 | `WHISPER_MODEL` | OpenAI Whisper speech-to-text model | whisper-1 |
-| `GPT_MODEL` | OpenAI GPT model for conversation | gpt-4o-mini |
+| `GPT_MODEL` | OpenAI GPT model for conversation (fall back to `gpt-4o-mini` if your account lacks access) | gpt-5.4-mini |
+| `GPT_REASONING_EFFORT` | Reasoning effort for the GPT-5 family (low/medium/high; empty = model default; ignored for GPT-4) | low |
 | `TTS_MODEL` | OpenAI text-to-speech model | gpt-4o-mini-tts |
 
 **Note**: TTS voice, speed, and style are defined per personality in `personalities/` (not in .env). The gpt-4o-mini-tts model supports prompting for tone, emotional range, intonation, and speaking style.

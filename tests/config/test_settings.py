@@ -21,7 +21,7 @@ def test_settings_default_values():
     assert Settings.CONVERSATION_TIMEOUT > 0
     assert Settings.MAX_HISTORY_LENGTH > 0
     assert Settings.WHISPER_MODEL == "whisper-1"
-    assert Settings.GPT_MODEL == "gpt-4o-mini"
+    assert isinstance(Settings.GPT_MODEL, str) and Settings.GPT_MODEL  # Can be configured in .env
     assert Settings.TTS_MODEL in ["tts-1", "tts-1-hd", "gpt-4o-mini-tts"]  # Can be configured in .env
 
 

@@ -144,6 +144,35 @@ def test_tools_attached_only_when_enabled(engine_factory):
     assert "tools" not in off.client.chat.completions.kwargs
 
 
+def test_reasoning_effort_sent_for_gpt5(engine_factory, monkeypatch):
+    monkeypatch.setattr(_settings, "GPT_MODEL", "gpt-5.4-mini", raising=False)
+    monkeypatch.setattr(_settings, "GPT_REASONING_EFFORT", "low", raising=False)
+    eng = engine_factory([content_chunk("hello there. "), final_chunk("stop")])
+    drain(eng)
+    kw = eng.client.chat.completions.kwargs
+    assert kw["reasoning_effort"] == "low"
+    assert "max_completion_tokens" in kw and "max_tokens" not in kw
+    assert "temperature" not in kw  # GPT-5 forces the default temperature
+
+
+def test_reasoning_effort_omitted_for_gpt4(engine_factory, monkeypatch):
+    monkeypatch.setattr(_settings, "GPT_MODEL", "gpt-4o-mini", raising=False)
+    monkeypatch.setattr(_settings, "GPT_REASONING_EFFORT", "low", raising=False)
+    eng = engine_factory([content_chunk("hello there. "), final_chunk("stop")])
+    drain(eng)
+    kw = eng.client.chat.completions.kwargs
+    assert "reasoning_effort" not in kw  # GPT-4 has no reasoning parameter
+    assert "max_tokens" in kw
+
+
+def test_reasoning_effort_empty_omitted_for_gpt5(engine_factory, monkeypatch):
+    monkeypatch.setattr(_settings, "GPT_MODEL", "gpt-5.4-mini", raising=False)
+    monkeypatch.setattr(_settings, "GPT_REASONING_EFFORT", None, raising=False)
+    eng = engine_factory([content_chunk("hi. "), final_chunk("stop")])
+    drain(eng)
+    assert "reasoning_effort" not in eng.client.chat.completions.kwargs
+
+
 def test_failed_tool_does_not_suppress_followup(engine_factory):
     chunks = [toolcall_chunk(0, name="music_play", args='{"query":"x"}'), final_chunk("tool_calls")]
     tool = FakeTool(ToolResult(False, "I can't reach the music", kind="network"))

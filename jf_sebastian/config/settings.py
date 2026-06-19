@@ -126,6 +126,10 @@ class Settings:
     WHISPER_MODEL: str = os.getenv("WHISPER_MODEL", "whisper-1")
     GPT_MODEL: str = os.getenv("GPT_MODEL", "gpt-4o-mini")
     TTS_MODEL: str = os.getenv("TTS_MODEL", "tts-1")
+    # reasoning_effort for the GPT-5 family (e.g. low/medium/high). Defaults to
+    # 'low' for snappy real-time replies. Set it empty to omit the parameter and
+    # use the model's own default. Ignored for GPT-4 models (no reasoning param).
+    GPT_REASONING_EFFORT: Optional[str] = (os.getenv("GPT_REASONING_EFFORT", "low") or "").strip() or None
     # Note: TTS_VOICE is now defined per-personality
 
     # Animatronic Control
