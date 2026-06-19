@@ -69,6 +69,8 @@ Thumbs.db
 .pytest_cache/
 .coverage
 htmlcov/
+# Stray artifact from tests that mock a path setting and then makedirs() it
+MagicMock/
 
 # Reference Materials (excluded from repository)
 reference/
