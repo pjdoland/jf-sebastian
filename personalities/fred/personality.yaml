@@ -5,8 +5,6 @@ tts_style: "Speak gently, warmly, and unhurriedly, like a kind neighbor talking 
 wake_word_model: hey_fred.onnx
 
 # RVC Voice Conversion - Fred Rogers custom voice
-rvc_model: fred.pth
-rvc_index_file: fred.index
 rvc_pitch_shift: 0
 rvc_index_rate: 0.75  # Feature retrieval influence (0.0-1.0, higher = more index influence)
 rvc_f0_method: pm  # Using pm (fast) instead of rmvpe

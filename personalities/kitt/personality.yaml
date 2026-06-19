@@ -10,8 +10,6 @@ tts_style: >
 wake_word_model: hey_kitt.onnx
 
 # RVC Voice Conversion - K.I.T.T. custom voice
-rvc_model: kitt.pth
-rvc_index_file: kitt.index
 rvc_pitch_shift: 0
 rvc_index_rate: 0.75  # Feature retrieval influence (0.0-1.0, higher = more index influence)
 rvc_f0_method: pm  # Using pm (fast) instead of rmvpe

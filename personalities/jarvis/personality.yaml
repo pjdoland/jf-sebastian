@@ -9,8 +9,6 @@ tts_style: >
 wake_word_model: hey_jarvis.onnx
 
 # RVC Voice Conversion - Jarvis custom voice
-rvc_model: jarvis.pth
-rvc_index_file: jarvis.index
 rvc_pitch_shift: 0
 rvc_index_rate: 0.75  # Feature retrieval influence (0.0-1.0, higher = more index influence)
 rvc_f0_method: pm  # Using pm (fast) instead of rmvpe

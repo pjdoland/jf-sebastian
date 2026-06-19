@@ -16,8 +16,6 @@ tts_style: "Speak in a super laid-back, mellow, ultra-chill tone with a beatnik 
 wake_word_model: hey_johnny.onnx
 
 # RVC Voice Conversion - Authentic Johnny voice
-rvc_model: johnny.pth
-rvc_index_file: johnny.index
 rvc_pitch_shift: 0
 rvc_index_rate: 0.5
 rvc_f0_method: rmvpe
