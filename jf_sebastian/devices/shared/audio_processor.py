@@ -137,7 +137,7 @@ class AudioProcessor:
 
         # Convert audio through RVC
         try:
-            logger.info(f"Applying RVC conversion: {personality.rvc_model}")
+            logger.info(f"Applying RVC conversion: {model_path.name}")
             result = self._rvc_processor.convert_audio(
                 audio=audio,
                 sample_rate=sample_rate,
