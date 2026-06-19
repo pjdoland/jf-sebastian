@@ -75,6 +75,11 @@ def _parse_aliases(raw: Optional[str]) -> dict:
     return out
 
 
+def _join_artists(item: dict) -> str:
+    """Comma-join a track/playback item's artist names (skips any without a name)."""
+    return ", ".join(a["name"] for a in item.get("artists", []) if a.get("name"))
+
+
 def build_spotify_client(cache_path: str, *, open_browser: bool = False,
                          requests_timeout: int = _REQUEST_TIMEOUT_S):
     """Build an authed spotipy client (PKCE -> no client secret on device).
@@ -234,7 +239,7 @@ class SpotifyTool:
         if not cur or not cur.get("item"):
             return ToolResult(True, "nothing is playing right now", data={"playing": False})
         item = cur["item"]
-        artists = ", ".join(a["name"] for a in item.get("artists", []))
+        artists = _join_artists(item)
         label = f"{item.get('name', 'something')}" + (f" by {artists}" if artists else "")
         return ToolResult(True, f"now playing {label}", data={"playing": True, "track": label})
 
@@ -242,7 +247,11 @@ class SpotifyTool:
         names = [d["name"] for d in self._live_devices()]
         return ToolResult(True, "available speakers: " + ", ".join(names), data={"devices": names})
 
-    # ----- now-playing context (always-on, cached, non-blocking) -----------
+    # ----- now-playing context (always-on, short-cache live fetch) ---------
+    # This deliberately lives on the tool rather than in utils/context_provider
+    # (which serves weather/news): now-playing is part of the Spotify capability,
+    # reusing this instance's authed client/timeout/error handling, whereas the
+    # context providers are env-keyed module singletons the engine doesn't own.
 
     def now_playing_context(self) -> Optional[str]:
         """A short 'now playing' line for the LLM context, or None when nothing is
@@ -267,7 +276,7 @@ class SpotifyTool:
             return None
         item = cur["item"]
         name = item.get("name") or "something"
-        artists = ", ".join(a["name"] for a in item.get("artists", []) if a.get("name"))
+        artists = _join_artists(item)
         album = (item.get("album") or {}).get("name")
         parts = [f'"{name}"']
         if artists:
@@ -302,7 +311,7 @@ class SpotifyTool:
         artist = named(res.get("artists", {}).get("items"))
 
         def track_choice():
-            artists = ", ".join(a["name"] for a in track.get("artists", []))
+            artists = _join_artists(track)
             return track["uri"], track["name"] + (f" by {artists}" if artists else "")
 
         wants_collection = any(cue in ql for cue in cls._COLLECTION_CUES)
