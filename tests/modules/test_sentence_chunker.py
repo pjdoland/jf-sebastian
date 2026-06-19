@@ -46,6 +46,33 @@ def test_keeps_decimals_intact():
     assert all(not c.strip().endswith("3.") for c in out)
 
 
+def test_decimal_split_across_tokens_is_not_broken():
+    # The API streams "1.5" as separate tokens; the period lands at the buffer
+    # edge before "5" arrives. The chunker must not treat it as a sentence end.
+    c = SentenceChunker(3)
+    out = []
+    for tok in ["Shake ", "1", ".", "5", " oz ", "rum ", "then ", "strain ",
+                "it ", "well", "."]:
+        out += c.feed(tok)
+    tail = c.flush()
+    if tail:
+        out.append(tail)
+    joined = " ".join(out)
+    assert "1.5" in joined          # decimal preserved
+    assert "1. 5" not in joined     # not split + rejoined-with-space
+
+    # Same for a leading-dot decimal (".5 oz") arriving as "." then "5".
+    c2 = SentenceChunker(3)
+    out2 = []
+    for tok in ["Add ", ".", "5", " oz ", "lime ", "juice ", "to ", "it ",
+                "now", "."]:
+        out2 += c2.feed(tok)
+    tail2 = c2.flush()
+    if tail2:
+        out2.append(tail2)
+    assert ".5 oz" in " ".join(out2)
+
+
 def test_flush_returns_none_when_empty():
     assert SentenceChunker(3).flush() is None
 

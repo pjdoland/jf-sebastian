@@ -14,12 +14,16 @@ tested in isolation.
 
 import re
 
-# A sentence boundary is . ! or ? with a non-space char before it and whitespace
-# (or end) after it. The lookbehind avoids floating punctuation; the lookahead
-# keeps decimals like "3.5" intact (that dot is followed by a digit, not space).
-SENTENCE_END_PATTERN = re.compile(r'(?<=\S)[.!?]+(?=\s|$)')
-# Fallback split point for the soft cap: a comma followed by space or end.
-CLAUSE_END_PATTERN = re.compile(r',(?=\s|$)')
+# A sentence boundary is . ! or ? with a non-space char before it and real
+# whitespace after it. The trailing-whitespace requirement (not end-of-string)
+# is important while streaming: a period sitting at the current buffer's edge may
+# be a decimal mid-number ("1.5" arriving as "1." then "5"), so we defer it to
+# the next token or to flush() instead of splitting it. The lookbehind avoids
+# floating punctuation; the lookahead keeps decimals like "3.5" intact too (that
+# dot is followed by a digit, not whitespace).
+SENTENCE_END_PATTERN = re.compile(r'(?<=\S)[.!?]+(?=\s)')
+# Fallback split point for the soft cap: a comma followed by whitespace.
+CLAUSE_END_PATTERN = re.compile(r',(?=\s)')
 
 # Tokens whose trailing period is usually an abbreviation, not a sentence end.
 # Lets "Hello Dr." keep accumulating instead of splitting after "Dr."
