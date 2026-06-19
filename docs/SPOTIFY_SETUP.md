@@ -70,9 +70,11 @@ the token thereafter. If the refresh token is ever revoked (password change,
 ## Now-playing context
 When Spotify is enabled, the currently-playing track (title, artist, album) is
 injected into the conversation context each turn, so the personality can discuss
-it naturally without you asking it to look anything up. The lookup is cached and
-refreshed in the background, so it adds no latency. Turn it off with
-`SPOTIFY_NOW_PLAYING_CONTEXT=false` while keeping playback control.
+it naturally without you asking it to look anything up. It is fetched live (with a
+short cache to coalesce rapid back-to-back turns) so it reflects the song actually
+playing; the quick lookup is masked by the filler audio that plays during
+processing. Turn it off with `SPOTIFY_NOW_PLAYING_CONTEXT=false` while keeping
+playback control.
 
 ## Notes
 - A target speaker that's asleep/offline won't appear; the character says so.

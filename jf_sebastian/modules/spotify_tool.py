@@ -21,7 +21,6 @@ Design notes (shaped by review):
 
 import logging
 import os
-import threading
 import time
 from dataclasses import dataclass, field
 from difflib import SequenceMatcher
@@ -38,7 +37,7 @@ SCOPES = "user-read-playback-state user-modify-playback-state"
 _REQUEST_TIMEOUT_S = 5          # hard per-call timeout (mirrors weather.py)
 _VOLUME_MAX = 70                # clamp: a stray "max volume" utterance shouldn't blast the house
 _SEARCH_TYPES = "track,artist,playlist,album"
-_NOW_PLAYING_TTL_S = 20         # how long a cached "now playing" line stays fresh (songs run minutes)
+_NOW_PLAYING_TTL_S = 5          # brief cache to coalesce rapid back-to-back turns (kept short so "what's playing" stays current)
 
 
 @dataclass
@@ -111,12 +110,10 @@ class SpotifyTool:
         self.aliases = _parse_aliases(settings.SPOTIFY_DEVICE_ALIASES)
         self.token_cache = os.path.expanduser(settings.SPOTIFY_TOKEN_CACHE)
         self._sp = None  # lazy spotipy client
-        # "Now playing" context cache (non-blocking: stale reads refresh in a
-        # background thread and return the previous value immediately).
+        # "Now playing" context: a short cache so rapid back-to-back turns don't
+        # each hit the API; stale reads fetch live so the answer stays current.
         self._np_value: Optional[str] = None
         self._np_time = 0.0
-        self._np_in_flight = False
-        self._np_lock = threading.Lock()
 
     # ----- client (lazy, hardened) -----------------------------------------
 
@@ -248,28 +245,17 @@ class SpotifyTool:
     # ----- now-playing context (always-on, cached, non-blocking) -----------
 
     def now_playing_context(self) -> Optional[str]:
-        """A short 'now playing' line for the LLM context, or None when nothing
-        is playing / Spotify isn't set up. Never blocks the conversation turn:
-        returns the cached value and refreshes in a background thread when stale."""
+        """A short 'now playing' line for the LLM context, or None when nothing is
+        playing / Spotify isn't set up. Fetches live so the answer reflects the
+        song that's actually playing; a brief cache only coalesces rapid
+        back-to-back turns. The lookup is bounded by the client request timeout
+        and is masked by the filler audio that plays during processing."""
         now = time.monotonic()
-        with self._np_lock:
-            if self._np_time and (now - self._np_time) < _NOW_PLAYING_TTL_S:
-                return self._np_value          # fresh
-            if self._np_in_flight:
-                return self._np_value          # a refresh is already running
-            self._np_in_flight = True
-        threading.Thread(target=self._refresh_now_playing, daemon=True).start()
-        return self._np_value                  # stale (or None on cold start)
-
-    def _refresh_now_playing(self) -> None:
-        try:
-            value = self._fetch_now_playing()
-        except Exception:                      # never let a refresh crash a thread
-            value = None
-        with self._np_lock:
-            self._np_value = value
-            self._np_time = time.monotonic()
-            self._np_in_flight = False
+        if self._np_time and (now - self._np_time) < _NOW_PLAYING_TTL_S:
+            return self._np_value              # within the coalescing window
+        self._np_value = self._fetch_now_playing()
+        self._np_time = now
+        return self._np_value
 
     def _fetch_now_playing(self) -> Optional[str]:
         """Build the now-playing line from current_playback(), or None."""

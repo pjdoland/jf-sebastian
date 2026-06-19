@@ -219,6 +219,17 @@ def test_now_playing_context_error_returns_none():
     assert make_tool(fake)._fetch_now_playing() is None
 
 
+def test_now_playing_context_cold_fetches_live():
+    # Regression: a cold read must return the song that's actually playing now,
+    # not None / a stale value.
+    t = make_tool(FakeSpotify(playback=_np()))
+    assert t.now_playing_context() == 'Now playing on Spotify: "Quiet Village" by Martin Denny (album: Exotica).'
+
+
+def test_now_playing_context_cold_none_when_nothing_playing():
+    assert make_tool(FakeSpotify(playback=None)).now_playing_context() is None
+
+
 def test_now_playing_context_returns_fresh_cache():
     t = make_tool(FakeSpotify())
     t._np_value = 'Now playing on Spotify: "X" by A.'
@@ -226,9 +237,14 @@ def test_now_playing_context_returns_fresh_cache():
     assert t.now_playing_context() == 'Now playing on Spotify: "X" by A.'
 
 
-def test_now_playing_context_cold_is_nonblocking_none():
-    # cold read returns the cached value (None) immediately and refreshes in the bg
-    assert make_tool(FakeSpotify(playback=None)).now_playing_context() is None
+def test_now_playing_context_caches_within_ttl_then_refetches():
+    fake = FakeSpotify(playback=_np(name="Song A"))
+    t = make_tool(fake)
+    assert "Song A" in t.now_playing_context()
+    fake._playback = _np(name="Song B")
+    assert "Song A" in t.now_playing_context()   # coalesced within the TTL window
+    t._np_time = 0                               # force stale
+    assert "Song B" in t.now_playing_context()   # refetched live
 
 
 def test_transfer():
