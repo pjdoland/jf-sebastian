@@ -651,17 +651,33 @@ RVC (Retrieval-based Voice Conversion) is an optional feature that transforms TT
 
 ### RVC Configuration
 
-Add RVC settings to your `personality.yaml`:
+**Quick path (convention over configuration):** name your model and index after
+the personality's folder and just drop them in. For a folder `captain/`, that is
+`captain/captain.pth` (and optionally `captain/captain.index`). You do not even
+need `rvc_enabled` or `rvc_model` lines: an omitted `rvc_enabled` auto-enables
+RVC when a matching `<foldername>.pth` is found, and stays off otherwise.
+
+`rvc_enabled` is tri-state:
+- `true` = on (use the model if found, else fall back to the raw TTS audio)
+- `false` = off, even if a matching `.pth` is present (an explicit off switch)
+- omitted = auto: on only if a model file resolves
+
+`rvc_model` / `rvc_index_file` are optional. If set, the explicit value is used;
+if omitted, the loader looks for `<foldername>.pth` / `<foldername>.index` in the
+personality directory. If nothing resolves, RVC is skipped and the raw TTS audio
+plays through unchanged.
+
+For full control you can still spell everything out:
 
 ```yaml
-# Enable RVC voice conversion
+# Enable RVC voice conversion (optional; omit to auto-enable when a model exists)
 rvc_enabled: true
 
-# RVC model file (.pth format)
+# RVC model file (.pth). Optional: omit to use <foldername>.pth by convention.
 # Place in your personality directory or global rvc_models/ folder
 rvc_model: captain_voice.pth
 
-# Optional: Index file for improved quality
+# Optional: Index file (omit to use <foldername>.index by convention)
 rvc_index_file: captain_voice.index
 
 # Pitch shift in semitones (-12 to +12)
@@ -810,29 +826,26 @@ RVC_DEVICE=mps  # or cpu, cuda
 ## Advanced: Voice-Controlled Music (Spotify)
 
 A personality can control Spotify by voice ("play some tiki music in the kitchen",
-"skip", "turn it up"). It's opt-in per personality and off unless the system is
-configured for it.
-
-Add one line to your `personality.yaml`:
+"skip", "turn it up"). It's on by default; nothing needs to be added to your
+`personality.yaml`. To exclude a specific character, set:
 
 ```yaml
-# Let this personality control Spotify playback by voice
-spotify_enabled: true
+# Keep this character out of Spotify control
+spotify_enabled: false
 ```
 
 The music tools are only offered to the model when **both** are true:
-1. `spotify_enabled: true` on the personality (above), and
+1. `spotify_enabled` is not `false` on the personality (it defaults to true), and
 2. `SPOTIFY_ENABLED=true` in `.env`.
 
 Completing the one-time login is a third requirement for the tools to actually
 reach Spotify; without it a music command just returns a spoken "not set up" reply
-rather than playing anything. And a personality with `spotify_enabled: true`
-running on a system where `SPOTIFY_ENABLED` is off simply behaves as if the
-feature didn't exist (no tools are offered at all). Full setup (Spotify app,
+rather than playing anything. And when `SPOTIFY_ENABLED` is off, no personality is
+offered the tools at all, so the feature is simply absent. Full setup (Spotify app,
 Premium requirement, browser login, choosing speakers) is in
-[SPOTIFY_SETUP.md](SPOTIFY_SETUP.md). Consider giving a music-capable personality a
-couple of short, snappy filler phrases too, since music commands feel best with a
-brief lead-in rather than a long one.
+[SPOTIFY_SETUP.md](SPOTIFY_SETUP.md). Consider giving a personality a couple of
+short, snappy filler phrases too, since music commands feel best with a brief
+lead-in rather than a long one.
 
 ---
 

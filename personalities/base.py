@@ -42,13 +42,18 @@ class Personality:
 
     # RVC Voice Conversion (optional)
     rvc_enabled: bool = False
-    """Enable RVC voice conversion for this personality"""
+    """Whether RVC voice conversion is active for this personality. In YAML this
+    is tri-state: true = on, false = off, omitted = auto (on iff a model file
+    resolves). The loader collapses 'omitted' into this effective boolean."""
 
     rvc_model: Optional[str] = None
-    """RVC model filename (.pth) - looked up in personality dir, then global rvc_models/"""
+    """RVC model filename (.pth). If unset, falls back to the convention
+    <dirname>.pth in the personality dir. Explicit value is looked up in the
+    personality dir, then global rvc_models/."""
 
     rvc_index_file: Optional[str] = None
-    """RVC index filename (.index) - optional, looked up in personality dir"""
+    """RVC index filename (.index), optional. If unset, falls back to the
+    convention <dirname>.index in the personality dir."""
 
     rvc_pitch_shift: int = 0
     """RVC pitch shift in semitones (-12 to +12)"""
@@ -69,8 +74,10 @@ class Personality:
     """RVC voiceless consonant protection (0.0 to 0.5, lower = faster)"""
 
     # Tools (optional)
-    spotify_enabled: bool = False
-    """Let this personality control Spotify playback by voice (needs SPOTIFY_ENABLED + setup)"""
+    spotify_enabled: bool = True
+    """Let this personality control Spotify playback by voice. On by default; set
+    spotify_enabled: false in personality.yaml to exclude a character. Only has an
+    effect when SPOTIFY_ENABLED is set globally and Spotify is authorized."""
 
     @property
     def wake_word_model_paths(self) -> List[Path]:
@@ -90,42 +97,47 @@ class Personality:
     @property
     def rvc_model_path(self) -> Optional[Path]:
         """
-        Get full path to RVC model file.
-        Checks personality directory first, then global rvc_models/ directory.
-        Returns None if model not specified or not found.
+        Get full path to the RVC model file.
+
+        If rvc_model is set explicitly, use it (personality directory first, then
+        the global rvc_models/ directory). If it is not set, fall back to the
+        convention <dirname>.pth in the personality directory. Returns None if
+        nothing is found, in which case RVC degrades to the raw TTS audio.
         """
-        if not self.rvc_model:
+        if self.rvc_model:
+            # Explicit value: personality directory first, then global rvc_models/
+            personality_model = self.personality_dir / self.rvc_model
+            if personality_model.exists():
+                return personality_model
+
+            from jf_sebastian.config import settings
+            global_model = settings.RVC_MODEL_DIR / self.rvc_model
+            if global_model.exists():
+                return global_model
+
             return None
 
-        # Check personality directory first
-        personality_model = self.personality_dir / self.rvc_model
-        if personality_model.exists():
-            return personality_model
-
-        # Check global RVC models directory
-        from jf_sebastian.config import settings
-        global_model = settings.RVC_MODEL_DIR / self.rvc_model
-        if global_model.exists():
-            return global_model
-
-        # Model not found in either location
-        return None
+        # No explicit value: convention <dirname>.pth in the personality directory
+        convention = self.personality_dir / f"{self.personality_dir.name}.pth"
+        return convention if convention.exists() else None
 
     @property
     def rvc_index_path(self) -> Optional[Path]:
         """
-        Get full path to RVC index file.
-        Only checks personality directory (index files are model-specific).
-        Returns None if index not specified or not found.
+        Get full path to the RVC index file (optional, index files are
+        model-specific so only the personality directory is checked).
+
+        If rvc_index_file is set explicitly, use it. If it is not set, fall back
+        to the convention <dirname>.index in the personality directory. Returns
+        None if nothing is found, in which case RVC runs without an index.
         """
-        if not self.rvc_index_file:
-            return None
+        if self.rvc_index_file:
+            index_path = self.personality_dir / self.rvc_index_file
+            return index_path if index_path.exists() else None
 
-        index_path = self.personality_dir / self.rvc_index_file
-        if index_path.exists():
-            return index_path
-
-        return None
+        # No explicit value: convention <dirname>.index in the personality directory
+        convention = self.personality_dir / f"{self.personality_dir.name}.index"
+        return convention if convention.exists() else None
 
     def get_description(self) -> str:
         """Get a human-readable description of this personality"""
@@ -181,21 +193,46 @@ def load_personality_from_yaml(personality_dir: Path) -> Personality:
             f"personality.yaml in {personality_dir}: 'tts_speed' must be between 0.25 and 4.0"
         )
 
-    # Get optional RVC settings with defaults
-    rvc_enabled = data.get('rvc_enabled', False)
+    # Get optional RVC settings with defaults. rvc_enabled is tri-state:
+    #   - explicitly true  -> RVC on
+    #   - explicitly false -> RVC off (authoritative, even if a model file exists)
+    #   - omitted (None)   -> auto: on iff a model resolves (see below)
+    rvc_enabled_raw = data.get('rvc_enabled', None)
     rvc_model = data.get('rvc_model', None)
     rvc_index_file = data.get('rvc_index_file', None)
     rvc_pitch_shift = data.get('rvc_pitch_shift', 0)
     rvc_index_rate = data.get('rvc_index_rate', 0.5)
     rvc_f0_method = data.get('rvc_f0_method', 'harvest')
 
-    # Validate RVC settings if enabled
-    if rvc_enabled:
-        if not rvc_model:
-            raise ValueError(
-                f"personality.yaml in {personality_dir}: 'rvc_model' is required when rvc_enabled=true"
-            )
+    # Create Personality instance
+    personality = Personality(
+        name=data['name'],
+        tts_voice=data['tts_voice'],
+        wake_word_model=data['wake_word_model'],
+        system_prompt=data['system_prompt'],
+        filler_phrases=data['filler_phrases'],
+        personality_dir=personality_dir,
+        tts_speed=tts_speed,
+        tts_style=tts_style,
+        rvc_enabled=bool(rvc_enabled_raw),
+        rvc_model=rvc_model,
+        rvc_index_file=rvc_index_file,
+        rvc_pitch_shift=rvc_pitch_shift,
+        rvc_index_rate=rvc_index_rate,
+        rvc_f0_method=rvc_f0_method,
+        spotify_enabled=bool(data.get('spotify_enabled', True)),
+    )
 
+    # When rvc_enabled is omitted, auto-enable RVC iff a model resolves (an
+    # explicit rvc_model, or the <dirname>.pth convention). If nothing is found,
+    # RVC stays off and playback uses the raw TTS audio.
+    if rvc_enabled_raw is None:
+        personality.rvc_enabled = personality.rvc_model_path is not None
+
+    # Validate RVC tuning values only when RVC is actually active. rvc_model is
+    # optional: when omitted, the model/index are auto-discovered by the
+    # <dirname>.pth / <dirname>.index convention (see rvc_model_path).
+    if personality.rvc_enabled:
         if not isinstance(rvc_pitch_shift, int) or rvc_pitch_shift < -12 or rvc_pitch_shift > 12:
             raise ValueError(
                 f"personality.yaml in {personality_dir}: 'rvc_pitch_shift' must be an integer between -12 and 12"
@@ -212,24 +249,7 @@ def load_personality_from_yaml(personality_dir: Path) -> Personality:
                 f"personality.yaml in {personality_dir}: 'rvc_f0_method' must be one of {valid_f0_methods}"
             )
 
-    # Create Personality instance
-    return Personality(
-        name=data['name'],
-        tts_voice=data['tts_voice'],
-        wake_word_model=data['wake_word_model'],
-        system_prompt=data['system_prompt'],
-        filler_phrases=data['filler_phrases'],
-        personality_dir=personality_dir,
-        tts_speed=tts_speed,
-        tts_style=tts_style,
-        rvc_enabled=rvc_enabled,
-        rvc_model=rvc_model,
-        rvc_index_file=rvc_index_file,
-        rvc_pitch_shift=rvc_pitch_shift,
-        rvc_index_rate=rvc_index_rate,
-        rvc_f0_method=rvc_f0_method,
-        spotify_enabled=bool(data.get('spotify_enabled', False)),
-    )
+    return personality
 
 
 def discover_personalities(personalities_root: Path) -> dict[str, Path]:

@@ -253,9 +253,9 @@ Personalities are defined in `personality.yaml` files with these fields:
 - **`tts_style`**: Style instruction to control tone, emotional range, intonation, and speaking style (e.g., "Speak warmly and casually" or "Use a dignified, authoritative tone")
 
 **Optional RVC (voice conversion) settings:**
-- **`rvc_enabled`**: Enable RVC voice conversion (default: false)
-- **`rvc_model`**: RVC model filename (.pth format)
-- **`rvc_index_file`**: Optional index file for improved quality
+- **`rvc_enabled`**: Tri-state. `true` = on, `false` = off (authoritative, even if a model file is present), **omitted** = auto (on only if a model file resolves). So a personality whose folder contains a matching `.pth` turns RVC on by itself.
+- **`rvc_model`**: RVC model filename (.pth). Optional: if omitted, the loader looks for `<foldername>.pth` in the personality directory (e.g. `fred/fred.pth`). An explicit value is used as-is. If nothing resolves, RVC is skipped and the raw TTS audio is used.
+- **`rvc_index_file`**: Optional index file for improved quality. Same convention: if omitted, looks for `<foldername>.index`.
 - **`rvc_pitch_shift`**: Pitch adjustment in semitones, -12 to +12 (default: 0)
 - **`rvc_index_rate`**: Index influence, 0.0 to 1.0 (default: 0.75)
 - **`rvc_f0_method`**: Pitch detection method - rmvpe, crepe, harvest, or pm (default: rmvpe)
@@ -266,7 +266,7 @@ Personalities are defined in `personality.yaml` files with these fields:
 **Note:** RVC transforms TTS output with custom trained voice models for unique character voices beyond OpenAI TTS alone. See [docs/CREATING_PERSONALITIES.md](../docs/CREATING_PERSONALITIES.md) for detailed RVC setup guide.
 
 **Optional Spotify settings:**
-- **`spotify_enabled`**: Let this personality control Spotify playback by voice (default: false). This is the per-personality opt-in; the music tools are only offered to the model when this is true **and** `SPOTIFY_ENABLED=true` in `.env`. Completing the one-time login is what lets those tools actually reach Spotify (without it, a music command just returns a spoken "not set up" reply). See [docs/SPOTIFY_SETUP.md](../docs/SPOTIFY_SETUP.md).
+- **`spotify_enabled`**: Let this personality control Spotify playback by voice (**default: true**). Set it to `false` to exclude this character. The music tools are only offered to the model when this isn't false **and** `SPOTIFY_ENABLED=true` in `.env`. Completing the one-time login is what lets those tools actually reach Spotify (without it, a music command just returns a spoken "not set up" reply). See [docs/SPOTIFY_SETUP.md](../docs/SPOTIFY_SETUP.md).
 
 ### Auto-Discovery
 

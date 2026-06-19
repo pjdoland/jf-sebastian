@@ -115,7 +115,7 @@ Includes seven distinct personalities: a tiki bartender, Abraham Lincoln (a homa
 - **Animatronic Control** (Teddy Ruxpin): Generates PPM control signals for mouth (syllable-based lip sync) and eyes (sentiment-based)
 - **Flexible Output**: Device-specific audio processing (stereo with PPM for Teddy, simple stereo for Squawkers)
 - **Proactive Scheduler** (Optional): Per-personality `scheduled_events.yaml` for morning greetings, bedtime stories, holiday surprises — never interrupts an in-progress conversation
-- **Voice-Controlled Music** (Optional): Opt-in personalities can control Spotify by voice ("play some tiki music in the kitchen", "skip", "turn it up") via the Spotify Web API, targeting any Spotify Connect speaker. Premium required; see [docs/SPOTIFY_SETUP.md](docs/SPOTIFY_SETUP.md)
+- **Voice-Controlled Music** (Optional): When enabled, personalities can control Spotify by voice ("play some tiki music in the kitchen", "skip", "turn it up") via the Spotify Web API, targeting any Spotify Connect speaker. On by default per personality (opt a character out with `spotify_enabled: false`). Premium required; see [docs/SPOTIFY_SETUP.md](docs/SPOTIFY_SETUP.md)
 
 ## Quick Start
 
@@ -693,7 +693,7 @@ Use the overlays for things like `VOICE_GAIN` that differ by speaker hardware or
 
 #### Spotify Playback (Optional)
 
-Off by default. Requires Spotify Premium, a one-time browser login (`python scripts/spotify_auth.py`), and `spotify_enabled: true` on the personality. Full walkthrough in [docs/SPOTIFY_SETUP.md](docs/SPOTIFY_SETUP.md).
+Off by default. Requires Spotify Premium and a one-time browser login (`python scripts/spotify_auth.py`). Once `SPOTIFY_ENABLED=true`, every personality can control playback by default; opt a character out with `spotify_enabled: false`. Full walkthrough in [docs/SPOTIFY_SETUP.md](docs/SPOTIFY_SETUP.md).
 
 | Setting | Description | Default |
 |---------|-------------|---------|
@@ -824,7 +824,7 @@ Deploying on an NVIDIA Jetson Orin Nano? See [JETSON_DEPLOYMENT.md](docs/JETSON_
 11. **Real-World Context Provider**: Injects current date/time, weather (pluggable: wttr / Home Assistant / manual), and top news headlines (pluggable: RSS / Hacker News / manual) into the LLM context every turn
 12. **Proactive Scheduler**: Per-personality `scheduled_events.yaml` for proactive utterances (greetings, bedtime stories) — fires only when state is IDLE, never interrupts a conversation
 13. **Process Supervisor** (Optional): `scripts/supervisor.py` keeps the app alive across crashes with exponential-backoff restart, watchdog kill of hung children, and crash reports — for unattended deployments via launchd / systemd
-14. **Spotify Playback Tools** (Optional): `modules/spotify_tool.py` exposes music controls to the LLM via function calling. On a music request the engine emits a tool call, the app runs it against the Spotify Web API (`spotipy`, PKCE auth), and the character speaks a short confirmation. Targets a Spotify Connect speaker, not the animatronic's own output; opt-in per personality (`spotify_enabled`)
+14. **Spotify Playback Tools** (Optional): `modules/spotify_tool.py` exposes music controls to the LLM via function calling. On a music request the engine emits a tool call, the app runs it against the Spotify Web API (`spotipy`, PKCE auth), and the character speaks a short confirmation. Targets a Spotify Connect speaker, not the animatronic's own output; on by default per personality (opt out with `spotify_enabled: false`)
 
 ## Troubleshooting
 

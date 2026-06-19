@@ -9,7 +9,6 @@ tts_style: >
 wake_word_model: hey_jarvis.onnx
 
 # RVC Voice Conversion - Jarvis custom voice
-rvc_enabled: true
 rvc_model: jarvis.pth
 rvc_index_file: jarvis.index
 rvc_pitch_shift: 0

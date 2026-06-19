@@ -244,6 +244,78 @@ def test_discover_personalities_nonexistent_dir():
     assert personalities == {}
 
 
+# ----- RVC model auto-discovery + tri-state rvc_enabled -----------------------
+
+def _make_personality_dir(tmp, dirname="fred", **extra):
+    """Write a minimal personality.yaml (plus any extra keys) and return its dir."""
+    pdir = Path(tmp) / dirname
+    pdir.mkdir()
+    data = {
+        "name": "Mister Rogers",
+        "tts_voice": "echo",
+        "wake_word_model": f"hey_{dirname}.onnx",
+        "system_prompt": "You are a test character.",
+        "filler_phrases": ["Hmm..."],
+    }
+    data.update(extra)
+    with open(pdir / "personality.yaml", "w") as f:
+        yaml.dump(data, f)
+    return pdir
+
+
+def test_rvc_autodiscovers_model_and_index_by_convention():
+    with tempfile.TemporaryDirectory() as tmp:
+        pdir = _make_personality_dir(tmp, "fred", rvc_enabled=True)  # no rvc_model
+        (pdir / "fred.pth").write_bytes(b"x")
+        (pdir / "fred.index").write_bytes(b"y")
+        p = load_personality_from_yaml(pdir)
+        assert p.rvc_enabled is True
+        assert p.rvc_model_path == pdir / "fred.pth"
+        assert p.rvc_index_path == pdir / "fred.index"
+
+
+def test_rvc_explicit_model_overrides_convention():
+    with tempfile.TemporaryDirectory() as tmp:
+        pdir = _make_personality_dir(tmp, "fred", rvc_enabled=True, rvc_model="custom.pth")
+        (pdir / "custom.pth").write_bytes(b"x")
+        (pdir / "fred.pth").write_bytes(b"x")  # convention also present, must lose
+        p = load_personality_from_yaml(pdir)
+        assert p.rvc_model_path == pdir / "custom.pth"
+
+
+def test_rvc_omitted_autoenables_when_model_present():
+    with tempfile.TemporaryDirectory() as tmp:
+        pdir = _make_personality_dir(tmp, "fred")  # rvc_enabled omitted entirely
+        (pdir / "fred.pth").write_bytes(b"x")
+        p = load_personality_from_yaml(pdir)
+        assert p.rvc_enabled is True               # auto-on because a model resolved
+        assert p.rvc_model_path == pdir / "fred.pth"
+
+
+def test_rvc_omitted_stays_off_without_model():
+    with tempfile.TemporaryDirectory() as tmp:
+        pdir = _make_personality_dir(tmp, "fred")  # omitted, no files
+        p = load_personality_from_yaml(pdir)
+        assert p.rvc_enabled is False
+        assert p.rvc_model_path is None
+
+
+def test_rvc_explicit_false_stays_off_even_with_model_present():
+    with tempfile.TemporaryDirectory() as tmp:
+        pdir = _make_personality_dir(tmp, "johnny", rvc_enabled=False)
+        (pdir / "johnny.pth").write_bytes(b"x")    # file present but explicitly disabled
+        p = load_personality_from_yaml(pdir)
+        assert p.rvc_enabled is False
+
+
+def test_rvc_enabled_true_without_model_loads_and_degrades():
+    with tempfile.TemporaryDirectory() as tmp:
+        pdir = _make_personality_dir(tmp, "fred", rvc_enabled=True)  # no model, no files
+        p = load_personality_from_yaml(pdir)        # must NOT raise (old loader did)
+        assert p.rvc_enabled is True
+        assert p.rvc_model_path is None             # runtime degrades to raw TTS
+
+
 def test_personality_get_description_with_multisentence_prompt():
     """Test get_description with multi-sentence system prompt."""
     personality_dir = Path("/fake/path/multi")

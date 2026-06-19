@@ -17,7 +17,6 @@ tts_style: >
 wake_word_model: hey_teddy_ruxpin.onnx
 
 # RVC Voice Conversion - Authentic Teddy Ruxpin voice
-rvc_enabled: true
 rvc_model: teddy_ruxpin.pth
 rvc_index_file: teddy_ruxpin.index
 rvc_pitch_shift: 0

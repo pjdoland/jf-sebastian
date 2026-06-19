@@ -10,7 +10,6 @@ tts_style: >
 wake_word_model: hey_kitt.onnx
 
 # RVC Voice Conversion - K.I.T.T. custom voice
-rvc_enabled: true
 rvc_model: kitt.pth
 rvc_index_file: kitt.index
 rvc_pitch_shift: 0

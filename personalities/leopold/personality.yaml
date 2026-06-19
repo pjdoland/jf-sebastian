@@ -16,7 +16,6 @@ tts_style: "Speak urgently and conspiratorially, as if sharing important secrets
 # RVC Voice Conversion - Dale Gribble from King of the Hill
 # Transforms TTS output to match Dale's distinctive paranoid voice
 # Settings optimized for 5x faster conversion with minimal quality loss
-rvc_enabled: true
 rvc_model: leopold.pth  # Model file in this personality's directory
 rvc_pitch_shift: 0
 rvc_index_rate: 0.75  # Feature retrieval influence (0.0-1.0, higher = more index influence)

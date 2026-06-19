@@ -32,9 +32,10 @@ SPOTIFY_CLIENT_ID=your_client_id
 SPOTIFY_DEFAULT_DEVICE=Living Room          # speaker for "play X" with no room named
 # SPOTIFY_DEVICE_ALIASES=kitchen=Kitchen Echo,den=Living Room
 ```
-Then enable it on a personality (`personalities/<name>/personality.yaml`):
+With the master switch on, every personality can control playback by default.
+To exclude a specific character, set this in its `personality.yaml`:
 ```yaml
-spotify_enabled: true
+spotify_enabled: false
 ```
 
 ## 4. Authorize once

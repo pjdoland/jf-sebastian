@@ -121,10 +121,13 @@ class AudioProcessor:
             logger.warning("RVC processor not available, using original audio")
             return audio, sample_rate
 
-        # Get model path
+        # Get model path (explicit rvc_model, or the <dirname>.pth convention)
         model_path = personality.rvc_model_path
         if model_path is None:
-            logger.error(f"RVC model not found: {personality.rvc_model}")
+            logger.warning(
+                "No RVC model for '%s' (no explicit rvc_model and no %s.pth); using raw TTS audio",
+                personality.name, personality.personality_dir.name,
+            )
             return audio, sample_rate
 
         # Get index path (optional)
@@ -198,10 +201,13 @@ class AudioProcessor:
             logger.warning("RVC processor not available, skipping warmup")
             return False
 
-        # Get model path
+        # Get model path (explicit rvc_model, or the <dirname>.pth convention)
         model_path = personality.rvc_model_path
         if model_path is None:
-            logger.warning(f"RVC model not found for warmup: {personality.rvc_model}")
+            logger.warning(
+                "No RVC model for '%s' to warm up (no explicit rvc_model and no %s.pth)",
+                personality.name, personality.personality_dir.name,
+            )
             return False
 
         # Get index path (optional)
