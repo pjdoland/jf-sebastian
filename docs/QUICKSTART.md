@@ -67,7 +67,7 @@ Set which personality you want to use in `.env`:
 
 ```bash
 # Options: 'johnny' (tiki bartender), 'mr_lincoln' (Abraham Lincoln), 'leopold' (conspiracy theorist),
-#          'fred' (Mister Rogers), 'kitt' (Knight Rider AI), 'teddy_ruxpin' (storytelling bear)
+#          'fred' (Mister Rogers), 'kitt' (Knight Rider AI), 'jarvis' (AI butler), 'teddy_ruxpin' (storytelling bear)
 PERSONALITY=johnny
 ```
 

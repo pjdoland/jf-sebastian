@@ -36,6 +36,12 @@ Personalities are defined using simple YAML files - **no programming required**.
 - **Character**: Advanced AI from the Knight Rider Trans Am - intelligent with dry wit and occasional sarcasm
 - **Filler phrases**: Scanning systems, analyzing data, running diagnostics, etc.
 
+### Jarvis (Just A Rather Very Intelligent System)
+- **Wake word**: "Hey, Jarvis"
+- **Voice**: Fable with RVC (refined British butler)
+- **Character**: Tony Stark's AI butler - unfailingly polite and precise, with dry wit and unflappable calm authority
+- **Filler phrases**: Consulting records, running diagnostics, cross-referencing databases, etc.
+
 ### Teddy Ruxpin (Storytelling Bear)
 - **Wake word**: "Hey, Teddy Ruxpin"
 - **Voice**: Echo with RVC (warm, friendly)
@@ -61,6 +67,9 @@ PERSONALITY=fred
 
 # Use K.I.T.T. (Knight Rider AI)
 PERSONALITY=kitt
+
+# Use Jarvis (AI butler)
+PERSONALITY=jarvis
 
 # Use Teddy Ruxpin
 PERSONALITY=teddy_ruxpin

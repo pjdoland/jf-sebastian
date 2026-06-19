@@ -5,7 +5,7 @@
 
 An AI conversation system that brings life to vintage animatronic toys. Built with a modular device architecture, this system supports multiple output devices including the 1985 Teddy Ruxpin and Squawkers McCaw. Features real-time voice conversations with ChatGPT, a modular personality system with unique wake words, voices, and conversational styles.
 
-Includes six distinct personalities: a tiki bartender, Abraham Lincoln (a homage to Disney's pioneering animatronics), an eccentric conspiracy theorist, Mister Rogers, K.I.T.T. from Knight Rider, and the classic Teddy Ruxpin character. Add your own personalities using simple YAML files - no programming required!
+Includes seven distinct personalities: a tiki bartender, Abraham Lincoln (a homage to Disney's pioneering animatronics), an eccentric conspiracy theorist, Mister Rogers, K.I.T.T. from Knight Rider, J.A.R.V.I.S. the AI butler, and the classic Teddy Ruxpin character. Add your own personalities using simple YAML files - no programming required!
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
@@ -43,6 +43,7 @@ Includes six distinct personalities: a tiki bartender, Abraham Lincoln (a homage
     - [Leopold - Conspiracy Theorist](#leopold-conspiracy-theorist)
     - [Fred - Mister Rogers](#fred-mister-rogers)
     - [K.I.T.T. - Knight Industries Two Thousand](#kitt-knight-industries-two-thousand)
+    - [Jarvis - Just A Rather Very Intelligent System](#jarvis-just-a-rather-very-intelligent-system)
     - [Teddy Ruxpin - Storytelling Bear](#teddy-ruxpin-storytelling-bear)
   - [Switching Personalities](#switching-personalities)
 - [Usage](#usage)
@@ -102,6 +103,7 @@ Includes six distinct personalities: a tiki bartender, Abraham Lincoln (a homage
   - **Leopold**: Eccentric conspiracy theorist with a wild backstory ("Hey, Leopold")
   - **Fred**: Mister Rogers with gentle warmth and simple wisdom ("Hey, Fred")
   - **K.I.T.T.**: Knight Industries Two Thousand AI from Knight Rider ("Hey, Kitt")
+  - **Jarvis**: Sophisticated AI butler with refined British wit ("Hey, Jarvis")
   - **Teddy Ruxpin**: The classic storytelling bear from Grundo ("Hey, Teddy Ruxpin")
 - **Wake Word Activation**: Custom wake words per personality using OpenWakeWord (free & open source)
 - **Low-Latency Fillers**: Pre-generated personality-specific phrases play immediately while processing
@@ -468,6 +470,12 @@ The system includes a modular personality framework. Each personality has:
 - **Character**: Advanced AI from the Knight Rider Trans Am - intelligent with dry wit
 - **Topics**: Advanced technology, crime fighting, surveillance mode, turbo boost, molecular bonded shell
 
+#### Jarvis - Just A Rather Very Intelligent System
+- **Wake word**: "Hey, Jarvis"
+- **Voice**: Fable with RVC (refined British butler)
+- **Character**: Tony Stark's sophisticated AI butler - unfailingly polite, precise, and quietly amused, with dry wit and calm authority
+- **Topics**: Household and systems management, physics and engineering, suit telemetry and diagnostics, encyclopedic general knowledge
+
 #### Teddy Ruxpin - Storytelling Bear
 - **Wake word**: "Hey, Teddy Ruxpin"
 - **Voice**: Echo with RVC (friendly, enthusiastic)
@@ -493,6 +501,9 @@ PERSONALITY=fred
 
 # Switch to K.I.T.T. (Knight Rider AI)
 PERSONALITY=kitt
+
+# Switch to Jarvis (AI butler)
+PERSONALITY=jarvis
 
 # Switch to Teddy Ruxpin (Storytelling Bear)
 PERSONALITY=teddy_ruxpin
@@ -560,7 +571,7 @@ All supervisor settings (`HEARTBEAT_INTERVAL`, `WATCHDOG_TIMEOUT`, `RESTART_BACK
 
 ### Having a Conversation
 
-1. **Wake the character**: Say the wake word ("Hey, Johnny", "Hey, Mr. Lincoln", "Hey, Leopold", "Hey, Fred", "Hey, Kitt", or "Hey, Teddy Ruxpin")
+1. **Wake the character**: Say the wake word ("Hey, Johnny", "Hey, Mr. Lincoln", "Hey, Leopold", "Hey, Fred", "Hey, Kitt", "Hey, Jarvis", or "Hey, Teddy Ruxpin")
 2. **Speak**: Once detected, speak your message
 3. **Listen**: Character responds with personality-appropriate answer
 4. **Repeat**: Continue the conversation
@@ -627,7 +638,7 @@ Use the overlays for things like `VOICE_GAIN` that differ by speaker hardware or
 
 | Setting | Description | Default |
 |---------|-------------|---------|
-| `PERSONALITY` | Active personality ('johnny', 'mr_lincoln', 'leopold', 'fred', 'kitt', 'teddy_ruxpin') | johnny |
+| `PERSONALITY` | Active personality ('johnny', 'mr_lincoln', 'leopold', 'fred', 'kitt', 'jarvis', 'teddy_ruxpin') | johnny |
 | `OPENAI_API_KEY` | OpenAI API key (required) | - |
 
 #### Audio Device Configuration
