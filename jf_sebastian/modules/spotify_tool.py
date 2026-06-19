@@ -21,6 +21,8 @@ Design notes (shaped by review):
 
 import logging
 import os
+import threading
+import time
 from dataclasses import dataclass, field
 from difflib import SequenceMatcher
 from typing import Optional
@@ -36,6 +38,7 @@ SCOPES = "user-read-playback-state user-modify-playback-state"
 _REQUEST_TIMEOUT_S = 5          # hard per-call timeout (mirrors weather.py)
 _VOLUME_MAX = 70                # clamp: a stray "max volume" utterance shouldn't blast the house
 _SEARCH_TYPES = "track,artist,playlist,album"
+_NOW_PLAYING_TTL_S = 20         # how long a cached "now playing" line stays fresh (songs run minutes)
 
 
 @dataclass
@@ -108,6 +111,12 @@ class SpotifyTool:
         self.aliases = _parse_aliases(settings.SPOTIFY_DEVICE_ALIASES)
         self.token_cache = os.path.expanduser(settings.SPOTIFY_TOKEN_CACHE)
         self._sp = None  # lazy spotipy client
+        # "Now playing" context cache (non-blocking: stale reads refresh in a
+        # background thread and return the previous value immediately).
+        self._np_value: Optional[str] = None
+        self._np_time = 0.0
+        self._np_in_flight = False
+        self._np_lock = threading.Lock()
 
     # ----- client (lazy, hardened) -----------------------------------------
 
@@ -235,6 +244,52 @@ class SpotifyTool:
     def list_devices(self) -> ToolResult:
         names = [d["name"] for d in self._live_devices()]
         return ToolResult(True, "available speakers: " + ", ".join(names), data={"devices": names})
+
+    # ----- now-playing context (always-on, cached, non-blocking) -----------
+
+    def now_playing_context(self) -> Optional[str]:
+        """A short 'now playing' line for the LLM context, or None when nothing
+        is playing / Spotify isn't set up. Never blocks the conversation turn:
+        returns the cached value and refreshes in a background thread when stale."""
+        now = time.monotonic()
+        with self._np_lock:
+            if self._np_time and (now - self._np_time) < _NOW_PLAYING_TTL_S:
+                return self._np_value          # fresh
+            if self._np_in_flight:
+                return self._np_value          # a refresh is already running
+            self._np_in_flight = True
+        threading.Thread(target=self._refresh_now_playing, daemon=True).start()
+        return self._np_value                  # stale (or None on cold start)
+
+    def _refresh_now_playing(self) -> None:
+        try:
+            value = self._fetch_now_playing()
+        except Exception:                      # never let a refresh crash a thread
+            value = None
+        with self._np_lock:
+            self._np_value = value
+            self._np_time = time.monotonic()
+            self._np_in_flight = False
+
+    def _fetch_now_playing(self) -> Optional[str]:
+        """Build the now-playing line from current_playback(), or None."""
+        try:
+            cur = self._client().current_playback()
+        except Exception:
+            return None
+        if not cur or not cur.get("item"):
+            return None
+        item = cur["item"]
+        name = item.get("name") or "something"
+        artists = ", ".join(a["name"] for a in item.get("artists", []) if a.get("name"))
+        album = (item.get("album") or {}).get("name")
+        parts = [f'"{name}"']
+        if artists:
+            parts.append(f"by {artists}")
+        if album:
+            parts.append(f"(album: {album})")
+        state = "Now playing" if cur.get("is_playing") else "Paused"
+        return f"{state} on Spotify: " + " ".join(parts) + "."
 
     # ----- helpers ---------------------------------------------------------
 

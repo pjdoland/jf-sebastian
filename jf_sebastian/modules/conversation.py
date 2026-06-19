@@ -129,6 +129,18 @@ class ConversationEngine:
         effort = (settings.GPT_REASONING_EFFORT or "").strip()
         return effort or None
 
+    def _build_turn_context(self) -> str:
+        """Transient per-turn system context: real-world info (date/weather/news)
+        plus, when Spotify is enabled, the currently-playing track so the
+        personality can answer questions about it. The now-playing lookup is
+        cached and non-blocking."""
+        parts = [get_realworld_context()]
+        if self._spotify_enabled and settings.SPOTIFY_NOW_PLAYING_CONTEXT:
+            now_playing = self._spotify_tool.now_playing_context()
+            if now_playing:
+                parts.append(now_playing)
+        return "\n".join(p for p in parts if p)
+
     def _get_effective_max_tokens(self, requested_tokens: int) -> int:
         """
         Get the effective max tokens value for the current model.
@@ -192,8 +204,7 @@ class ConversationEngine:
 
             # Build messages: history + transient real-world context (not stored in history)
             messages = list(self._messages)
-            realworld_context = get_realworld_context()
-            messages.insert(-1, {"role": "system", "content": realworld_context})
+            messages.insert(-1, {"role": "system", "content": self._build_turn_context()})
 
             # Call GPT API with appropriate parameters
             api_params = {
@@ -327,8 +338,7 @@ class ConversationEngine:
 
             # Build messages: history + transient real-world context (not stored in history)
             messages = list(self._messages)
-            realworld_context = get_realworld_context()
-            messages.insert(-1, {"role": "system", "content": realworld_context})
+            messages.insert(-1, {"role": "system", "content": self._build_turn_context()})
 
             # Call GPT API with streaming and appropriate parameters
             api_params = {

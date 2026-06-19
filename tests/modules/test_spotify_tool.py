@@ -1,5 +1,7 @@
 """Unit tests for the Spotify playback tool (spotipy fully mocked, no network)."""
 
+import time
+
 import pytest
 
 from jf_sebastian.modules.spotify_tool import (
@@ -182,6 +184,51 @@ def test_now_playing_active():
 def test_list_devices():
     res = make_tool(FakeSpotify()).dispatch("music_list_devices", {})
     assert res.ok and res.data["devices"] == ["Living Room", "Kitchen Echo"]
+
+
+# ----- now-playing context (always-on, cached, non-blocking) ----------------
+
+def _np(name="Quiet Village", artists=("Martin Denny",), album="Exotica", playing=True):
+    return {"is_playing": playing,
+            "item": {"name": name,
+                     "artists": [{"name": a} for a in artists],
+                     "album": {"name": album} if album else {}}}
+
+
+def test_now_playing_context_fetch_playing():
+    t = make_tool(FakeSpotify(playback=_np()))
+    assert t._fetch_now_playing() == 'Now playing on Spotify: "Quiet Village" by Martin Denny (album: Exotica).'
+
+
+def test_now_playing_context_paused():
+    t = make_tool(FakeSpotify(playback=_np(playing=False)))
+    assert t._fetch_now_playing().startswith("Paused on Spotify:")
+
+
+def test_now_playing_context_no_album():
+    t = make_tool(FakeSpotify(playback=_np(album=None)))
+    assert t._fetch_now_playing() == 'Now playing on Spotify: "Quiet Village" by Martin Denny.'
+
+
+def test_now_playing_context_nothing_playing():
+    assert make_tool(FakeSpotify(playback=None))._fetch_now_playing() is None
+
+
+def test_now_playing_context_error_returns_none():
+    fake = FakeSpotify(raise_on={"current_playback": FakeSpotifyException(500)})
+    assert make_tool(fake)._fetch_now_playing() is None
+
+
+def test_now_playing_context_returns_fresh_cache():
+    t = make_tool(FakeSpotify())
+    t._np_value = 'Now playing on Spotify: "X" by A.'
+    t._np_time = time.monotonic()
+    assert t.now_playing_context() == 'Now playing on Spotify: "X" by A.'
+
+
+def test_now_playing_context_cold_is_nonblocking_none():
+    # cold read returns the cached value (None) immediately and refreshes in the bg
+    assert make_tool(FakeSpotify(playback=None)).now_playing_context() is None
 
 
 def test_transfer():

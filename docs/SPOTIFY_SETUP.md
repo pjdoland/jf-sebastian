@@ -64,6 +64,15 @@ the token thereafter. If the refresh token is ever revoked (password change,
   controls the character's own voice)
 - "move the music to the bedroom"
 - "what's playing?" / "what speakers can you play on?"
+- "what is this song?" / "who's the artist?" / "what album is this from?" (the
+  currently-playing track is kept in context, so these need no playback command)
+
+## Now-playing context
+When Spotify is enabled, the currently-playing track (title, artist, album) is
+injected into the conversation context each turn, so the personality can discuss
+it naturally without you asking it to look anything up. The lookup is cached and
+refreshed in the background, so it adds no latency. Turn it off with
+`SPOTIFY_NOW_PLAYING_CONTEXT=false` while keeping playback control.
 
 ## Notes
 - A target speaker that's asleep/offline won't appear; the character says so.

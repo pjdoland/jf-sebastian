@@ -107,6 +107,10 @@ class Settings:
         "SPOTIFY_TOKEN_CACHE", os.path.expanduser("~/.config/jf-sebastian/spotify-token.json"))
     SPOTIFY_DEFAULT_DEVICE: Optional[str] = os.getenv("SPOTIFY_DEFAULT_DEVICE")  # speaker for unspecified 'play'
     SPOTIFY_DEVICE_ALIASES: Optional[str] = os.getenv("SPOTIFY_DEVICE_ALIASES")  # "kitchen=Kitchen Echo,den=Living Room"
+    # Inject the currently-playing track into the LLM context each turn so the
+    # personality can answer questions about it. Cached + refreshed in the
+    # background (non-blocking). Only active when Spotify is enabled.
+    SPOTIFY_NOW_PLAYING_CONTEXT: bool = os.getenv("SPOTIFY_NOW_PLAYING_CONTEXT", "true").lower() == "true"
 
     # Proactive scheduler (per-personality scheduled_events.yaml)
     SCHEDULER_ENABLED: bool = os.getenv("SCHEDULER_ENABLED", "true").lower() == "true"

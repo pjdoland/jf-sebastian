@@ -45,13 +45,17 @@ class FakeClient:
 
 
 class FakeTool:
-    def __init__(self, result):
+    def __init__(self, result, now_playing=None):
         self.result = result
         self.dispatched = []
+        self._now_playing = now_playing
 
     def dispatch(self, name, args):
         self.dispatched.append((name, args))
         return self.result
+
+    def now_playing_context(self):
+        return self._now_playing
 
 
 @pytest.fixture
@@ -142,6 +146,28 @@ def test_tools_attached_only_when_enabled(engine_factory):
     off = engine_factory(list(chunks), tool=FakeTool(ToolResult(True, "x")), enabled=False)
     drain(off)
     assert "tools" not in off.client.chat.completions.kwargs
+
+
+def _system_blob(engine):
+    msgs = engine.client.chat.completions.kwargs["messages"]
+    return " ".join(m["content"] for m in msgs if m.get("role") == "system")
+
+
+def test_now_playing_context_injected_when_enabled(engine_factory, monkeypatch):
+    monkeypatch.setattr(_settings, "SPOTIFY_NOW_PLAYING_CONTEXT", True, raising=False)
+    tool = FakeTool(ToolResult(True, "x"),
+                    now_playing='Now playing on Spotify: "Quiet Village" by Martin Denny.')
+    eng = engine_factory([content_chunk("hi. "), final_chunk("stop")], tool=tool, enabled=True)
+    drain(eng)
+    assert "Quiet Village" in _system_blob(eng)
+
+
+def test_now_playing_context_not_injected_when_disabled(engine_factory, monkeypatch):
+    monkeypatch.setattr(_settings, "SPOTIFY_NOW_PLAYING_CONTEXT", False, raising=False)
+    tool = FakeTool(ToolResult(True, "x"), now_playing='Now playing on Spotify: "X".')
+    eng = engine_factory([content_chunk("hi. "), final_chunk("stop")], tool=tool, enabled=True)
+    drain(eng)
+    assert "Now playing" not in _system_blob(eng)
 
 
 def test_reasoning_effort_sent_for_gpt5(engine_factory, monkeypatch):
