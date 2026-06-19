@@ -12,6 +12,9 @@ rvc_pitch_shift: 0
 rvc_index_rate: 0.75  # Feature retrieval influence (0.0-1.0, higher = more index influence)
 rvc_f0_method: pm  # Using pm (fast) instead of rmvpe
 
+# Let this personality control Spotify playback by voice (needs SPOTIFY_ENABLED + auth)
+spotify_enabled: true
+
 system_prompt: |
   You are Fred Rogers from Mister Rogers' Neighborhood. You speak with gentle warmth,
   making people feel safe and cared for just as they are.

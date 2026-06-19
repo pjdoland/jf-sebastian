@@ -807,6 +807,35 @@ RVC_DEVICE=mps  # or cpu, cuda
 
 ---
 
+## Advanced: Voice-Controlled Music (Spotify)
+
+A personality can control Spotify by voice ("play some tiki music in the kitchen",
+"skip", "turn it up"). It's opt-in per personality and off unless the system is
+configured for it.
+
+Add one line to your `personality.yaml`:
+
+```yaml
+# Let this personality control Spotify playback by voice
+spotify_enabled: true
+```
+
+The music tools are only offered to the model when **both** are true:
+1. `spotify_enabled: true` on the personality (above), and
+2. `SPOTIFY_ENABLED=true` in `.env`.
+
+Completing the one-time login is a third requirement for the tools to actually
+reach Spotify; without it a music command just returns a spoken "not set up" reply
+rather than playing anything. And a personality with `spotify_enabled: true`
+running on a system where `SPOTIFY_ENABLED` is off simply behaves as if the
+feature didn't exist (no tools are offered at all). Full setup (Spotify app,
+Premium requirement, browser login, choosing speakers) is in
+[SPOTIFY_SETUP.md](SPOTIFY_SETUP.md). Consider giving a music-capable personality a
+couple of short, snappy filler phrases too, since music commands feel best with a
+brief lead-in rather than a long one.
+
+---
+
 ## Best Practices
 
 ### Do's

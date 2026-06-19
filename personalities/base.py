@@ -68,6 +68,10 @@ class Personality:
     rvc_protect: float = 0.33
     """RVC voiceless consonant protection (0.0 to 0.5, lower = faster)"""
 
+    # Tools (optional)
+    spotify_enabled: bool = False
+    """Let this personality control Spotify playback by voice (needs SPOTIFY_ENABLED + setup)"""
+
     @property
     def wake_word_model_paths(self) -> List[Path]:
         """Get full paths to wake word model files"""
@@ -223,7 +227,8 @@ def load_personality_from_yaml(personality_dir: Path) -> Personality:
         rvc_index_file=rvc_index_file,
         rvc_pitch_shift=rvc_pitch_shift,
         rvc_index_rate=rvc_index_rate,
-        rvc_f0_method=rvc_f0_method
+        rvc_f0_method=rvc_f0_method,
+        spotify_enabled=bool(data.get('spotify_enabled', False)),
     )
 
 

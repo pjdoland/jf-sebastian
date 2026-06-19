@@ -55,6 +55,10 @@ This application enables real-time voice conversations with ChatGPT through vint
         │   - System prompt injection
         │   - Real-world context injection (date/time, weather)
         │   - Parallel chunk processing
+        │   - Optional Spotify playback tools (function calling):
+        │     offered only when SPOTIFY_ENABLED and the personality
+        │     opts in; a music request emits a tool call dispatched
+        │     to the Spotify Web API, then a spoken confirmation
         │
         ├─► Text-to-Speech Module
         │   - OpenAI TTS API
@@ -348,6 +352,9 @@ RVC (Optional - for voice conversion):
 - `librosa` - Audio processing for RVC
 - `soundfile` - Audio I/O for RVC
 - `resampy` - High-quality resampling for RVC
+
+Spotify (Optional - for voice-controlled playback, `requirements-spotify.txt`):
+- `spotipy` - Spotify Web API client (PKCE auth, no client secret on device)
 
 ## Threading Model
 

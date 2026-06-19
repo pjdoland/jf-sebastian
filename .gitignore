@@ -87,3 +87,9 @@ personalities/pj_doland/
 
 # Local operational notes (per-host service install, not for sharing)
 SERVICE.md
+
+# Spotify OAuth token cache (a credential; default lives in ~/.config, but guard
+# against a misconfigured SPOTIFY_TOKEN_CACHE pointing into the repo).
+.cache
+.cache-*
+spotify-token.json

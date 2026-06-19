@@ -126,7 +126,11 @@ class TeddyRuxpinApp:
         )
         self.audio_recorder = AudioRecorder(on_speech_end=self._on_speech_end)
         self.speech_to_text = SpeechToText()
-        self.conversation_engine = ConversationEngine(system_prompt=self.personality.system_prompt)
+        self.conversation_engine = ConversationEngine(
+            system_prompt=self.personality.system_prompt,
+            spotify_tool=self._build_spotify_tool(),
+            spotify_enabled=self.personality.spotify_enabled,
+        )
         self.text_to_speech = TextToSpeech(
             voice=self.personality.tts_voice,
             speed=self.personality.tts_speed,
@@ -403,6 +407,20 @@ class TeddyRuxpinApp:
         self.audio_recorder.pause()
 
         # Speaking will be handled by _process_and_speak method
+
+    def _build_spotify_tool(self):
+        """Construct the Spotify playback tool when globally enabled AND this
+        personality opted in. Returns None (feature simply off) on any problem,
+        so a missing dependency or bad config never blocks startup."""
+        if not (settings.SPOTIFY_ENABLED and self.personality.spotify_enabled):
+            return None
+        try:
+            from jf_sebastian.modules.spotify_tool import SpotifyTool
+            logger.info("Spotify playback tools enabled for '%s'", self.personality.name)
+            return SpotifyTool()
+        except Exception as e:
+            logger.warning("Spotify tools unavailable (%s); continuing without them", e)
+            return None
 
     def _on_enter_idle(self):
         """Handle entering IDLE state."""
@@ -766,11 +784,16 @@ Now respond to their question naturally, as if your filler phrase was the beginn
             if settings.PLAYBACK_TAIL_GUARD_MS > 0:
                 time.sleep(settings.PLAYBACK_TAIL_GUARD_MS / 1000.0)
 
-            # All chunks done - transition to LISTENING to continue conversation
-            # If no speech is detected within SILENCE_TIMEOUT, the audio recorder will timeout
-            # and we'll transition to IDLE in _on_speech_end
+            # All chunks done. Normally we re-open the mic (LISTENING) for a
+            # follow-up. But if this turn started music playback, go straight to
+            # IDLE instead -- otherwise the mic would listen over the music bed and
+            # VAD would fire on the song's vocals. The user re-wakes to say more.
             self._sequential_playback_active = False
-            self.state_machine.transition_to(ConversationState.LISTENING, trigger="continue_conversation")
+            if getattr(self.conversation_engine, "suppress_followup", False):
+                logger.info("Playback started music; returning to IDLE (no follow-up window)")
+                self.state_machine.transition_to(ConversationState.IDLE, trigger="playback_action")
+            else:
+                self.state_machine.transition_to(ConversationState.LISTENING, trigger="continue_conversation")
 
             # Save debug audio (concatenated version for comparison)
             if settings.SAVE_DEBUG_AUDIO and debug_chunks:

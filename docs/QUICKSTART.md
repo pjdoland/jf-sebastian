@@ -301,6 +301,7 @@ Recorded audio will be saved to `./debug_audio/`
 - Read [README.md](../README.md) for full documentation
 - Review [ARCHITECTURE.md](ARCHITECTURE.md) for technical details
 - Create custom personalities (see [CREATING_PERSONALITIES.md](CREATING_PERSONALITIES.md))
+- Let a personality control music by voice (see [SPOTIFY_SETUP.md](SPOTIFY_SETUP.md); needs Spotify Premium)
 - Experiment with different GPT models in `.env`
 
 ---

@@ -124,7 +124,8 @@ State transitions managed in `jf_sebastian/modules/state_machine.py` (StateMachi
 - `wake_word.py`: WakeWordDetector using OpenWakeWord with debouncing (2s minimum)
 - `audio_input.py`: AudioRecorder with PyAudio/sounddevice and Silero VAD
 - `speech_to_text.py`: SpeechToText wrapping OpenAI Whisper API
-- `conversation.py`: ConversationEngine managing GPT-4o-mini with streaming, word-chunked responses, and real-world context injection
+- `conversation.py`: ConversationEngine managing GPT-4o-mini with streaming, word-chunked responses, and real-world context injection. When Spotify is enabled it also attaches the playback tool schemas, accumulates streamed tool-call deltas, dispatches them, and yields a templated spoken confirmation (no second LLM round-trip); `suppress_followup` signals main.py to go IDLE rather than re-listen over a music bed.
+- `spotify_tool.py`: `SpotifyTool` (optional) wrapping the Spotify Web API via `spotipy` with PKCE auth. Exposes nine `music_*` tools to the LLM (`OPENAI_TOOLS`), resolves Connect speakers by name (exact/alias/substring/fuzzy/default/active), and degrades every failure into a neutral spoken hint via an error taxonomy. Lazy, non-blocking init; minimal scopes locked by test.
 - `text_to_speech.py`: TextToSpeech wrapping OpenAI TTS with per-personality voice/speed/style
 - `filler_phrases.py`: FillerPhraseManager for low-latency response playback
 - `ppm_generator.py`: PPMGenerator for 60Hz PPM control signals (630-1590µs pulse widths)

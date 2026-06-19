@@ -1,0 +1,14 @@
+# Spotify playback control (OPTIONAL).
+#
+# Required only when a personality sets `spotify_enabled: true` AND SPOTIFY_ENABLED=true.
+# The rest of the system runs without this; the tools are import-guarded and only
+# load when a personality opts in.
+#
+# Installation:
+#   pip install -r requirements-spotify.txt
+#
+# After installing, do the one-time auth on a machine with a browser:
+#   python scripts/spotify_auth.py
+# See docs/SPOTIFY_SETUP.md.
+
+spotipy>=2.24.0

@@ -96,6 +96,18 @@ class Settings:
     NEWS_HEADLINE_LIMIT: int = int(os.getenv("NEWS_HEADLINE_LIMIT", "5"))
     NEWS_CACHE_TTL_MINUTES: int = int(os.getenv("NEWS_CACHE_TTL_MINUTES", "30"))
 
+    # Spotify playback control (optional). Only active when SPOTIFY_ENABLED=true AND
+    # the personality sets spotify_enabled: true. PKCE auth -> no client secret on
+    # device. The token cache is a private credential: keep it outside any synced
+    # bundle (default ~/.config). See docs/SPOTIFY_SETUP.md.
+    SPOTIFY_ENABLED: bool = os.getenv("SPOTIFY_ENABLED", "false").lower() == "true"
+    SPOTIFY_CLIENT_ID: Optional[str] = os.getenv("SPOTIFY_CLIENT_ID")
+    SPOTIFY_REDIRECT_URI: str = os.getenv("SPOTIFY_REDIRECT_URI", "http://127.0.0.1:8888/callback")
+    SPOTIFY_TOKEN_CACHE: str = os.getenv(
+        "SPOTIFY_TOKEN_CACHE", os.path.expanduser("~/.config/jf-sebastian/spotify-token.json"))
+    SPOTIFY_DEFAULT_DEVICE: Optional[str] = os.getenv("SPOTIFY_DEFAULT_DEVICE")  # speaker for unspecified 'play'
+    SPOTIFY_DEVICE_ALIASES: Optional[str] = os.getenv("SPOTIFY_DEVICE_ALIASES")  # "kitchen=Kitchen Echo,den=Living Room"
+
     # Proactive scheduler (per-personality scheduled_events.yaml)
     SCHEDULER_ENABLED: bool = os.getenv("SCHEDULER_ENABLED", "true").lower() == "true"
     # Global quiet hours override (HH:MM); empty = let the personality YAML decide.
@@ -207,6 +219,10 @@ class Settings:
                     f"Invalid NEWS_PROVIDER: '{cls.NEWS_PROVIDER}'. "
                     f"Valid values: {', '.join(sorted(valid))}"
                 )
+
+        # Spotify: if enabled, a client id is required (don't silently no-op).
+        if cls.SPOTIFY_ENABLED and not (cls.SPOTIFY_CLIENT_ID or "").strip():
+            errors.append("SPOTIFY_ENABLED=true but SPOTIFY_CLIENT_ID is not set (see docs/SPOTIFY_SETUP.md)")
 
         return errors
 

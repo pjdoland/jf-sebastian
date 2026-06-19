@@ -24,26 +24,30 @@ Includes six distinct personalities: a tiki bartender, Abraham Lincoln (a homage
     - [Recommended Bluetooth Adapter](#recommended-bluetooth-adapter)
     - [Setup Steps](#setup-steps)
 - [Installation](#installation)
-  - [1. Clone the Repository](#1-clone-the-repository)
-  - [2. Create Virtual Environment](#2-create-virtual-environment)
-  - [3. Install Dependencies](#3-install-dependencies)
-  - [4. Download OpenWakeWord Preprocessing Models](#4-download-openwakeword-preprocessing-models)
-  - [5. Install System Dependencies](#5-install-system-dependencies)
-  - [6. Configuration](#6-configuration)
-  - [7. Get API Keys](#7-get-api-keys)
-    - [OpenAI API Key](#openai-api-key)
-    - [Wake Word Models (OpenWakeWord)](#wake-word-models-openwakeword)
-  - [8. Finding Audio Devices](#8-finding-audio-devices)
-  - [9. Generate Filler Audio](#9-generate-filler-audio)
+  - [Method 1: Automated Installation (Recommended)](#method-1-automated-installation-recommended)
+  - [Method 2: Manual Installation](#method-2-manual-installation)
+    - [1. Clone the Repository](#1-clone-the-repository)
+    - [2. Create Virtual Environment](#2-create-virtual-environment)
+    - [3. Install Dependencies](#3-install-dependencies)
+    - [4. Download OpenWakeWord Preprocessing Models](#4-download-openwakeword-preprocessing-models)
+    - [5. Install System Dependencies](#5-install-system-dependencies)
+    - [6. Configuration](#6-configuration)
+    - [7. Get API Keys](#7-get-api-keys)
+    - [8. Finding Audio Devices](#8-finding-audio-devices)
+    - [9. Optional: Install RVC for Custom Voice Models](#9-optional-install-rvc-for-custom-voice-models)
+    - [10. Generate Filler Audio (Optional but Recommended)](#10-generate-filler-audio-optional-but-recommended)
 - [Personalities](#personalities)
   - [Available Personalities](#available-personalities)
     - [Johnny - Tiki Bartender](#johnny-tiki-bartender)
     - [Mr. Lincoln - Abraham Lincoln](#mr-lincoln-abraham-lincoln)
     - [Leopold - Conspiracy Theorist](#leopold-conspiracy-theorist)
+    - [Fred - Mister Rogers](#fred-mister-rogers)
+    - [K.I.T.T. - Knight Industries Two Thousand](#kitt-knight-industries-two-thousand)
+    - [Teddy Ruxpin - Storytelling Bear](#teddy-ruxpin-storytelling-bear)
   - [Switching Personalities](#switching-personalities)
-  - [Generating Filler Audio](#generating-filler-audio)
 - [Usage](#usage)
   - [Starting the Application](#starting-the-application)
+  - [Running Unattended (Recommended for Permanent Installations)](#running-unattended-recommended-for-permanent-installations)
   - [Having a Conversation](#having-a-conversation)
   - [Conversation Examples](#conversation-examples)
 - [Configuration Options](#configuration-options)
@@ -51,11 +55,17 @@ Includes six distinct personalities: a tiki bartender, Abraham Lincoln (a homage
     - [Personality & API Configuration](#personality-api-configuration)
     - [Audio Device Configuration](#audio-device-configuration)
     - [Voice Activity Detection](#voice-activity-detection)
+    - [Weather Context (in LLM context)](#weather-context-in-llm-context)
+    - [News Headlines (in LLM context, on by default)](#news-headlines-in-llm-context-on-by-default)
+    - [Proactive Scheduler](#proactive-scheduler)
+    - [Spotify Playback (Optional)](#spotify-playback-optional)
     - [Conversation Settings](#conversation-settings)
     - [OpenAI Models](#openai-models)
     - [Animatronic Control](#animatronic-control)
+    - [Wake Word Detection](#wake-word-detection)
+    - [RVC (Voice Conversion) Settings](#rvc-voice-conversion-settings)
     - [Debug Settings](#debug-settings)
-    - [Deprecated Settings](#deprecated-settings)
+    - [Supervisor / Watchdog](#supervisor-watchdog)
   - [Creating Custom Personalities](#creating-custom-personalities)
 - [Architecture](#architecture)
   - [Key Components](#key-components)
@@ -103,6 +113,7 @@ Includes six distinct personalities: a tiki bartender, Abraham Lincoln (a homage
 - **Animatronic Control** (Teddy Ruxpin): Generates PPM control signals for mouth (syllable-based lip sync) and eyes (sentiment-based)
 - **Flexible Output**: Device-specific audio processing (stereo with PPM for Teddy, simple stereo for Squawkers)
 - **Proactive Scheduler** (Optional): Per-personality `scheduled_events.yaml` for morning greetings, bedtime stories, holiday surprises — never interrupts an in-progress conversation
+- **Voice-Controlled Music** (Optional): Opt-in personalities can control Spotify by voice ("play some tiki music in the kitchen", "skip", "turn it up") via the Spotify Web API, targeting any Spotify Connect speaker. Premium required; see [docs/SPOTIFY_SETUP.md](docs/SPOTIFY_SETUP.md)
 
 ## Quick Start
 
@@ -669,6 +680,19 @@ Use the overlays for things like `VOICE_GAIN` that differ by speaker hardware or
 | `QUIET_HOURS_START` | Global quiet-hours start (HH:MM, overrides personality YAML) | - |
 | `QUIET_HOURS_END` | Global quiet-hours end (HH:MM) | - |
 
+#### Spotify Playback (Optional)
+
+Off by default. Requires Spotify Premium, a one-time browser login (`python scripts/spotify_auth.py`), and `spotify_enabled: true` on the personality. Full walkthrough in [docs/SPOTIFY_SETUP.md](docs/SPOTIFY_SETUP.md).
+
+| Setting | Description | Default |
+|---------|-------------|---------|
+| `SPOTIFY_ENABLED` | Master switch; offers playback tools to opted-in personalities | false |
+| `SPOTIFY_CLIENT_ID` | Client ID of your Spotify app (PKCE; no secret needed) | - |
+| `SPOTIFY_REDIRECT_URI` | OAuth redirect, must match the Spotify app's Settings | http://127.0.0.1:8888/callback |
+| `SPOTIFY_TOKEN_CACHE` | Where the refresh token is cached (kept 0600, gitignored) | ~/.config/jf-sebastian/spotify-token.json |
+| `SPOTIFY_DEFAULT_DEVICE` | Connect speaker for commands that name no room (else the active device) | - |
+| `SPOTIFY_DEVICE_ALIASES` | Spoken aliases → exact device names (`kitchen=Kitchen Echo,den=Living Room`) | - |
+
 #### Conversation Settings
 
 | Setting | Description | Default |
@@ -788,6 +812,7 @@ Deploying on an NVIDIA Jetson Orin Nano? See [JETSON_DEPLOYMENT.md](docs/JETSON_
 11. **Real-World Context Provider**: Injects current date/time, weather (pluggable: wttr / Home Assistant / manual), and top news headlines (pluggable: RSS / Hacker News / manual) into the LLM context every turn
 12. **Proactive Scheduler**: Per-personality `scheduled_events.yaml` for proactive utterances (greetings, bedtime stories) — fires only when state is IDLE, never interrupts a conversation
 13. **Process Supervisor** (Optional): `scripts/supervisor.py` keeps the app alive across crashes with exponential-backoff restart, watchdog kill of hung children, and crash reports — for unattended deployments via launchd / systemd
+14. **Spotify Playback Tools** (Optional): `modules/spotify_tool.py` exposes music controls to the LLM via function calling. On a music request the engine emits a tool call, the app runs it against the Spotify Web API (`spotipy`, PKCE auth), and the character speaks a short confirmation. Targets a Spotify Connect speaker, not the animatronic's own output; opt-in per personality (`spotify_enabled`)
 
 ## Troubleshooting
 
@@ -891,7 +916,8 @@ jf-sebastian/
 │   │   ├── ppm_generator.py     # PPM signal generation (60Hz, 8-channel)
 │   │   ├── rvc_processor.py     # Optional RVC voice conversion
 │   │   ├── audio_output.py      # Stereo playback
-│   │   └── scheduler.py         # Proactive scheduler (per-personality scheduled_events.yaml)
+│   │   ├── scheduler.py         # Proactive scheduler (per-personality scheduled_events.yaml)
+│   │   └── spotify_tool.py      # Optional Spotify playback tools (LLM function calling)
 │   └── utils/
 │       ├── audio_utils.py        # RMS, VAD-based speech detection
 │       ├── audio_device_utils.py # PyAudio device-name lookup
@@ -920,6 +946,7 @@ jf-sebastian/
 │   ├── benchmark_rvc.py       # RVC inference timing
 │   ├── install_rvc.sh         # One-shot RVC install for Python 3.10
 │   ├── generate_toc.py        # Regenerate the table of contents in this README
+│   ├── spotify_auth.py        # One-time Spotify PKCE login + Connect device lister
 │   ├── supervisor.py          # Process supervisor for unattended deployments
 │   ├── jf-sebastian.plist     # launchd template (macOS)
 │   └── jf-sebastian.service   # systemd user-unit template (Linux)
@@ -935,11 +962,13 @@ jf-sebastian/
 │   ├── CREATING_PERSONALITIES.md
 │   ├── JETSON_DEPLOYMENT.md
 │   ├── QUICKSTART.md
+│   ├── SPOTIFY_SETUP.md
 │   └── TRAIN_WAKE_WORDS.md
 ├── CLAUDE.md                  # Guidance for AI coding tools working in this repo
 ├── ROADMAP.md                 # Tier 1-3 prioritization from the 7-persona codebase review
 ├── requirements.txt
 ├── requirements-rvc.txt       # Optional RVC dependencies (Python 3.10 only)
+├── requirements-spotify.txt   # Optional Spotify playback dependency (spotipy)
 ├── .env.example
 ├── run.sh                     # Convenience launcher
 ├── setup.sh                   # Automated installer

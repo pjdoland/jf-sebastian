@@ -68,7 +68,7 @@ PERSONALITY=teddy_ruxpin
 
 ## Creating a New Personality
 
-**📖 Full Guide:** For a comprehensive step-by-step tutorial, see [docs/CREATING_PERSONALITIES.md](../../docs/CREATING_PERSONALITIES.md)
+**📖 Full Guide:** For a comprehensive step-by-step tutorial, see [docs/CREATING_PERSONALITIES.md](../docs/CREATING_PERSONALITIES.md)
 
 **Quick Start:** Creating a personality is simple - just create a folder and a YAML file!
 
@@ -254,7 +254,10 @@ Personalities are defined in `personality.yaml` files with these fields:
 - **`rvc_rms_mix_rate`**: Volume envelope mixing, 0.0-1.0 (default: 0.25)
 - **`rvc_protect`**: Protect voiceless consonants, 0.0-0.5 (default: 0.33)
 
-**Note:** RVC transforms TTS output with custom trained voice models for unique character voices beyond OpenAI TTS alone. See [docs/CREATING_PERSONALITIES.md](../../docs/CREATING_PERSONALITIES.md) for detailed RVC setup guide.
+**Note:** RVC transforms TTS output with custom trained voice models for unique character voices beyond OpenAI TTS alone. See [docs/CREATING_PERSONALITIES.md](../docs/CREATING_PERSONALITIES.md) for detailed RVC setup guide.
+
+**Optional Spotify settings:**
+- **`spotify_enabled`**: Let this personality control Spotify playback by voice (default: false). This is the per-personality opt-in; the music tools are only offered to the model when this is true **and** `SPOTIFY_ENABLED=true` in `.env`. Completing the one-time login is what lets those tools actually reach Spotify (without it, a music command just returns a spoken "not set up" reply). See [docs/SPOTIFY_SETUP.md](../docs/SPOTIFY_SETUP.md).
 
 ### Auto-Discovery
 

@@ -3,6 +3,7 @@ Conversation engine for managing GPT-4o interactions.
 Maintains conversation history and generates responses.
 """
 
+import json
 import logging
 import time
 import re
@@ -14,6 +15,7 @@ from openai import APIError, APIConnectionError, RateLimitError
 
 from jf_sebastian.config import settings
 from jf_sebastian.utils.context_provider import get_realworld_context
+from jf_sebastian.modules.spotify_tool import OPENAI_TOOLS
 
 logger = logging.getLogger(__name__)
 
@@ -23,18 +25,27 @@ class ConversationEngine:
     Manages conversation with GPT-4o, including context and history.
     """
 
-    def __init__(self, system_prompt: str):
+    def __init__(self, system_prompt: str, spotify_tool=None, spotify_enabled: bool = False):
         """
         Initialize conversation engine.
 
         Args:
             system_prompt: Personality-specific system prompt for the LLM
+            spotify_tool: Optional SpotifyTool for playback control (function calling)
+            spotify_enabled: Whether this personality may use the Spotify tools
         """
         if not settings.OPENAI_API_KEY:
             raise ValueError("OPENAI_API_KEY not set in configuration")
 
         self.client = OpenAI(api_key=settings.OPENAI_API_KEY)
         self.system_prompt = system_prompt
+
+        # Optional playback tools. Active only when a tool is supplied AND the
+        # personality opted in. When a play/resume/transfer fires, suppress_followup
+        # tells the app to go IDLE (not re-open the mic over a music bed).
+        self._spotify_tool = spotify_tool
+        self._spotify_enabled = bool(spotify_enabled and spotify_tool is not None)
+        self.suppress_followup = False
 
         # Conversation history (system + user/assistant messages)
         self._messages = deque(maxlen=settings.MAX_HISTORY_LENGTH)
@@ -48,6 +59,30 @@ class ConversationEngine:
         self._last_interaction_time = time.time()
 
         logger.info(f"Conversation engine initialized (model={settings.GPT_MODEL})")
+
+    # ----- playback tools -------------------------------------------------
+
+    def _execute_tools(self, tool_calls: dict) -> str:
+        """Run the accumulated tool calls and return a short spoken confirmation.
+        The SpotifyTool never raises (every failure is a neutral spoken hint), so
+        a flaky API can't break the turn. A tool declares via its result whether
+        it started music (suppress_followup) -- the engine stays tool-agnostic."""
+        parts = []
+        for slot in tool_calls.values():
+            name = slot.get("name")
+            if not name:
+                continue
+            raw = slot.get("args", "") or ""
+            try:
+                args = json.loads(raw) if raw.strip() else {}
+            except json.JSONDecodeError:
+                logger.warning("Tool %s: unparseable arguments, using empty args", name)
+                args = {}
+            result = self._spotify_tool.dispatch(name, args)
+            parts.append(result.spoken_hint)
+            if result.ok and result.suppress_followup:
+                self.suppress_followup = True  # music is playing -> go IDLE, don't listen over it
+        return " ".join(p for p in parts if p).strip()
 
     def _is_gpt5_or_newer(self) -> bool:
         """
@@ -298,6 +333,14 @@ class ConversationEngine:
             else:
                 api_params["max_tokens"] = effective_tokens
 
+            # Offer playback tools only when the personality opted in. On a normal
+            # turn the model streams content and this is a no-op; on an action turn
+            # it streams tool_calls instead (handled after the loop).
+            self.suppress_followup = False
+            if self._spotify_enabled:
+                api_params["tools"] = OPENAI_TOOLS
+                api_params["tool_choice"] = "auto"
+
             stream = self.client.chat.completions.create(**api_params)
 
             # Buffer for accumulating tokens
@@ -311,10 +354,23 @@ class ConversationEngine:
             # Regex to detect sentence endings (. ! ? followed by space or end)
             sentence_end_pattern = re.compile(r'[.!?]+(?:\s|$)')
 
+            # Accumulate any tool-call deltas (id/name arrive on the first fragment,
+            # arguments stream as a split string) keyed by index; act after the loop.
+            tool_calls = {}
+            tools_on = self._spotify_enabled  # short-circuits the per-token check below
+
             # Stream tokens and yield chunks based on word count threshold
             for chunk in stream:
-                if chunk.choices[0].delta.content:
-                    token = chunk.choices[0].delta.content
+                delta = chunk.choices[0].delta
+                if tools_on and getattr(delta, "tool_calls", None):
+                    for tc in delta.tool_calls:
+                        slot = tool_calls.setdefault(tc.index, {"name": None, "args": ""})
+                        if tc.function and tc.function.name:
+                            slot["name"] = tc.function.name
+                        if tc.function and tc.function.arguments:
+                            slot["args"] += tc.function.arguments
+                if delta.content:
+                    token = delta.content
                     buffer += token
                     full_response += token
 
@@ -354,6 +410,25 @@ class ConversationEngine:
                     chunk_count += 1
                     logger.info(f"Final chunk {chunk_count} ({len(sentences_in_chunk)} sentences, {remaining_word_count} words): \"{remaining[:80]}...\"")
                     yield (remaining, False)
+
+            # If the model called playback tools, execute them and speak a
+            # templated confirmation in the personality's voice (no 2nd LLM call).
+            # Tool scaffolding is NOT persisted to history -- that avoids the strict
+            # assistant-with-tool_calls -> tool-role message sequence and its
+            # deque-eviction corruption; we store only a clean spoken summary.
+            if tool_calls and self._spotify_enabled:
+                confirmation = self._execute_tools(tool_calls)
+                # Keep BOTH any spoken preamble (already yielded during the loop)
+                # and the confirmation in history, so neither is lost from context
+                # if the model both talked and called a tool.
+                spoken = " ".join(p for p in (full_response.strip(), confirmation) if p).strip()
+                self._messages.append({"role": "assistant", "content": spoken})
+                if confirmation:
+                    yield (confirmation, False)
+                self._last_interaction_time = time.time()
+                logger.info("Streaming complete (tool turn).")
+                yield ("", True)
+                return
 
             # Add complete response to history
             self._messages.append({
