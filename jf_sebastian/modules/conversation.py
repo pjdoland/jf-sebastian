@@ -6,7 +6,6 @@ Maintains conversation history and generates responses.
 import json
 import logging
 import time
-import re
 from typing import Optional, Generator, Tuple
 from collections import deque
 
@@ -16,6 +15,7 @@ from openai import APIError, APIConnectionError, RateLimitError
 from jf_sebastian.config import settings
 from jf_sebastian.utils.context_provider import get_realworld_context
 from jf_sebastian.modules.spotify_tool import OPENAI_TOOLS
+from jf_sebastian.modules.sentence_chunker import SentenceChunker
 
 logger = logging.getLogger(__name__)
 
@@ -348,11 +348,6 @@ class ConversationEngine:
             else:
                 api_params["max_tokens"] = effective_tokens
 
-            # Add reasoning effort for the GPT-5 family (omitted for GPT-4)
-            effort = self._reasoning_effort()
-            if effort:
-                api_params["reasoning_effort"] = effort
-
             # Offer playback tools only when the personality opted in. On a normal
             # turn the model streams content and this is a no-op; on an action turn
             # it streams tool_calls instead (handled after the loop).
@@ -360,26 +355,30 @@ class ConversationEngine:
             if self._spotify_enabled:
                 api_params["tools"] = OPENAI_TOOLS
                 api_params["tool_choice"] = "auto"
+                # NOTE: gpt-5.x rejects reasoning_effort combined with function
+                # tools on /v1/chat/completions (400), so it is intentionally
+                # omitted on tool-enabled turns; the model's default reasoning
+                # applies instead.
+            else:
+                # Reasoning effort for the GPT-5 family (omitted for GPT-4)
+                effort = self._reasoning_effort()
+                if effort:
+                    api_params["reasoning_effort"] = effort
 
             stream = self.client.chat.completions.create(**api_params)
 
-            # Buffer for accumulating tokens
-            buffer = ""
+            # Accumulate the full response and feed the streaming chunker, which
+            # yields speakable chunks (>= MIN_CHUNK_WORDS, abbreviation-aware, with
+            # a soft cap for run-ons) as they complete.
             full_response = ""
             chunk_count = 0
-            sentences_in_chunk = []
-            current_chunk_word_count = 0
-            MIN_CHUNK_WORDS = settings.MIN_CHUNK_WORDS
-
-            # Regex to detect sentence endings (. ! ? followed by space or end)
-            sentence_end_pattern = re.compile(r'[.!?]+(?:\s|$)')
+            chunker = SentenceChunker(settings.MIN_CHUNK_WORDS)
 
             # Accumulate any tool-call deltas (id/name arrive on the first fragment,
             # arguments stream as a split string) keyed by index; act after the loop.
             tool_calls = {}
             tools_on = self._spotify_enabled  # short-circuits the per-token check below
 
-            # Stream tokens and yield chunks based on word count threshold
             for chunk in stream:
                 delta = chunk.choices[0].delta
                 if tools_on and getattr(delta, "tool_calls", None):
@@ -390,46 +389,18 @@ class ConversationEngine:
                         if tc.function and tc.function.arguments:
                             slot["args"] += tc.function.arguments
                 if delta.content:
-                    token = delta.content
-                    buffer += token
-                    full_response += token
+                    full_response += delta.content
+                    for piece in chunker.feed(delta.content):
+                        chunk_count += 1
+                        logger.info(f"Chunk {chunk_count} ready ({len(piece.split())} words): \"{piece[:80]}...\"")
+                        yield (piece, False)
 
-                    # Check for complete sentences in buffer
-                    while True:
-                        match = sentence_end_pattern.search(buffer)
-                        if not match:
-                            break  # No complete sentence yet
-
-                        # Extract complete sentence
-                        sentence = buffer[:match.end()].strip()
-                        buffer = buffer[match.end():]  # Keep remainder
-
-                        if sentence:
-                            sentences_in_chunk.append(sentence)
-                            # Count words in this sentence
-                            word_count = len(sentence.split())
-                            current_chunk_word_count += word_count
-
-                            # When we exceed minimum word count, yield the chunk
-                            if current_chunk_word_count >= MIN_CHUNK_WORDS:
-                                chunk_text = " ".join(sentences_in_chunk)
-                                chunk_count += 1
-                                logger.info(f"Chunk {chunk_count} ready ({len(sentences_in_chunk)} sentences, {current_chunk_word_count} words): \"{chunk_text[:80]}...\"")
-                                yield (chunk_text, False)
-                                sentences_in_chunk = []
-                                current_chunk_word_count = 0
-
-            # Yield any remaining sentences (last chunk, regardless of word count)
-            if sentences_in_chunk or buffer.strip():
-                remaining = " ".join(sentences_in_chunk)
-                if buffer.strip():
-                    remaining = (remaining + " " + buffer.strip()).strip()
-
-                if remaining:
-                    remaining_word_count = len(remaining.split())
-                    chunk_count += 1
-                    logger.info(f"Final chunk {chunk_count} ({len(sentences_in_chunk)} sentences, {remaining_word_count} words): \"{remaining[:80]}...\"")
-                    yield (remaining, False)
+            # Flush any remaining text as the final chunk (regardless of word count)
+            tail = chunker.flush()
+            if tail:
+                chunk_count += 1
+                logger.info(f"Final chunk {chunk_count} ({len(tail.split())} words): \"{tail[:80]}...\"")
+                yield (tail, False)
 
             # If the model called playback tools, execute them and speak a
             # templated confirmation in the personality's voice (no 2nd LLM call).
