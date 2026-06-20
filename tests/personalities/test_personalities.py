@@ -14,7 +14,7 @@ def test_get_personality_johnny():
 
     assert isinstance(personality, Personality)
     assert personality.name == "Johnny"
-    assert personality.tts_voice == "onyx"
+    assert personality.tts_voice == "shimmer"   # input voice; character comes from RVC
     assert len(personality.filler_phrases) > 0
     assert personality.system_prompt != ""
 
@@ -200,12 +200,11 @@ def test_personality_filler_phrases_substantial():
 
 
 def test_johnny_voice_appropriate():
-    """Test Johnny uses appropriate TTS voice."""
+    """Test Johnny uses a valid TTS input voice (his character comes from RVC)."""
     johnny = get_personality("johnny")
 
-    # Johnny should use a male voice
-    # OpenAI voices: alloy, echo, fable, onyx, nova, shimmer
-    assert johnny.tts_voice in ["onyx", "echo", "fable", "alloy"]
+    # The input voice is RVC-converted, so any valid OpenAI voice is fine.
+    assert johnny.tts_voice in ["alloy", "echo", "fable", "onyx", "nova", "shimmer"]
 
 
 def test_leopold_voice_appropriate():
