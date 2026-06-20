@@ -203,6 +203,10 @@ def load_personality_from_yaml(personality_dir: Path) -> Personality:
     rvc_pitch_shift = data.get('rvc_pitch_shift', 0)
     rvc_index_rate = data.get('rvc_index_rate', 0.5)
     rvc_f0_method = data.get('rvc_f0_method', 'harvest')
+    # Defaults here must match the Personality dataclass field defaults.
+    rvc_filter_radius = data.get('rvc_filter_radius', 3)
+    rvc_rms_mix_rate = data.get('rvc_rms_mix_rate', 0.25)
+    rvc_protect = data.get('rvc_protect', 0.33)
 
     # Create Personality instance
     personality = Personality(
@@ -220,6 +224,9 @@ def load_personality_from_yaml(personality_dir: Path) -> Personality:
         rvc_pitch_shift=rvc_pitch_shift,
         rvc_index_rate=rvc_index_rate,
         rvc_f0_method=rvc_f0_method,
+        rvc_filter_radius=rvc_filter_radius,
+        rvc_rms_mix_rate=rvc_rms_mix_rate,
+        rvc_protect=rvc_protect,
         spotify_enabled=bool(data.get('spotify_enabled', True)),
     )
 

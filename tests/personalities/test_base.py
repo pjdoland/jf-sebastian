@@ -316,6 +316,24 @@ def test_rvc_enabled_true_without_model_loads_and_degrades():
         assert p.rvc_model_path is None             # runtime degrades to raw TTS
 
 
+def test_rvc_filter_rms_protect_read_from_yaml():
+    # Regression: these three were silently ignored and always used the defaults.
+    with tempfile.TemporaryDirectory() as tmp:
+        pdir = _make_personality_dir(tmp, "fred", rvc_enabled=True,
+                                     rvc_filter_radius=0, rvc_rms_mix_rate=0.1, rvc_protect=0.2)
+        (pdir / "fred.pth").write_bytes(b"x")
+        p = load_personality_from_yaml(pdir)
+        assert (p.rvc_filter_radius, p.rvc_rms_mix_rate, p.rvc_protect) == (0, 0.1, 0.2)
+
+
+def test_rvc_filter_rms_protect_default_when_absent():
+    with tempfile.TemporaryDirectory() as tmp:
+        pdir = _make_personality_dir(tmp, "fred", rvc_enabled=True)
+        (pdir / "fred.pth").write_bytes(b"x")
+        p = load_personality_from_yaml(pdir)
+        assert (p.rvc_filter_radius, p.rvc_rms_mix_rate, p.rvc_protect) == (3, 0.25, 0.33)
+
+
 def test_personality_get_description_with_multisentence_prompt():
     """Test get_description with multi-sentence system prompt."""
     personality_dir = Path("/fake/path/multi")
