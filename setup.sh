@@ -35,7 +35,7 @@ print_step() {
 }
 
 # Find or install Python 3.10
-print_step "1/12" "Finding Python 3.10..."
+print_step "1/13" "Finding Python 3.10..."
 
 # Function to check if a Python command is version 3.10
 check_python_310() {
@@ -123,7 +123,7 @@ else
 fi
 
 # Create virtual environment
-print_step "2/12" "Creating virtual environment..."
+print_step "2/13" "Creating virtual environment..."
 if [ -d "venv" ]; then
     # Check if existing venv uses Python 3.10
     venv_python_version=$(venv/bin/python --version 2>&1 | awk '{print $2}')
@@ -152,23 +152,23 @@ else
 fi
 
 # Activate virtual environment
-print_step "3/12" "Activating virtual environment..."
+print_step "3/13" "Activating virtual environment..."
 source venv/bin/activate
 print_success "Virtual environment activated"
 
 # Upgrade pip
-print_step "4/12" "Upgrading pip..."
+print_step "4/13" "Upgrading pip..."
 pip install --upgrade pip -q
 print_success "Pip upgraded"
 
 # Install dependencies
-print_step "5/12" "Installing Python dependencies..."
+print_step "5/13" "Installing Python dependencies..."
 echo "This may take a few minutes..."
 pip install -r requirements.txt -q
 print_success "Dependencies installed"
 
 # Install RVC (optional)
-print_step "6/12" "Installing RVC voice conversion (optional)..."
+print_step "6/13" "Installing RVC voice conversion (optional)..."
 echo "RVC enables custom trained voice models beyond OpenAI TTS voices."
 echo "This requires temporarily downgrading pip and takes 5-10 minutes."
 echo "The system works perfectly without RVC (using OpenAI TTS only)."
@@ -268,8 +268,50 @@ else
     echo "You can install later with: ./scripts/install_rvc.sh"
 fi
 
+# Install Spotify playback control (optional)
+print_step "7/13" "Setting up Spotify playback control (optional)..."
+echo "Lets a personality control Spotify by voice (\"play some tiki music in the kitchen\")."
+echo "Optional and off by default. Requires Spotify Premium and a quick one-time setup."
+echo ""
+read -p "Install Spotify support? (y/N): " -n 1 -r
+echo
+if [[ $REPLY =~ ^[Yy]$ ]]; then
+    echo "Installing Spotify dependency (spotipy)..."
+    if pip install -r requirements-spotify.txt -q; then
+        print_success "Spotify dependency installed"
+    else
+        print_warning "Spotify dependency failed to install"
+        echo "Retry later with: pip install -r requirements-spotify.txt"
+    fi
+    echo ""
+    echo "To finish turning it on (do this whenever you're ready, after setup):"
+    echo ""
+    echo "  1. Make sure your Spotify account is PREMIUM (the playback API is Premium-only)."
+    echo "  2. Create a free app at https://developer.spotify.com/dashboard"
+    echo "       - Under the app's Settings, add this exact Redirect URI:"
+    echo "           http://127.0.0.1:8888/callback"
+    echo "       - Copy the app's Client ID (there is no client secret; auth uses PKCE)."
+    echo "  3. In your .env set:"
+    echo "           SPOTIFY_ENABLED=true"
+    echo "           SPOTIFY_CLIENT_ID=<the Client ID from step 2>"
+    echo "  4. Authorize once on a machine with a browser:"
+    echo "           python scripts/spotify_auth.py"
+    echo "       It logs you in, caches a token, and prints your Spotify Connect"
+    echo "       speaker names. (On a headless box, run this on your laptop and copy"
+    echo "       ~/.config/jf-sebastian/spotify-token.json over.)"
+    echo "  5. Optional: set SPOTIFY_DEFAULT_DEVICE to one of those speaker names so"
+    echo "       \"play X\" with no room targets it."
+    echo ""
+    echo "  Every personality can then control music; set 'spotify_enabled: false' in a"
+    echo "  personality.yaml to exclude one. Full walkthrough: docs/SPOTIFY_SETUP.md"
+else
+    print_warning "Skipped Spotify installation"
+    echo "You can install later with: pip install -r requirements-spotify.txt"
+    echo "Setup walkthrough when you want it: docs/SPOTIFY_SETUP.md"
+fi
+
 # Download OpenWakeWord preprocessing models
-print_step "7/12" "Downloading OpenWakeWord preprocessing models..."
+print_step "8/13" "Downloading OpenWakeWord preprocessing models..."
 echo "Downloading required model files (melspectrogram.onnx, embedding_model.onnx)..."
 python3 -c "from openwakeword import utils; utils.download_models(['alexa'])" 2>/dev/null || {
     print_warning "OpenWakeWord models may already exist or download failed"
@@ -295,7 +337,7 @@ else:
 }
 
 # Check for system dependencies
-print_step "8/12" "Checking system dependencies..."
+print_step "9/13" "Checking system dependencies..."
 OS_TYPE="$(uname -s)"
 
 if [ "$OS_TYPE" = "Darwin" ]; then
@@ -362,7 +404,7 @@ else
 fi
 
 # Create required directories
-print_step "9/12" "Creating required directories..."
+print_step "10/13" "Creating required directories..."
 directories=("debug_audio" "personalities/johnny/filler_audio" "personalities/mr_lincoln/filler_audio" "personalities/leopold/filler_audio")
 for dir in "${directories[@]}"; do
     if [ ! -d "$dir" ]; then
@@ -374,7 +416,7 @@ for dir in "${directories[@]}"; do
 done
 
 # Setup configuration
-print_step "10/12" "Setting up configuration..."
+print_step "11/13" "Setting up configuration..."
 if [ -f ".env" ]; then
     print_warning ".env file already exists (skipping creation)"
 
@@ -409,7 +451,7 @@ else
 fi
 
 # Generate filler audio for all personalities (optional)
-print_step "11/12" "Generating filler audio for personalities..."
+print_step "12/13" "Generating filler audio for personalities..."
 echo "This creates pre-recorded phrases that play immediately while processing responses."
 echo "This is optional and takes 2-3 minutes."
 echo ""
@@ -428,7 +470,7 @@ else
 fi
 
 # Check for wake word models
-print_step "12/12" "Checking wake word models..."
+print_step "13/13" "Checking wake word models..."
 models_found=0
 models_missing=()
 
