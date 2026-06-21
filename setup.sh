@@ -28,14 +28,20 @@ print_error() {
     echo -e "${RED}✗${NC} $1"
 }
 
+# Step progress headers auto-number themselves. Adding or removing a step is a
+# one-line change: add/remove the print_step call and bump TOTAL_STEPS.
+STEP=0
+TOTAL_STEPS=13
+
 print_step() {
+    STEP=$((STEP + 1))
     echo
-    echo "[$1] $2"
+    echo "[$STEP/$TOTAL_STEPS] $1"
     echo "----------------------------------------------------------------------"
 }
 
 # Find or install Python 3.10
-print_step "1/13" "Finding Python 3.10..."
+print_step "Finding Python 3.10..."
 
 # Function to check if a Python command is version 3.10
 check_python_310() {
@@ -123,7 +129,7 @@ else
 fi
 
 # Create virtual environment
-print_step "2/13" "Creating virtual environment..."
+print_step "Creating virtual environment..."
 if [ -d "venv" ]; then
     # Check if existing venv uses Python 3.10
     venv_python_version=$(venv/bin/python --version 2>&1 | awk '{print $2}')
@@ -152,23 +158,23 @@ else
 fi
 
 # Activate virtual environment
-print_step "3/13" "Activating virtual environment..."
+print_step "Activating virtual environment..."
 source venv/bin/activate
 print_success "Virtual environment activated"
 
 # Upgrade pip
-print_step "4/13" "Upgrading pip..."
+print_step "Upgrading pip..."
 pip install --upgrade pip -q
 print_success "Pip upgraded"
 
 # Install dependencies
-print_step "5/13" "Installing Python dependencies..."
+print_step "Installing Python dependencies..."
 echo "This may take a few minutes..."
 pip install -r requirements.txt -q
 print_success "Dependencies installed"
 
 # Install RVC (optional)
-print_step "6/13" "Installing RVC voice conversion (optional)..."
+print_step "Installing RVC voice conversion (optional)..."
 echo "RVC enables custom trained voice models beyond OpenAI TTS voices."
 echo "This requires temporarily downgrading pip and takes 5-10 minutes."
 echo "The system works perfectly without RVC (using OpenAI TTS only)."
@@ -269,7 +275,7 @@ else
 fi
 
 # Install Spotify playback control (optional)
-print_step "7/13" "Setting up Spotify playback control (optional)..."
+print_step "Setting up Spotify playback control (optional)..."
 echo "Lets a personality control Spotify by voice (\"play some tiki music in the kitchen\")."
 echo "Optional and off by default. Requires Spotify Premium and a quick one-time setup."
 echo ""
@@ -313,7 +319,7 @@ else
 fi
 
 # Download OpenWakeWord preprocessing models
-print_step "8/13" "Downloading OpenWakeWord preprocessing models..."
+print_step "Downloading OpenWakeWord preprocessing models..."
 echo "Downloading required model files (melspectrogram.onnx, embedding_model.onnx)..."
 python3 -c "from openwakeword import utils; utils.download_models(['alexa'])" 2>/dev/null || {
     print_warning "OpenWakeWord models may already exist or download failed"
@@ -339,7 +345,7 @@ else:
 }
 
 # Check for system dependencies
-print_step "9/13" "Checking system dependencies..."
+print_step "Checking system dependencies..."
 OS_TYPE="$(uname -s)"
 
 if [ "$OS_TYPE" = "Darwin" ]; then
@@ -406,7 +412,7 @@ else
 fi
 
 # Create required directories
-print_step "10/13" "Creating required directories..."
+print_step "Creating required directories..."
 directories=("debug_audio" "personalities/johnny/filler_audio" "personalities/mr_lincoln/filler_audio" "personalities/leopold/filler_audio")
 for dir in "${directories[@]}"; do
     if [ ! -d "$dir" ]; then
@@ -418,7 +424,7 @@ for dir in "${directories[@]}"; do
 done
 
 # Setup configuration
-print_step "11/13" "Setting up configuration..."
+print_step "Setting up configuration..."
 if [ -f ".env" ]; then
     print_warning ".env file already exists (skipping creation)"
 
@@ -453,7 +459,7 @@ else
 fi
 
 # Generate filler audio for all personalities (optional)
-print_step "12/13" "Generating filler audio for personalities..."
+print_step "Generating filler audio for personalities..."
 echo "This creates pre-recorded phrases that play immediately while processing responses."
 echo "This is optional and takes 2-3 minutes."
 echo ""
@@ -472,7 +478,7 @@ else
 fi
 
 # Check for wake word models
-print_step "13/13" "Checking wake word models..."
+print_step "Checking wake word models..."
 models_found=0
 models_missing=()
 
