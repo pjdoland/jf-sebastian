@@ -118,9 +118,10 @@ def test_conversation_engine_initialization(mock_settings, mock_openai):
     engine = ConversationEngine("Test system prompt")
 
     assert engine.system_prompt == "Test system prompt"
-    assert len(engine._messages) == 1
-    assert engine._messages[0]["role"] == "system"
-    assert engine._messages[0]["content"] == "Test system prompt"
+    # Turns start empty; the system prompt is pinned outside the deque (so the
+    # deque's maxlen can never evict it) and surfaces via get_history().
+    assert len(engine._messages) == 0
+    assert engine.get_history()[0] == {"role": "system", "content": "Test system prompt"}
 
 
 @patch('jf_sebastian.modules.conversation.settings')
@@ -154,7 +155,7 @@ def test_conversation_engine_generate_response_success(mock_settings, mock_opena
     response = engine.generate_response("Hello, how are you?")
 
     assert response == "This is a test response."
-    assert len(engine._messages) == 3  # system + user + assistant
+    assert len(engine._messages) == 2  # user + assistant turns (system is pinned separately)
     mock_client.chat.completions.create.assert_called_once()
 
 
@@ -207,8 +208,9 @@ def test_conversation_engine_with_context(mock_settings, mock_openai):
     response = engine.generate_response("Question?", additional_context="Hmm...")
 
     assert response == "Response with context."
-    # Check that context was added to user message
-    user_message = engine._messages[1]["content"]
+    # Check that context was added to user message (the first turn now that the
+    # system prompt is pinned outside the deque)
+    user_message = engine._messages[0]["content"]
     assert "Hmm..." in user_message
     assert "Question?" in user_message
 
@@ -307,17 +309,17 @@ def test_conversation_engine_clear_history(mock_settings, mock_openai):
 
     engine = ConversationEngine("Test prompt")
 
-    # Manually add messages
+    # Manually add turns
     engine._messages.append({"role": "user", "content": "Test"})
     engine._messages.append({"role": "assistant", "content": "Response"})
 
-    assert len(engine._messages) == 3
+    assert len(engine._messages) == 2
 
     engine.clear_history()
 
-    # Should only have system prompt left
-    assert len(engine._messages) == 1
-    assert engine._messages[0]["role"] == "system"
+    # Turns cleared; the pinned system prompt survives.
+    assert len(engine._messages) == 0
+    assert engine.get_history() == [{"role": "system", "content": "Test prompt"}]
 
 
 @patch('jf_sebastian.modules.conversation.OpenAI')
@@ -376,9 +378,9 @@ def test_conversation_engine_timeout_clears_history(mock_settings, mock_openai):
 
     engine = ConversationEngine("Test prompt")
 
-    # Add a message
+    # Add a turn
     engine._messages.append({"role": "user", "content": "First message"})
-    assert len(engine._messages) == 2
+    assert len(engine._messages) == 1
 
     # Wait for timeout
     time.sleep(0.2)
@@ -386,8 +388,8 @@ def test_conversation_engine_timeout_clears_history(mock_settings, mock_openai):
     # Next response should clear history
     engine.generate_response("Second message")
 
-    # Should have system + user + assistant (history was cleared)
-    assert len(engine._messages) == 3
+    # History was cleared, so only the new user + assistant turns remain
+    assert len(engine._messages) == 2
 
 
 @patch('jf_sebastian.modules.conversation.OpenAI')

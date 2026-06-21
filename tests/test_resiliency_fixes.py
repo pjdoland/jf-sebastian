@@ -172,5 +172,6 @@ class TestConversationStreamingCleanup:
         assert final_chunk == ""
         assert is_final == True
 
-        # User message should have been cleaned up
-        assert len(engine._messages) == 1  # Only system prompt
+        # User message should have been cleaned up, leaving no turns. The system
+        # prompt is pinned outside the deque, so it is not counted here.
+        assert len(engine._messages) == 0

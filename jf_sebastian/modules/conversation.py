@@ -47,14 +47,12 @@ class ConversationEngine:
         self._spotify_enabled = bool(spotify_enabled and spotify_tool is not None)
         self.suppress_followup = False
 
-        # Conversation history (system + user/assistant messages)
+        # Conversation history holds ONLY the user/assistant turns. The system
+        # prompt is pinned separately and prepended at request time, so it is
+        # never evicted by the deque's maxlen as the conversation grows (which
+        # would make the personality drift out of character after ~MAX_HISTORY
+        # messages). MAX_HISTORY_LENGTH now bounds turns only.
         self._messages = deque(maxlen=settings.MAX_HISTORY_LENGTH)
-
-        # Add system prompt
-        self._messages.append({
-            "role": "system",
-            "content": self.system_prompt
-        })
 
         self._last_interaction_time = time.time()
 
@@ -202,8 +200,10 @@ class ConversationEngine:
 
             logger.info(f"Generating response to: \"{user_input}\"")
 
-            # Build messages: history + transient real-world context (not stored in history)
-            messages = list(self._messages)
+            # Pinned system prompt + turns, then insert the transient real-world
+            # context just before the latest user turn (none of these are stored
+            # back into the turn history)
+            messages = self._messages_with_system()
             messages.insert(-1, {"role": "system", "content": self._build_turn_context()})
 
             # Call GPT API with appropriate parameters
@@ -336,8 +336,10 @@ class ConversationEngine:
 
             logger.info(f"Generating streaming response to: \"{user_input}\"")
 
-            # Build messages: history + transient real-world context (not stored in history)
-            messages = list(self._messages)
+            # Pinned system prompt + turns, then insert the transient real-world
+            # context just before the latest user turn (none of these are stored
+            # back into the turn history)
+            messages = self._messages_with_system()
             messages.insert(-1, {"role": "system", "content": self._build_turn_context()})
 
             # Call GPT API with streaming and appropriate parameters
@@ -460,21 +462,25 @@ class ConversationEngine:
             yield ("", True)
 
     def clear_history(self):
-        """Clear conversation history, keeping only system prompt."""
+        """Clear the conversation turns. The system prompt is pinned separately,
+        so it survives the clear."""
         self._messages.clear()
-        self._messages.append({
-            "role": "system",
-            "content": self.system_prompt
-        })
         logger.info("Conversation history cleared")
 
+    def _messages_with_system(self) -> list[dict]:
+        """A fresh list of the pinned system prompt followed by the bounded turn
+        history. The system prompt lives outside the maxlen deque, so it is never
+        evicted as turns accumulate. Returns a new list each call, safe to mutate."""
+        return [{"role": "system", "content": self.system_prompt}, *self._messages]
+
     def get_history(self) -> list[dict]:
-        """Get current conversation history."""
-        return list(self._messages)
+        """Get the full conversation as sent to the model: the pinned system
+        prompt followed by the user/assistant turns."""
+        return self._messages_with_system()
 
     def get_history_length(self) -> int:
-        """Get number of messages in history."""
-        return len(self._messages)
+        """Get number of messages in history (the pinned system prompt + turns)."""
+        return len(self._messages_with_system())
 
     def _get_error_response(self, error_type: str) -> str:
         """
