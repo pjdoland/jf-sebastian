@@ -283,27 +283,29 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
         print_warning "Spotify dependency failed to install"
         echo "Retry later with: pip install -r requirements-spotify.txt"
     fi
-    echo ""
-    echo "To finish turning it on (do this whenever you're ready, after setup):"
-    echo ""
-    echo "  1. Make sure your Spotify account is PREMIUM (the playback API is Premium-only)."
-    echo "  2. Create a free app at https://developer.spotify.com/dashboard"
-    echo "       - Under the app's Settings, add this exact Redirect URI:"
-    echo "           http://127.0.0.1:8888/callback"
-    echo "       - Copy the app's Client ID (there is no client secret; auth uses PKCE)."
-    echo "  3. In your .env set:"
-    echo "           SPOTIFY_ENABLED=true"
-    echo "           SPOTIFY_CLIENT_ID=<the Client ID from step 2>"
-    echo "  4. Authorize once on a machine with a browser:"
-    echo "           python scripts/spotify_auth.py"
-    echo "       It logs you in, caches a token, and prints your Spotify Connect"
-    echo "       speaker names. (On a headless box, run this on your laptop and copy"
-    echo "       ~/.config/jf-sebastian/spotify-token.json over.)"
-    echo "  5. Optional: set SPOTIFY_DEFAULT_DEVICE to one of those speaker names so"
-    echo "       \"play X\" with no room targets it."
-    echo ""
-    echo "  Every personality can then control music; set 'spotify_enabled: false' in a"
-    echo "  personality.yaml to exclude one. Full walkthrough: docs/SPOTIFY_SETUP.md"
+    cat <<'EOF'
+
+To finish turning it on (do this whenever you're ready, after setup):
+
+  1. Make sure your Spotify account is PREMIUM (the playback API is Premium-only).
+  2. Create a free app at https://developer.spotify.com/dashboard
+       - Under the app's Settings, add this exact Redirect URI:
+           http://127.0.0.1:8888/callback
+       - Copy the app's Client ID (there is no client secret; auth uses PKCE).
+  3. In your .env set:
+           SPOTIFY_ENABLED=true
+           SPOTIFY_CLIENT_ID=<the Client ID from step 2>
+  4. Authorize once on a machine with a browser:
+           python scripts/spotify_auth.py
+       It logs you in, caches a token, and prints your Spotify Connect
+       speaker names. (On a headless box, run this on your laptop and copy
+       ~/.config/jf-sebastian/spotify-token.json over.)
+  5. Optional: set SPOTIFY_DEFAULT_DEVICE to one of those speaker names so
+       "play X" with no room targets it.
+
+  Every personality can then control music; set 'spotify_enabled: false' in a
+  personality.yaml to exclude one. Full walkthrough: docs/SPOTIFY_SETUP.md
+EOF
 else
     print_warning "Skipped Spotify installation"
     echo "You can install later with: pip install -r requirements-spotify.txt"
