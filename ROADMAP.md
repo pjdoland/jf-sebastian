@@ -37,11 +37,17 @@ Score = total YAY votes including originator (max 7/7).
 After deduplication (M9 collapses into P1+P2+P3 as the umbrella), this yields 10 distinct
 enhancements grouped by implementation difficulty.
 
+> **Status update:** several Tier-1 items have since shipped, including the pluggable
+> weather/context provider (P8), the supervisor daemon (R7), and scheduled behaviors (M10).
+> Sections below are annotated where the work is done; the rest remain open ideas.
+
 ---
 
 ## Tier 1 — Easiest to Implement
 
-### 1. Local & Pluggable Weather/Context Provider (P8 — 7/7)
+### 1. Local & Pluggable Weather/Context Provider (P8, 7/7)
+
+**Status: Shipped.** `utils/weather.py` and `utils/news.py` provide pluggable provider interfaces (wttr, Home Assistant, manual, RSS, Hacker News) selected via `WEATHER_PROVIDER` / `NEWS_PROVIDER`.
 
 Refactor `utils/context_provider.py` from a hard-wired `wttr.in` HTTP call into a pluggable
 interface with adapters for Home Assistant, manual overrides, and local weather stations
@@ -54,7 +60,9 @@ call; an interface change here removes the only non-OpenAI cloud dependency.
 - **Dependencies / risks:** None significant. Risk is bikeshedding the adapter interface;
   resist over-abstracting.
 
-### 2. Supervisor Daemon with Crash-Loop Backoff (R7 — 6/7)
+### 2. Supervisor Daemon with Crash-Loop Backoff (R7, 6/7)
+
+**Status: Shipped.** `scripts/supervisor.py` wraps `python -m jf_sebastian.main` with exponential-backoff restarts, a watchdog that kills hung children, and crash reports; launchd/systemd templates live in `scripts/`.
 
 Wrap `python -m jf_sebastian.main` in a tiny supervisor (launchd plist on macOS, systemd
 unit on Linux) that catches PortAudio/RVC segfaults, applies exponential backoff, kills

@@ -283,7 +283,7 @@ See `personalities/johnny/scheduled_events.yaml` for a full working example, and
 ## Advanced Configuration
 
 ### Adjust Response Timing
-- `SILENCE_TIMEOUT`: How long to wait for speech (default: 10.0 seconds)
+- `SILENCE_TIMEOUT`: How long to wait for speech (default: 5.0 seconds)
 - `CONVERSATION_TIMEOUT`: When to clear conversation history (default: 120.0 seconds)
 
 ### Debug Mode

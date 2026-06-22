@@ -49,7 +49,7 @@ class Settings:
     LOADED_ENV_OVERLAYS: list[str] = LOADED_ENV_OVERLAYS
 
     # Personality Selection
-    PERSONALITY: str = os.getenv("PERSONALITY", "johnny")  # 'johnny' or 'rich'
+    PERSONALITY: str = os.getenv("PERSONALITY", "johnny")  # any folder under personalities/ (e.g. johnny, fred, kitt, jarvis)
 
     # OpenAI API
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
@@ -62,7 +62,7 @@ class Settings:
     INPUT_DEVICE_NAME: Optional[str] = os.getenv("INPUT_DEVICE_NAME")
     OUTPUT_DEVICE_NAME: Optional[str] = os.getenv("OUTPUT_DEVICE_NAME")
     OUTPUT_DEVICE_TYPE: str = os.getenv("OUTPUT_DEVICE_TYPE", "teddy_ruxpin")
-    SAMPLE_RATE: int = int(os.getenv("SAMPLE_RATE", "44100"))
+    SAMPLE_RATE: int = int(os.getenv("SAMPLE_RATE", "16000"))  # Silero VAD requires 16000 (or 8000); other rates disable VAD
     CHUNK_SIZE: int = int(os.getenv("CHUNK_SIZE", "1024"))
 
     # Voice Activity Detection (Silero). Probability above which a 32 ms
@@ -70,8 +70,8 @@ class Settings:
     # 1.0 = call nothing speech). 0.5 is balanced; raise toward 0.7 if
     # noise is leaking through, lower toward 0.3 if real speech is rejected.
     VAD_THRESHOLD: float = float(os.getenv("VAD_THRESHOLD", "0.5"))
-    SILENCE_TIMEOUT: float = float(os.getenv("SILENCE_TIMEOUT", "10.0"))
-    SPEECH_END_SILENCE_SECONDS: float = float(os.getenv("SPEECH_END_SILENCE_SECONDS", "1.5"))
+    SILENCE_TIMEOUT: float = float(os.getenv("SILENCE_TIMEOUT", "5.0"))
+    SPEECH_END_SILENCE_SECONDS: float = float(os.getenv("SPEECH_END_SILENCE_SECONDS", "1.0"))
     MIN_LISTEN_SECONDS: float = float(os.getenv("MIN_LISTEN_SECONDS", "1.0"))
     MIN_AUDIO_RMS: float = float(os.getenv("MIN_AUDIO_RMS", "60"))  # Minimum peak RMS amplitude to transcribe (filters silence)
     MIN_SPEECH_RATIO: float = float(os.getenv("MIN_SPEECH_RATIO", "0.3"))  # Minimum ratio of speech frames (0.0-1.0, default 30%)

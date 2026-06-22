@@ -1,5 +1,5 @@
 """
-Conversation engine for managing GPT-4o interactions.
+Conversation engine for managing GPT interactions.
 Maintains conversation history and generates responses.
 """
 
@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 class ConversationEngine:
     """
-    Manages conversation with GPT-4o, including context and history.
+    Manages conversation with the configured GPT model, including context and history.
     """
 
     def __init__(self, system_prompt: str, spotify_tool=None, spotify_enabled: bool = False):

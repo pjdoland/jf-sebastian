@@ -108,7 +108,7 @@ Includes seven distinct personalities: a tiki bartender, Abraham Lincoln (a homa
 - **Wake Word Activation**: Custom wake words per personality using OpenWakeWord (free & open source)
 - **Low-Latency Fillers**: Pre-generated personality-specific phrases play immediately while processing
 - **Speech Recognition**: OpenAI Whisper API for accurate speech-to-text transcription
-- **AI Conversation**: GPT-4o-mini powers personality-driven responses with conversation context
+- **AI Conversation**: a configurable GPT model (gpt-5.4-mini by default) powers personality-driven responses with conversation context
 - **Streaming Response Pipeline**: Word-based sentence chunking enables parallel TTS/RVC processing while LLM generates
 - **Natural Voice**: OpenAI TTS (gpt-4o-mini-tts) generates speech with personality-specific voices, speeds, and tones
 - **RVC Voice Conversion** (Optional): Transform TTS output with custom trained voice models for unique character voices beyond OpenAI TTS
@@ -301,7 +301,7 @@ No API key required! OpenWakeWord is completely free and open source.
 
 Each personality includes its own wake word model file at `personalities/{name}/hey_{name}.onnx`. Run `ls personalities/*/hey_*.onnx` to see which models are currently installed.
 
-Some personalities (e.g. Jarvis) use OpenWakeWord's bundled pre-trained models (`hey_jarvis_v0.1`); others ship custom-trained models.
+Every bundled personality ships its own custom-trained `.onnx` model. You can also point a personality at one of OpenWakeWord's bundled pre-trained models (e.g. `hey_jarvis_v0.1`) if you prefer not to train your own.
 
 To create a custom wake word for a new personality:
 1. Follow the guide in `docs/TRAIN_WAKE_WORDS.md`
@@ -347,6 +347,8 @@ OUTPUT_DEVICE_NAME=Arsvita
 #### 9. Optional: Install RVC for Custom Voice Models
 
 **RVC (Retrieval-based Voice Conversion) is optional.** The system works perfectly with OpenAI TTS voices alone. Install RVC only if you want to use custom trained voice models for unique character voices.
+
+> **Voice models are not distributed with this project.** No `.pth`/`.index` RVC model ships in the repo (they are gitignored). Where a personality lists a voice "with RVC," that describes the intended character voice, which you only get after training or obtaining your own model and placing it in the personality folder (see [docs/CREATING_PERSONALITIES.md](docs/CREATING_PERSONALITIES.md#getting-rvc-models)). Without a model, that personality simply uses its raw OpenAI TTS voice.
 
 **Requirements:**
 - Python 3.10.x specifically (RVC is not compatible with Python 3.11+)
@@ -440,9 +442,11 @@ The system includes a modular personality framework. Each personality has:
 
 ### Available Personalities
 
+Each personality ships its `personality.yaml`, wake word model, and filler phrases. Where a voice is listed "with RVC," the converted character voice requires a voice model you supply yourself: **RVC `.pth`/`.index` models are not distributed with this project.** Without one, the personality uses its raw OpenAI TTS voice (the voice named below).
+
 #### Johnny - Tiki Bartender
 - **Wake word**: "Hey, Johnny"
-- **Voice**: Onyx (casual male)
+- **Voice**: Shimmer (input voice; his character comes from RVC conversion)
 - **Character**: Laid-back beatnik bartender with deep tiki culture knowledge
 - **Topics**: Cocktails, surf music, Polynesian pop, tiki history
 
@@ -454,7 +458,7 @@ The system includes a modular personality framework. Each personality has:
 
 #### Leopold - Conspiracy Theorist
 - **Wake word**: "Hey, Leopold"
-- **Voice**: Onyx (conspiratorial)
+- **Voice**: Onyx with RVC (conspiratorial)
 - **Character**: Eccentric truth-seeker with an insane backstory (Turkish prison, UFO abductions, intelligence work)
 - **Topics**: Conspiracies, surveillance, government secrets, paranoid theories
 
@@ -478,7 +482,7 @@ The system includes a modular personality framework. Each personality has:
 
 #### Teddy Ruxpin - Storytelling Bear
 - **Wake word**: "Hey, Teddy Ruxpin"
-- **Voice**: Echo with RVC (friendly, enthusiastic)
+- **Voice**: Shimmer with RVC (friendly, enthusiastic)
 - **Character**: Adventurous teddy bear from the magical land of Grundo
 - **Topics**: Adventures, friendship, Grubby, ancient treasures, magical crystals, storytelling
 
@@ -648,7 +652,7 @@ Use the overlays for things like `VOICE_GAIN` that differ by speaker hardware or
 | `INPUT_DEVICE_NAME` | Microphone device name | - |
 | `OUTPUT_DEVICE_NAME` | Speaker device name | - |
 | `OUTPUT_DEVICE_TYPE` | Output device type ('teddy_ruxpin', 'squawkers_mccaw', 'headless') | teddy_ruxpin |
-| `SAMPLE_RATE` | Audio capture sample rate (Hz). 16000 in practice — Silero VAD requires it. Validator still accepts 22050/44100/48000, but VAD warns and disables itself at those rates. | 16000 |
+| `SAMPLE_RATE` | Audio capture sample rate (Hz). Must be 16000 (Silero VAD requires it). The validator still accepts 22050/44100/48000, but VAD warns and disables itself at those rates. | 16000 |
 | `CHUNK_SIZE` | Audio chunk size for processing | 1024 |
 
 #### Voice Activity Detection
@@ -657,7 +661,7 @@ Use the overlays for things like `VOICE_GAIN` that differ by speaker hardware or
 |---------|-------------|---------|
 | `VAD_THRESHOLD` | Silero VAD per-window speech probability cutoff (0.0-1.0, higher = stricter) | 0.5 |
 | `SILENCE_TIMEOUT` | Max silence before timeout (seconds) | 5.0 |
-| `SPEECH_END_SILENCE_SECONDS` | Silence required to end speech after talking (seconds) | 0.5 |
+| `SPEECH_END_SILENCE_SECONDS` | Silence required to end speech after talking (seconds) | 1.0 |
 | `MIN_LISTEN_SECONDS` | Minimum listen window after wake word (seconds) | 1.0 |
 | `MIN_AUDIO_RMS` | Min peak RMS amplitude to send audio to Whisper (filters silence) | 60 |
 | `MIN_SPEECH_RATIO` | Min ratio of speech-bearing frames (0.0–1.0) before transcribing | 0.3 |
@@ -709,7 +713,7 @@ Off by default. Requires Spotify Premium and a one-time browser login (`python s
 | Setting | Description | Default |
 |---------|-------------|---------|
 | `CONVERSATION_TIMEOUT` | Clear history after idle (seconds) | 120.0 |
-| `MAX_HISTORY_LENGTH` | Maximum conversation history messages to maintain | 20 |
+| `MAX_HISTORY_LENGTH` | Maximum user/assistant turn messages to retain (the system prompt is pinned separately and never counts against this) | 20 |
 | `MIN_CHUNK_WORDS` | Minimum word count per streaming chunk (word-based sentence chunking) | 15 |
 | `MAX_TOKENS` | Maximum tokens for non-streaming GPT responses | 300 |
 | `MAX_TOKENS_STREAMING` | Maximum tokens for streaming GPT responses | 200 |
@@ -719,9 +723,9 @@ Off by default. Requires Spotify Premium and a one-time browser login (`python s
 | Setting | Description | Default |
 |---------|-------------|---------|
 | `WHISPER_MODEL` | OpenAI Whisper speech-to-text model | whisper-1 |
-| `GPT_MODEL` | OpenAI GPT model for conversation (fall back to `gpt-4o-mini` if your account lacks access) | gpt-5.4-mini |
+| `GPT_MODEL` | OpenAI GPT model for conversation. `.env.example` ships `gpt-5.4-mini`; the bare code fallback (no `.env`) is `gpt-4o-mini`, also the safe choice if your account lacks GPT-5 access | gpt-5.4-mini |
 | `GPT_REASONING_EFFORT` | Reasoning effort for the GPT-5 family (low/medium/high; empty = model default; ignored for GPT-4) | low |
-| `TTS_MODEL` | OpenAI text-to-speech model | gpt-4o-mini-tts |
+| `TTS_MODEL` | OpenAI text-to-speech model. `.env.example` ships `gpt-4o-mini-tts`; the bare code fallback (no `.env`) is `tts-1` | gpt-4o-mini-tts |
 
 **Note**: TTS voice, speed, and style are defined per personality in `personalities/` (not in .env). The gpt-4o-mini-tts model supports prompting for tone, emotional range, intonation, and speaking style.
 
@@ -747,7 +751,7 @@ Off by default. Requires Spotify Premium and a one-time browser login (`python s
 | Setting | Description | Default |
 |---------|-------------|---------|
 | `RVC_ENABLED` | Global enable/disable for RVC voice conversion | true |
-| `RVC_DEVICE` | Device for RVC inference (cpu/mps/cuda) - mps for Apple Silicon GPU | mps |
+| `RVC_DEVICE` | Device for RVC inference. `auto` detects the best available (mps on Apple Silicon, cuda on NVIDIA, else cpu); override with `cpu`/`mps`/`cuda` | auto |
 
 **Note**: RVC is configured per-personality in `personality.yaml`. See [docs/CREATING_PERSONALITIES.md](docs/CREATING_PERSONALITIES.md) for RVC setup details. When enabled, RVC transforms TTS output to create unique character voices that go beyond what OpenAI TTS can provide alone.
 
@@ -772,6 +776,7 @@ These settings only apply when running under `scripts/supervisor.py`. See [Runni
 | `RESTART_BACKOFF_INITIAL` | Initial restart delay (seconds) | 1.0 |
 | `RESTART_BACKOFF_MAX` | Cap on restart delay (seconds) | 60.0 |
 | `CRASH_REPORT_DIR` | Directory for per-crash reports | ./crash_reports/ |
+| `CRASH_REPORT_TAIL` | Lines of `jf_sebastian.log` to include in each crash report | 100 |
 | `CRASH_REPORT_KEEP` | Max crash reports retained (older are pruned) | 200 |
 
 
@@ -815,7 +820,7 @@ Deploying on an NVIDIA Jetson Orin Nano? See [JETSON_DEPLOYMENT.md](docs/JETSON_
 2. **Wake Word Detector**: Always-on personality-specific wake word detection (OpenWakeWord)
 3. **Audio Input Pipeline**: Microphone capture with voice activity detection
 4. **Speech-to-Text**: OpenAI Whisper transcription
-5. **Conversation Engine**: GPT-4o integration with word-based streaming chunking (MIN_CHUNK_WORDS configurable)
+5. **Conversation Engine**: configurable GPT model (gpt-5.4-mini by default) with word-based streaming chunking (MIN_CHUNK_WORDS configurable)
 6. **Text-to-Speech**: OpenAI TTS synthesis with personality-specific voices and styles
 7. **RVC Voice Converter** (Optional): Transforms TTS output with trained voice models for unique character voices
 8. **PPM Generator**: Creates precise PPM control signals (60Hz, 400µs pulses, 630-1590µs gaps)
@@ -834,7 +839,8 @@ Deploying on an NVIDIA Jetson Orin Nano? See [JETSON_DEPLOYMENT.md](docs/JETSON_
 - **Solutions**:
   - Check microphone is working and selected correctly
   - Speak clearly and slightly louder
-  - Ensure wake word model files exist in `models/` directory
+  - Ensure the wake word model exists at `personalities/{name}/hey_{name}.onnx`
+  - Lower `WAKE_WORD_THRESHOLD` in `.env` (default 0.99) if detection is too strict
   - See `docs/TRAIN_WAKE_WORDS.md` for training custom wake words
 
 ### Audio Device Issues
@@ -842,9 +848,8 @@ Deploying on an NVIDIA Jetson Orin Nano? See [JETSON_DEPLOYMENT.md](docs/JETSON_
 - **Issue**: No audio output or "Device not found"
 - **Solutions**:
   - Run `python -m jf_sebastian.modules.audio_output` to list devices
-  - Verify device indices in `.env`
+  - Set `INPUT_DEVICE_NAME` / `OUTPUT_DEVICE_NAME` in `.env` (partial name match; leave unset for the system default)
   - Check Bluetooth connection to cassette adapter
-  - Try `-1` for default device first
 
 ### API Errors
 
@@ -922,7 +927,7 @@ jf-sebastian/
 │   │   ├── wake_word.py         # Wake word detection (OpenWakeWord)
 │   │   ├── audio_input.py       # Microphone + VAD
 │   │   ├── speech_to_text.py    # Whisper API
-│   │   ├── conversation.py      # GPT-4o-mini streaming + word-chunked sentences
+│   │   ├── conversation.py      # GPT streaming + word-chunked sentences
 │   │   ├── text_to_speech.py    # OpenAI TTS
 │   │   ├── filler_phrases.py    # Pre-recorded filler audio for low-latency feel
 │   │   ├── ppm_generator.py     # PPM signal generation (60Hz, 8-channel)
@@ -1014,7 +1019,7 @@ Target latencies (typical):
 - Wake word detection: <500ms
 - Filler phrase playback: Immediate (0.5-second natural pause + 8-15 second filler)
 - Speech transcription: 1-2 seconds (during filler)
-- GPT-4o-mini response: 1-2 seconds (during filler)
+- GPT response: 1-2 seconds (during filler)
 - TTS synthesis: 1-2 seconds (during filler)
 - **Total response time**: Feels nearly instant due to fillers, actual processing 4-6 seconds
 
@@ -1022,7 +1027,7 @@ Target latencies (typical):
 
 OpenAI API usage (approximate):
 - Whisper: $0.006 per minute of audio
-- GPT-4o-mini: $0.001-0.005 per conversation turn (much cheaper than GPT-4o)
+- GPT (mini-tier model): roughly $0.001-0.005 per conversation turn
 - TTS: $0.015 per 1000 characters
 
 Typical conversation (10 exchanges): ~$0.20-0.40

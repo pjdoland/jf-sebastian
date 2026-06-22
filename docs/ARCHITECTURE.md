@@ -49,7 +49,7 @@ This application enables real-time voice conversations with ChatGPT through vint
         │   - Error handling
         │
         ├─► Conversation Engine
-        │   - OpenAI GPT-4o API with streaming
+        │   - OpenAI GPT API with streaming (gpt-5.4-mini by default)
         │   - Word-based sentence chunking (MIN_CHUNK_WORDS)
         │   - Context management
         │   - System prompt injection
@@ -118,7 +118,7 @@ This application enables real-time voice conversations with ChatGPT through vint
 │ IDLE ├──────────────────► │ LISTENING │
 └──┬───┘                    └──────┬────┘
    ▲                               │
-   │                               │ silence timeout (10s)
+   │                               │ silence timeout (5s)
    │                               │ OR speech ended
    │                               ▼
    │                        ┌────────────┐
@@ -132,6 +132,10 @@ This application enables real-time voice conversations with ChatGPT through vint
                               └──────────┘
 ```
 
+Two additional transitions exist beyond the core loop above:
+- **IDLE → SPEAKING**: the proactive scheduler fires a scheduled event, entering SPEAKING directly via an atomic `try_transition(IDLE, SPEAKING)` (it never interrupts an active conversation).
+- **SPEAKING → LISTENING**: after a response finishes, the system reopens the mic to continue the conversation rather than returning to IDLE.
+
 ### State Descriptions
 
 **IDLE**
@@ -144,15 +148,13 @@ This application enables real-time voice conversations with ChatGPT through vint
 - Microphone actively recording
 - VAD monitoring for speech end
 - Audio buffered for transcription
-- 10-second silence timeout
-- Visual: Teddy mouth open slightly (attentive)
+- 5-second silence timeout
 
 **PROCESSING**
 - Transcribing speech via Whisper
-- Sending to GPT-4o
+- Sending to the GPT model
 - Generating TTS audio
 - Creating control signals
-- Visual: Teddy eyes thinking position
 
 **SPEAKING**
 - Playing stereo audio output
@@ -239,7 +241,7 @@ TTS Audio (MP3) ──► [FFmpeg Decode] ──► PCM Audio @ 16kHz
   - Peak amplitude: `max(abs(syllable_audio))`
   - RMS amplitude: `sqrt(mean(syllable_audio²))`
   - Blended: `0.7 * peak + 0.3 * rms`
-  - Scaled and clipped: `clip(amplitude * 5.0, 0, 1) ** 0.75`
+  - Scaled and clipped: `clip(amplitude * 12.0, 0, 1)`
 - Apply smooth transitions between syllables:
   - Fast attack (0.15): Syllable onset
   - Slower release (0.35): Between syllables
@@ -248,11 +250,11 @@ TTS Audio (MP3) ──► [FFmpeg Decode] ──► PCM Audio @ 16kHz
 **Eye Control (Sentiment-Based)**
 - Analyze GPT response sentiment using VADER
 - Map sentiment (-1 to 1) to eye position (0 to 1):
-  - Base position: 0.5 (center)
-  - Sentiment modulation: ±30% (0.5 + sentiment * 0.3)
+  - Base position: 0.9 (eyes start open)
+  - Sentiment modulation: a subtle ±3% (`base + sentiment * 0.03`)
   - Clipped to valid range [0, 1]
-- Add occasional blinks: 0.5% chance per frame (~once per 10 seconds)
-- Encode to PPM: Ch1 = eye_position * 255
+- Add occasional blinks: ~0.4% chance per frame (~once per 4 seconds at 60Hz)
+- Encode to PPM: Ch1 = (1.0 - eye_position) * 255 (the command is inverted; a higher value closes the lids)
 
 ### 1985 Teddy Ruxpin Technical Specs
 
@@ -335,7 +337,7 @@ Core libraries:
 - `onnxruntime` - ONNX model inference for wake word detection
 - `pyaudio` or `sounddevice` - Audio I/O
 - `silero-vad` - Voice activity detection (neural)
-- `openai` - Whisper, GPT-4o, TTS APIs
+- `openai` - Whisper, GPT, TTS APIs
 - `numpy` - Audio signal processing
 - `scipy` - Signal filtering, resampling, and PPM waveform generation
 - `syllables` - Syllable detection for lip sync timing

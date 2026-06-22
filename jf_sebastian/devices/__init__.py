@@ -40,7 +40,7 @@ for _mod in pkgutil.iter_modules(__path__):
     try:
         importlib.import_module(f"{__name__}.{_mod.name}")
     except Exception as _e:  # optional package: degrade, don't break the fleet
-        _logger.error("Optional device package %r failed to load: %s", _mod.name, _e)
+        _logger.warning("Optional device package %r failed to load: %s", _mod.name, _e)
 
 __all__ = [
     'OutputDevice',

@@ -461,7 +461,7 @@ Choose from OpenAI's TTS voices:
 | **alloy** | Neutral, balanced | General purpose, androids, neutral characters |
 | **echo** | Male, clear, professional | Leaders, teachers, formal characters (Mr. Lincoln) |
 | **fable** | Male, expressive, storytelling | Narrators, entertainers, dramatic characters |
-| **onyx** | Male, deep, casual | Everyday characters, bartenders (Johnny), casual personalities |
+| **onyx** | Male, deep, casual | Everyday characters, bartenders, casual personalities |
 | **nova** | Female, warm, friendly | Friendly characters, hosts, welcoming personalities |
 | **shimmer** | Female, soft, calm | Gentle characters, soothing personalities |
 
@@ -742,6 +742,8 @@ rvc_f0_method: rmvpe
 - **Linux/Windows**: `rmvpe` (best quality, requires download)
 
 ### Getting RVC Models
+
+**RVC voice models are not distributed with this project.** No `.pth`/`.index` files ship in the repo (they are gitignored), including for the bundled personalities. To get a converted character voice you must supply your own model through one of the options below. Until you do, the personality uses its raw OpenAI TTS voice.
 
 **Option 1: Train Your Own**
 - Requires audio samples of target voice (10+ minutes recommended)

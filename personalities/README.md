@@ -6,9 +6,11 @@ Personalities are defined using simple YAML files - **no programming required**.
 
 ## Available Personalities
 
+> **Note on RVC voices:** entries listed "with RVC" describe the intended, voice-converted character. The RVC `.pth`/`.index` models are **not distributed with this project** (they are gitignored); you must train or obtain your own and drop them in the personality folder. Without a model, the personality falls back to the raw OpenAI TTS voice shown.
+
 ### Johnny (Tiki Bartender)
 - **Wake word**: "Hey, Johnny"
-- **Voice**: Onyx (male, casual)
+- **Voice**: Shimmer with RVC (input voice; his character comes from RVC conversion)
 - **Character**: Laid-back beatnik bartender with deep knowledge of tiki culture, surf music, and tropical drinks
 - **Filler phrases**: Bar activities like making orgeat, grabbing mint, checking rum barrels, etc.
 
@@ -20,7 +22,7 @@ Personalities are defined using simple YAML files - **no programming required**.
 
 ### Leopold (Conspiracy Theorist)
 - **Wake word**: "Hey, Leopold"
-- **Voice**: Onyx (male, conspiratorial)
+- **Voice**: Onyx with RVC (male, conspiratorial)
 - **Character**: Eccentric truth-seeker with an insane backstory (Turkish prison, UFO abductions, intelligence contractor)
 - **Filler phrases**: Checking bug detectors, scanning perimeter, reviewing surveillance footage, etc.
 
@@ -44,7 +46,7 @@ Personalities are defined using simple YAML files - **no programming required**.
 
 ### Teddy Ruxpin (Storytelling Bear)
 - **Wake word**: "Hey, Teddy Ruxpin"
-- **Voice**: Echo with RVC (warm, friendly)
+- **Voice**: Shimmer with RVC (warm, friendly)
 - **Character**: The classic 1980s storytelling teddy bear from the magical land of Grundo
 - **Filler phrases**: Recalling adventures with Grubby, thinking about crystals, remembering stories, etc.
 
@@ -189,11 +191,11 @@ The only external configuration needed is setting `PERSONALITY=yourname` in `.en
 ## Available TTS Voices
 
 OpenAI provides these voices:
-- **onyx**: Male, casual (used by Johnny and Leopold)
-- **echo**: Male, dignified (used by Mr. Lincoln)
-- **fable**: Male, expressive
+- **onyx**: Male, casual (used by Leopold and K.I.T.T.)
+- **echo**: Male, dignified (used by Mr. Lincoln and Fred)
+- **fable**: Male, expressive (used by Jarvis)
 - **nova**: Female, friendly
-- **shimmer**: Female, warm
+- **shimmer**: Female, warm (input voice for Johnny and Teddy Ruxpin, both RVC-converted)
 - **alloy**: Neutral
 
 ## Filler Phrases
@@ -257,8 +259,8 @@ Personalities are defined in `personality.yaml` files with these fields:
 - **`rvc_model`**: RVC model filename (.pth). Optional: if omitted, the loader looks for `<foldername>.pth` in the personality directory (e.g. `fred/fred.pth`). An explicit value is used as-is. If nothing resolves, RVC is skipped and the raw TTS audio is used.
 - **`rvc_index_file`**: Optional index file for improved quality. Same convention: if omitted, looks for `<foldername>.index`.
 - **`rvc_pitch_shift`**: Pitch adjustment in semitones, -12 to +12 (default: 0)
-- **`rvc_index_rate`**: Index influence, 0.0 to 1.0 (default: 0.75)
-- **`rvc_f0_method`**: Pitch detection method - rmvpe, crepe, harvest, or pm (default: rmvpe)
+- **`rvc_index_rate`**: Index influence, 0.0 to 1.0 (default: 0.5)
+- **`rvc_f0_method`**: Pitch detection method - pm, harvest, crepe, dio, or rmvpe (default: harvest; use pm on macOS, rmvpe on Linux/Windows for best quality)
 - **`rvc_filter_radius`**: Median filtering radius, 0-7 (default: 3)
 - **`rvc_rms_mix_rate`**: Volume envelope mixing, 0.0-1.0 (default: 0.25)
 - **`rvc_protect`**: Protect voiceless consonants, 0.0-0.5 (default: 0.33)

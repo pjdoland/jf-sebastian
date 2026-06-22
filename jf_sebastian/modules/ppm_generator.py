@@ -15,9 +15,9 @@ class PPMGenerator:
     Generates PPM control signals for Teddy Ruxpin.
 
     PPM Format:
-    - Frame period: 20ms (50 Hz)
+    - Frame period: 16.6ms (~60 Hz)
     - 8 channels per frame
-    - Each channel: HIGH pulse (250µs) + LOW gap (850-1750µs)
+    - Each channel: pulse (400µs) + gap (630-1590µs)
     - Gap duration encodes motor position (0-255 maps to min-max gap)
     """
 
@@ -55,7 +55,7 @@ class PPMGenerator:
         Args:
             duration_seconds: Duration of signal to generate
             channel_values: Array of shape (num_frames, 8) with values 0-255 for each channel
-                           Each frame corresponds to one 20ms period
+                           Each frame corresponds to one 16.6ms period
 
         Returns:
             PPM signal as numpy array (normalized -1 to 1)

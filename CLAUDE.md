@@ -255,7 +255,8 @@ The system uses a **defense-in-depth approach** to filter out silence and backgr
 **Execution Order:**
 1. Stages 1-3 run **before** selecting filler phrase
 2. Stages 1-3 run **before** calling Whisper API (saves API quota)
-3. Only if all stages pass: Filler phrase selected → Whisper called → Stage 4 validation
+3. Only if all stages pass: filler phrase selected, then filler playback and the Whisper call **kick off in parallel** (the filler covers transcribe + GPT + TTS latency)
+4. Stage 4 validates the **returned transcript**. Because the filler is already playing by then, Stage 4 no longer prevents a filler from playing on a hallucination; it stops the hallucinated text from reaching GPT/TTS and returns to IDLE
 
 **Benefits:**
 - Eliminates 95%+ of false Whisper API calls

@@ -360,7 +360,7 @@ USB speaker. Adjust to your room.
 | `SPEECH_END_SILENCE_SECONDS` | `2.0` | `1.0` | How long of silence ends user speech. Bump up if you tend to pause mid-question. |
 | `MIN_LISTEN_SECONDS` | `2.0` | `1.0` | Min recording window after wake-word fires (prevents premature cutoff on the "Hey José... [pause] ...what time is it" pattern). |
 | `WAKE_WORD_THRESHOLD` | `0.93` | `0.99` | OpenWakeWord confidence cutoff. 0.99 is very strict (default). 0.93 catches some borderline utterances; going below ~0.85 starts catching not-wake-word audio (false fires on TV/conversation). |
-| `SILENCE_TIMEOUT` | `5.0` | `10.0` | Max recording duration regardless of speech. Forces a return to IDLE on stuck-open recordings. |
+| `SILENCE_TIMEOUT` | `5.0` | `5.0` | Max recording duration regardless of speech. Forces a return to IDLE on stuck-open recordings. |
 
 ### Output (playback) settings
 

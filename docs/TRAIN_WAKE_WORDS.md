@@ -110,7 +110,7 @@ To use a pre-trained model, update the personality file to reference the bundled
 
 ### Model not detecting wake word
 - Train with more samples
-- Adjust detection threshold in `wake_word.py` (line 191, currently 0.5)
+- Lower `WAKE_WORD_THRESHOLD` in `.env` (default 0.99; try 0.93 to catch borderline utterances)
 - Ensure you're speaking clearly and at a normal volume
 
 ### Too many false positives

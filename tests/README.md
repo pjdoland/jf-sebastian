@@ -64,8 +64,8 @@ pytest tests/modules/test_ppm_generator.py
 # Test personalities
 pytest tests/personalities/test_personalities.py
 
-# Test main application
-pytest tests/test_main.py
+# Test conversation engine
+pytest tests/modules/test_conversation.py
 ```
 
 ### Run Tests with Coverage
@@ -155,20 +155,16 @@ The test suite covers:
   - File/phrase count validation
   - Directory handling
 
-- **Audio I/O** (test_audio_input.py, test_audio_output.py)
-  - Device initialization by name/index
-  - Recording start/stop
-  - Audio playback (WAV files, stereo arrays)
-  - Retry logic for PortAudio errors
-  - Cleanup and resource management
+- **Audio Device Utilities** (test_audio_device_utils.py)
+  - Device lookup by partial name match
+  - Selection fallback to the system default
 
 ### System Integration
-- **Main Application** (test_main.py)
-  - State machine transitions (IDLE → LISTENING → PROCESSING → SPEAKING)
-  - Filler selection timing (before state transition)
-  - Module initialization and cleanup
-  - Personality loading
-  - Context manager support
+- **Resiliency** (test_resiliency_fixes.py)
+  - Streaming-error cleanup of conversation state
+  - Audio-input recovery on PortAudio errors
+- **Supervisor / Watchdog** (test_supervisor.py, test_supervisor_integration.py)
+  - Restart backoff, watchdog kill of hung children, crash reports
 
 - **Personality System** (test_personalities.py)
   - Personality loading by name
@@ -266,7 +262,7 @@ Audio device tests use mocks by default. If testing with real hardware:
 ```bash
 # Ensure audio devices are available
 python scripts/test_microphone.py
-python scripts/list_audio_devices.py
+python -m jf_sebastian.modules.audio_output
 ```
 
 ### Slow Tests
