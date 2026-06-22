@@ -10,4 +10,4 @@ Real-time voice conversation with ChatGPT through 1985 Teddy Ruxpin animatronic.
 import os
 os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
 
-__version__ = "2.6.0"
+__version__ = "2.7.0"
