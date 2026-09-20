@@ -130,6 +130,8 @@ class TeddyRuxpinApp:
             system_prompt=self.personality.system_prompt,
             spotify_tool=self._build_spotify_tool(),
             spotify_enabled=self.personality.spotify_enabled,
+            hue_tool=self._build_hue_tool(),
+            hue_enabled=self.personality.hue_enabled,
         )
         self.text_to_speech = TextToSpeech(
             voice=self.personality.tts_voice,
@@ -420,6 +422,22 @@ class TeddyRuxpinApp:
             return SpotifyTool()
         except Exception as e:
             logger.warning("Spotify tools unavailable (%s); continuing without them", e)
+            return None
+
+    def _build_hue_tool(self):
+        """Construct the Hue light tool when globally enabled AND this personality
+        opted in. Returns None (feature simply off) if construction fails, so a
+        bad config never blocks startup. An UNPAIRED Bridge still builds the tool:
+        pairing is checked lazily per call, so light commands report "not set up
+        yet" in character and re-pairing takes effect without a restart."""
+        if not (settings.HUE_ENABLED and self.personality.hue_enabled):
+            return None
+        try:
+            from jf_sebastian.modules.hue_tool import HueTool
+            logger.info("Hue light tools enabled for '%s'", self.personality.name)
+            return HueTool()
+        except Exception as e:
+            logger.warning("Hue tools unavailable (%s); continuing without them", e)
             return None
 
     def _on_enter_idle(self):

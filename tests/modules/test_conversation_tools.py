@@ -45,10 +45,18 @@ class FakeClient:
 
 
 class FakeTool:
-    def __init__(self, result, now_playing=None):
+    """Stands in for a tool provider. The engine holds several of these and asks
+    each one whether it claims a tool name, so a fake must implement handles()
+    alongside dispatch()."""
+
+    def __init__(self, result, now_playing=None, prefix="music_"):
         self.result = result
         self.dispatched = []
         self._now_playing = now_playing
+        self._prefix = prefix
+
+    def handles(self, name):
+        return (name or "").startswith(self._prefix)
 
     def dispatch(self, name, args):
         self.dispatched.append((name, args))
@@ -219,3 +227,34 @@ def test_failed_tool_does_not_suppress_followup(engine_factory):
     spoken, _ = drain(eng)
     assert spoken == ["I can't reach the music"]
     assert eng.suppress_followup is False  # nothing started playing
+
+
+class BrokenTool:
+    """A provider that forgets handles(). Must not be registered, and must never
+    reach the streaming loop where it would abort the whole turn."""
+
+    def dispatch(self, name, args):           # no handles()
+        raise AssertionError("dispatch must never be reached")
+
+
+@pytest.mark.unit
+def test_provider_missing_handles_is_not_registered(engine_factory, caplog):
+    eng = engine_factory([content_chunk("hi. "), final_chunk("stop")],
+                         tool=BrokenTool(), enabled=True)
+    assert eng._tool_providers == []
+    assert eng._tools_enabled is False
+    assert eng._spotify_enabled is False
+    assert "lacks handles()/dispatch()" in caplog.text
+
+
+@pytest.mark.unit
+def test_broken_provider_does_not_break_a_normal_turn(engine_factory):
+    """The turn still completes and streams its text; only the tool capability
+    is absent. A provider that raised mid-loop would abort the whole response."""
+    eng = engine_factory([content_chunk("hello there. "), final_chunk("stop")],
+                         tool=BrokenTool(), enabled=True)
+    spoken, completed = drain(eng)
+    assert completed
+    assert "".join(spoken).strip().startswith("hello there")
+    # Tools were never advertised, so the model could not have called one.
+    assert "tools" not in eng.client.chat.completions.kwargs

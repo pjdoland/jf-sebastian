@@ -851,6 +851,39 @@ lead-in rather than a long one.
 
 ---
 
+## Advanced: Voice-Controlled Lights (Philips Hue)
+
+A personality can control Hue lights by voice ("turn on the living room", "dim
+the desk lamp to 30 percent", "make it red", "run the Relax scene"). It's on by
+default; nothing needs to be added to your `personality.yaml`. To exclude a
+specific character, set:
+
+```yaml
+# Keep this character out of light control
+hue_enabled: false
+```
+
+The light tools are only offered to the model when **both** are true:
+1. `hue_enabled` is not `false` on the personality (it defaults to true), and
+2. `HUE_ENABLED=true` in `.env`.
+
+Pairing with the Bridge (`python scripts/hue_pair.py`) is a third requirement;
+without it a light command returns a spoken "not set up yet" reply rather than
+doing anything, and pairing later takes effect without a restart. When
+`HUE_ENABLED` is off, no personality is offered the tools at all, so the feature
+is simply absent.
+
+Control is entirely local (LAN → Hue Bridge), so light commands come back much
+faster than music ones — under 100 ms. Full setup is in
+[HUE_SETUP.md](HUE_SETUP.md).
+
+A character with a strong visual personality is worth leaning into here: a
+showman might narrate a colour change theatrically, while a butler would just
+confirm it crisply. The spoken confirmation is templated from the tool result,
+but the personality's system prompt still shapes how it's delivered.
+
+---
+
 ## Best Practices
 
 ### Do's

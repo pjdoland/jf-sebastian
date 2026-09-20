@@ -60,6 +60,7 @@ Includes seven distinct personalities: a tiki bartender, Abraham Lincoln (a homa
     - [News Headlines (in LLM context, on by default)](#news-headlines-in-llm-context-on-by-default)
     - [Proactive Scheduler](#proactive-scheduler)
     - [Spotify Playback (Optional)](#spotify-playback-optional)
+    - [Philips Hue Lights (Optional)](#philips-hue-lights-optional)
     - [Conversation Settings](#conversation-settings)
     - [OpenAI Models](#openai-models)
     - [Animatronic Control](#animatronic-control)
@@ -116,6 +117,7 @@ Includes seven distinct personalities: a tiki bartender, Abraham Lincoln (a homa
 - **Flexible Output**: Device-specific audio processing (stereo with PPM for Teddy, simple stereo for Squawkers)
 - **Proactive Scheduler** (Optional): Per-personality `scheduled_events.yaml` for morning greetings, bedtime stories, holiday surprises — never interrupts an in-progress conversation
 - **Voice-Controlled Music** (Optional): When enabled, personalities can control Spotify by voice ("play some tiki music in the kitchen", "skip", "turn it up") via the Spotify Web API, targeting any Spotify Connect speaker. On by default per personality (opt a character out with `spotify_enabled: false`). Premium required; see [docs/SPOTIFY_SETUP.md](docs/SPOTIFY_SETUP.md)
+- **Voice-Controlled Lights** (Optional): When enabled, personalities can control Philips Hue lights by voice ("turn on the living room", "dim it to 20 percent", "make it red", "run the Relax scene"). Talks to the Hue Bridge directly over the LAN — no cloud account, sub-100ms, and it coexists with Alexa and the Hue app. On by default per personality (opt a character out with `hue_enabled: false`); see [docs/HUE_SETUP.md](docs/HUE_SETUP.md)
 
 ## Quick Start
 
@@ -708,6 +710,16 @@ Off by default. Requires Spotify Premium and a one-time browser login (`python s
 | `SPOTIFY_DEFAULT_DEVICE` | Connect speaker for commands that name no room (else the active device) | - |
 | `SPOTIFY_DEVICE_ALIASES` | Spoken aliases → exact device names (`kitchen=Kitchen Echo,den=Living Room`) | - |
 
+#### Philips Hue Lights (Optional)
+
+Off by default. Requires a Hue Bridge on your LAN and a one-time link-button pairing (`python scripts/hue_pair.py`). Entirely local — no Philips cloud account, and Alexa or the Hue app can drive the same Bridge at the same time. Once `HUE_ENABLED=true`, every personality can control lights by default; opt a character out with `hue_enabled: false`. Full walkthrough in [docs/HUE_SETUP.md](docs/HUE_SETUP.md).
+
+| Setting | Description | Default |
+|---------|-------------|---------|
+| `HUE_ENABLED` | Master switch; offers light tools to opted-in personalities. Warns (does not fail) if true with no paired credential | false |
+| `HUE_TOKEN_CACHE` | Where the Bridge credential is cached (kept 0600, gitignored) | ~/.config/jf-sebastian/hue.json |
+| `HUE_BRIDGE_HOST` | Optional Bridge IP override, for when DHCP moves it (else the paired-at address) | - |
+
 #### Conversation Settings
 
 | Setting | Description | Default |
@@ -830,6 +842,7 @@ Deploying on an NVIDIA Jetson Orin Nano? See [JETSON_DEPLOYMENT.md](docs/JETSON_
 12. **Proactive Scheduler**: Per-personality `scheduled_events.yaml` for proactive utterances (greetings, bedtime stories) — fires only when state is IDLE, never interrupts a conversation
 13. **Process Supervisor** (Optional): `scripts/supervisor.py` keeps the app alive across crashes with exponential-backoff restart, watchdog kill of hung children, and crash reports — for unattended deployments via launchd / systemd
 14. **Spotify Playback Tools** (Optional): `modules/spotify_tool.py` exposes music controls to the LLM via function calling. On a music request the engine emits a tool call, the app runs it against the Spotify Web API (`spotipy`, PKCE auth), and the character speaks a short confirmation. Targets a Spotify Connect speaker, not the animatronic's own output; on by default per personality (opt out with `spotify_enabled: false`)
+15. **Hue Light Tools** (Optional): `modules/hue_tool.py` exposes lighting controls to the LLM the same way. Talks to the Hue Bridge's local v1 API over the LAN (`requests`, no extra dependency, no cloud). Resolves rooms and zones before individual bulbs, handles bulbs with no colour channel gracefully, and degrades every failure into a neutral spoken hint. The conversation engine holds both tool providers as a list and routes each call by name, so adding a third is a module plus a constructor kwarg
 
 ## Troubleshooting
 
@@ -934,7 +947,8 @@ jf-sebastian/
 │   │   ├── rvc_processor.py     # Optional RVC voice conversion
 │   │   ├── audio_output.py      # Stereo playback
 │   │   ├── scheduler.py         # Proactive scheduler (per-personality scheduled_events.yaml)
-│   │   └── spotify_tool.py      # Optional Spotify playback tools (LLM function calling)
+│   │   ├── spotify_tool.py      # Optional Spotify playback tools (LLM function calling)
+│   │   └── hue_tool.py          # Optional Philips Hue light tools (LLM function calling)
 │   └── utils/
 │       ├── audio_utils.py        # RMS, VAD-based speech detection
 │       ├── audio_device_utils.py # PyAudio device-name lookup
@@ -964,6 +978,7 @@ jf-sebastian/
 │   ├── install_rvc.sh         # One-shot RVC install for Python 3.10
 │   ├── generate_toc.py        # Regenerate the table of contents in this README
 │   ├── spotify_auth.py        # One-time Spotify PKCE login + Connect device lister
+│   ├── hue_pair.py            # One-time Hue Bridge pairing + room/light/scene lister
 │   ├── supervisor.py          # Process supervisor for unattended deployments
 │   ├── jf-sebastian.plist     # launchd template (macOS)
 │   └── jf-sebastian.service   # systemd user-unit template (Linux)
@@ -980,6 +995,7 @@ jf-sebastian/
 │   ├── JETSON_DEPLOYMENT.md
 │   ├── QUICKSTART.md
 │   ├── SPOTIFY_SETUP.md
+│   ├── HUE_SETUP.md
 │   └── TRAIN_WAKE_WORDS.md
 ├── CLAUDE.md                  # Guidance for AI coding tools working in this repo
 ├── ROADMAP.md                 # Tier 1-3 prioritization from the 7-persona codebase review

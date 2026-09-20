@@ -79,6 +79,11 @@ class Personality:
     spotify_enabled: false in personality.yaml to exclude a character. Only has an
     effect when SPOTIFY_ENABLED is set globally and Spotify is authorized."""
 
+    hue_enabled: bool = True
+    """Let this personality control Philips Hue lights by voice. On by default; set
+    hue_enabled: false in personality.yaml to exclude a character. Only has an
+    effect when HUE_ENABLED is set globally and the Bridge is paired."""
+
     @property
     def wake_word_model_paths(self) -> List[Path]:
         """Get full paths to wake word model files"""
@@ -228,6 +233,7 @@ def load_personality_from_yaml(personality_dir: Path) -> Personality:
         rvc_rms_mix_rate=rvc_rms_mix_rate,
         rvc_protect=rvc_protect,
         spotify_enabled=bool(data.get('spotify_enabled', True)),
+        hue_enabled=bool(data.get('hue_enabled', True)),
     )
 
     # When rvc_enabled is omitted, auto-enable RVC iff a model resolves (an

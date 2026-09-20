@@ -12,10 +12,13 @@ process environment to select which overlay files to load; do not set
 them inside overlay files.
 """
 
+import logging
 import os
 from typing import Optional
 from pathlib import Path
 from dotenv import load_dotenv
+
+logger = logging.getLogger(__name__)
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 LOADED_ENV_OVERLAYS: list[str] = []  # repo-relative paths for logging
@@ -111,6 +114,17 @@ class Settings:
     # personality can answer questions about it. Fetched live (with a short cache);
     # the quick lookup is masked by the filler. Only active when Spotify is enabled.
     SPOTIFY_NOW_PLAYING_CONTEXT: bool = os.getenv("SPOTIFY_NOW_PLAYING_CONTEXT", "true").lower() == "true"
+
+    # Philips Hue light control (optional). Only active when HUE_ENABLED=true AND
+    # the personality sets hue_enabled: true. Local Bridge API -- no cloud account.
+    # Pair once with scripts/hue_pair.py; the cached username is a credential, so
+    # it lives outside any synced bundle (default ~/.config).
+    HUE_ENABLED: bool = os.getenv("HUE_ENABLED", "false").lower() == "true"
+    HUE_TOKEN_CACHE: str = os.getenv(
+        "HUE_TOKEN_CACHE", os.path.expanduser("~/.config/jf-sebastian/hue.json"))
+    # Optional override for the Bridge address; empty = use the paired-at IP from
+    # the cache. Set this if DHCP moves the Bridge and you'd rather not re-pair.
+    HUE_BRIDGE_HOST: Optional[str] = os.getenv("HUE_BRIDGE_HOST")
 
     # Proactive scheduler (per-personality scheduled_events.yaml)
     SCHEDULER_ENABLED: bool = os.getenv("SCHEDULER_ENABLED", "true").lower() == "true"
@@ -231,6 +245,17 @@ class Settings:
         # Spotify: if enabled, a client id is required (don't silently no-op).
         if cls.SPOTIFY_ENABLED and not (cls.SPOTIFY_CLIENT_ID or "").strip():
             errors.append("SPOTIFY_ENABLED=true but SPOTIFY_CLIENT_ID is not set (see docs/SPOTIFY_SETUP.md)")
+
+        # Hue pairing is deliberately NOT a hard error. validate() gates every
+        # entrypoint (scripts/generate_fillers.py included), so failing here would
+        # let a missing light credential block unrelated work on a second machine
+        # or in CI. An unpaired Bridge already degrades to a spoken "not set up
+        # yet" via the tool's own error taxonomy; this only makes it visible.
+        if cls.HUE_ENABLED and not os.path.exists(os.path.expanduser(cls.HUE_TOKEN_CACHE)):
+            logger.warning(
+                "HUE_ENABLED=true but no Bridge credentials at %s -- light commands "
+                "will report that the lights are not set up. Run: python scripts/hue_pair.py",
+                cls.HUE_TOKEN_CACHE)
 
         return errors
 

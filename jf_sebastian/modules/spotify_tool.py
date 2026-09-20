@@ -328,6 +328,13 @@ class SpotifyTool:
 
     # ----- dispatch + schema (consumed by the conversation engine later) ---
 
+    _HANDLED_PREFIX = "music_"
+
+    def handles(self, name: str) -> bool:
+        """Claim this tool name for dispatch routing (the engine may hold several
+        tool providers; each claims its own namespace)."""
+        return (name or "").startswith(self._HANDLED_PREFIX)
+
     def dispatch(self, name: str, args: dict) -> ToolResult:
         """Execute a tool by name; convert every failure into a ToolResult."""
         handlers = {

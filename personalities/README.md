@@ -270,6 +270,9 @@ Personalities are defined in `personality.yaml` files with these fields:
 **Optional Spotify settings:**
 - **`spotify_enabled`**: Let this personality control Spotify playback by voice (**default: true**). Set it to `false` to exclude this character. The music tools are only offered to the model when this isn't false **and** `SPOTIFY_ENABLED=true` in `.env`. Completing the one-time login is what lets those tools actually reach Spotify (without it, a music command just returns a spoken "not set up" reply). See [docs/SPOTIFY_SETUP.md](../docs/SPOTIFY_SETUP.md).
 
+**Optional Hue settings:**
+- **`hue_enabled`**: Let this personality control Philips Hue lights by voice (**default: true**). Set it to `false` to exclude this character. The light tools are only offered to the model when this isn't false **and** `HUE_ENABLED=true` in `.env`. Pairing with the Bridge (`python scripts/hue_pair.py`) is what lets those tools actually reach the lights; without it a light command just returns a spoken "not set up yet" reply, and pairing later takes effect without a restart. See [docs/HUE_SETUP.md](../docs/HUE_SETUP.md).
+
 ### Auto-Discovery
 
 The system automatically scans `personalities/` for subdirectories containing `personality.yaml` files. No manual registration needed!

@@ -15,6 +15,7 @@ from openai import APIError, APIConnectionError, RateLimitError
 from jf_sebastian.config import settings
 from jf_sebastian.utils.context_provider import get_realworld_context
 from jf_sebastian.modules.spotify_tool import OPENAI_TOOLS
+from jf_sebastian.modules.hue_tool import OPENAI_TOOLS as HUE_TOOLS
 from jf_sebastian.modules.sentence_chunker import SentenceChunker
 
 logger = logging.getLogger(__name__)
@@ -25,7 +26,8 @@ class ConversationEngine:
     Manages conversation with the configured GPT model, including context and history.
     """
 
-    def __init__(self, system_prompt: str, spotify_tool=None, spotify_enabled: bool = False):
+    def __init__(self, system_prompt: str, spotify_tool=None, spotify_enabled: bool = False,
+                 hue_tool=None, hue_enabled: bool = False):
         """
         Initialize conversation engine.
 
@@ -33,6 +35,8 @@ class ConversationEngine:
             system_prompt: Personality-specific system prompt for the LLM
             spotify_tool: Optional SpotifyTool for playback control (function calling)
             spotify_enabled: Whether this personality may use the Spotify tools
+            hue_tool: Optional HueTool for light control (function calling)
+            hue_enabled: Whether this personality may use the Hue tools
         """
         if not settings.OPENAI_API_KEY:
             raise ValueError("OPENAI_API_KEY not set in configuration")
@@ -40,11 +44,40 @@ class ConversationEngine:
         self.client = OpenAI(api_key=settings.OPENAI_API_KEY)
         self.system_prompt = system_prompt
 
-        # Optional playback tools. Active only when a tool is supplied AND the
-        # personality opted in. When a play/resume/transfer fires, suppress_followup
-        # tells the app to go IDLE (not re-open the mic over a music bed).
+        # Optional action tools. Each is active only when a tool is supplied AND
+        # the personality opted in. When a play/resume/transfer fires,
+        # suppress_followup tells the app to go IDLE (not re-open the mic over a
+        # music bed) -- the tool owns that fact, the engine stays agnostic.
+        # Spotify keeps a named reference because the now-playing context line
+        # below reads it directly. Hue needs none -- it is reached only through
+        # the provider list, so a second named field would just be a third
+        # representation of the same fact.
         self._spotify_tool = spotify_tool
         self._spotify_enabled = bool(spotify_enabled and spotify_tool is not None)
+
+        # Providers whose schemas go on the wire and whose dispatch we route to.
+        # The contract is handles(name) + dispatch(name, args); it is checked HERE
+        # rather than mid-turn, because a provider missing a method would
+        # otherwise raise inside the streaming loop and abort the whole response
+        # instead of just losing its own tool call.
+        self._tool_providers = []
+        self._tool_schemas = []
+        hue_on = bool(hue_enabled and hue_tool is not None)
+        for provider, schemas in ((spotify_tool if self._spotify_enabled else None, OPENAI_TOOLS),
+                                  (hue_tool if hue_on else None, HUE_TOOLS)):
+            if provider is None:
+                continue
+            if not all(callable(getattr(provider, m, None)) for m in ("handles", "dispatch")):
+                logger.error("Tool provider %s lacks handles()/dispatch(); not registering it",
+                             type(provider).__name__)
+                continue
+            self._tool_providers.append(provider)
+            self._tool_schemas.extend(schemas)
+        self._tools_enabled = bool(self._tool_providers)
+        # A provider rejected above must not still look enabled to the
+        # now-playing path, which calls the tool directly.
+        self._spotify_enabled = self._spotify_enabled and spotify_tool in self._tool_providers
+
         self.suppress_followup = False
 
         # Conversation history holds ONLY the user/assistant turns. The system
@@ -62,9 +95,9 @@ class ConversationEngine:
 
     def _execute_tools(self, tool_calls: dict) -> str:
         """Run the accumulated tool calls and return a short spoken confirmation.
-        The SpotifyTool never raises (every failure is a neutral spoken hint), so
-        a flaky API can't break the turn. A tool declares via its result whether
-        it started music (suppress_followup) -- the engine stays tool-agnostic."""
+        Tools never raise (every failure is a neutral spoken hint), so a flaky API
+        can't break the turn. A tool declares via its result whether it started
+        music (suppress_followup) -- the engine stays tool-agnostic."""
         parts = []
         for slot in tool_calls.values():
             name = slot.get("name")
@@ -76,7 +109,11 @@ class ConversationEngine:
             except json.JSONDecodeError:
                 logger.warning("Tool %s: unparseable arguments, using empty args", name)
                 args = {}
-            result = self._spotify_tool.dispatch(name, args)
+            provider = next((p for p in self._tool_providers if p.handles(name)), None)
+            if provider is None:
+                logger.warning("Tool %s: no provider claims this name", name)
+                continue
+            result = provider.dispatch(name, args)
             parts.append(result.spoken_hint)
             if result.ok and result.suppress_followup:
                 self.suppress_followup = True  # music is playing -> go IDLE, don't listen over it
@@ -364,8 +401,8 @@ class ConversationEngine:
             # turn the model streams content and this is a no-op; on an action turn
             # it streams tool_calls instead (handled after the loop).
             self.suppress_followup = False
-            if self._spotify_enabled:
-                api_params["tools"] = OPENAI_TOOLS
+            if self._tools_enabled:
+                api_params["tools"] = self._tool_schemas
                 api_params["tool_choice"] = "auto"
                 # NOTE: gpt-5.x rejects reasoning_effort combined with function
                 # tools on /v1/chat/completions (400), so it is intentionally
@@ -389,7 +426,7 @@ class ConversationEngine:
             # Accumulate any tool-call deltas (id/name arrive on the first fragment,
             # arguments stream as a split string) keyed by index; act after the loop.
             tool_calls = {}
-            tools_on = self._spotify_enabled  # short-circuits the per-token check below
+            tools_on = self._tools_enabled  # short-circuits the per-token check below
 
             for chunk in stream:
                 delta = chunk.choices[0].delta
@@ -419,7 +456,7 @@ class ConversationEngine:
             # Tool scaffolding is NOT persisted to history -- that avoids the strict
             # assistant-with-tool_calls -> tool-role message sequence and its
             # deque-eviction corruption; we store only a clean spoken summary.
-            if tool_calls and self._spotify_enabled:
+            if tool_calls and self._tools_enabled:
                 confirmation = self._execute_tools(tool_calls)
                 # Keep BOTH any spoken preamble (already yielded during the loop)
                 # and the confirmation in history, so neither is lost from context

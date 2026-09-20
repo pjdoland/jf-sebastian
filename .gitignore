@@ -93,3 +93,8 @@ SERVICE.md
 .cache
 .cache-*
 spotify-token.json
+
+# Hue Bridge credential (grants full control of every light on the LAN; default
+# lives in ~/.config, but guard against a misconfigured HUE_TOKEN_CACHE pointing
+# into the repo).
+hue.json
