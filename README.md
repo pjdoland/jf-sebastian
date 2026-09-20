@@ -85,6 +85,7 @@ Includes seven distinct personalities: a tiki bartender, Abraham Lincoln (a homa
 - [Performance Metrics](#performance-metrics)
 - [Cost Estimates](#cost-estimates)
 - [About the Name](#about-the-name)
+- [Changelog](#changelog)
 - [License](#license)
 - [Credits](#credits)
 - [Contributing](#contributing)
@@ -1055,6 +1056,11 @@ Typical conversation (10 exchanges): ~$0.20-0.40
 This project is named after J.F. Sebastian, the genetic designer from Blade Runner (1982) who creates synthetic companions in his lonely apartment. Like Sebastian, this project is about bringing personality and life to inanimate friends.
 
 *"I think, Sebastian, therefore I am."* — Pris
+
+## Changelog
+
+Release history is in [CHANGELOG.md](CHANGELOG.md). Releases are tagged
+`vX.Y.Z` and follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## License
 
