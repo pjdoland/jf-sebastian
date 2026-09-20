@@ -7,7 +7,10 @@ import pytest
 from jf_sebastian.config import settings as _settings
 from jf_sebastian.modules import conversation as conv
 from jf_sebastian.modules.conversation import ConversationEngine
-from jf_sebastian.modules.spotify_tool import ToolResult
+from jf_sebastian.modules.spotify_tool import OPENAI_TOOLS as MUSIC_TOOLS
+from jf_sebastian.modules.tool_provider import ToolProvider, ToolResult
+
+MUSIC_NAMES = [s["function"]["name"] for s in MUSIC_TOOLS]
 
 
 # ----- fakes ---------------------------------------------------------------
@@ -45,9 +48,9 @@ class FakeClient:
 
 
 class FakeTool:
-    """Stands in for a tool provider. The engine holds several of these and asks
-    each one whether it claims a tool name, so a fake must implement handles()
-    alongside dispatch()."""
+    """Stands in for a tool provider. The engine validates the full contract at
+    registration -- claim your namespace, and have a handler for every tool you
+    advertise -- so the fake has to satisfy it, not just dispatch()."""
 
     def __init__(self, result, now_playing=None, prefix="music_"):
         self.result = result
@@ -57,6 +60,9 @@ class FakeTool:
 
     def handles(self, name):
         return (name or "").startswith(self._prefix)
+
+    def handlers(self):
+        return {name: (lambda a, s=self: s.result) for name in MUSIC_NAMES}
 
     def dispatch(self, name, args):
         self.dispatched.append((name, args))
@@ -233,8 +239,24 @@ class BrokenTool:
     """A provider that forgets handles(). Must not be registered, and must never
     reach the streaming loop where it would abort the whole turn."""
 
-    def dispatch(self, name, args):           # no handles()
+    def dispatch(self, name, args):           # no handles(), no handlers()
         raise AssertionError("dispatch must never be reached")
+
+
+class NamespacelessProvider(ToolProvider):
+    """Subclasses the base, so handles()/dispatch() are inherited and the old
+    callable-only check passed -- but it never declares a namespace, so it
+    claims none of the tools it would advertise."""
+
+    def handlers(self):
+        return {name: (lambda a: ToolResult(True, "x")) for name in MUSIC_NAMES}
+
+
+class HandlerlessProvider(ToolProvider):
+    """Subclasses the base but forgets handlers(); inherited methods alone must
+    not be enough to register."""
+
+    namespace = "music_"
 
 
 @pytest.mark.unit
@@ -244,7 +266,7 @@ def test_provider_missing_handles_is_not_registered(engine_factory, caplog):
     assert eng._tool_providers == []
     assert eng._tools_enabled is False
     assert eng._spotify_enabled is False
-    assert "lacks handles()/dispatch()" in caplog.text
+    assert "lacks handles()" in caplog.text
 
 
 @pytest.mark.unit
@@ -257,4 +279,33 @@ def test_broken_provider_does_not_break_a_normal_turn(engine_factory):
     assert completed
     assert "".join(spoken).strip().startswith("hello there")
     # Tools were never advertised, so the model could not have called one.
+    assert "tools" not in eng.client.chat.completions.kwargs
+
+
+@pytest.mark.unit
+def test_provider_that_claims_none_of_its_tools_is_rejected(engine_factory, caplog):
+    """Regression: once providers inherit handles()/dispatch() from the base, a
+    callable-only check can never fail. A forgotten namespace must still be
+    caught at registration rather than advertising tools it silently drops."""
+    eng = engine_factory([content_chunk("hi. "), final_chunk("stop")],
+                         tool=NamespacelessProvider(), enabled=True)
+    assert eng._tool_providers == []
+    assert "does not claim the tools it advertises" in caplog.text
+
+
+@pytest.mark.unit
+def test_provider_without_handlers_is_rejected(engine_factory, caplog):
+    eng = engine_factory([content_chunk("hi. "), final_chunk("stop")],
+                         tool=HandlerlessProvider(), enabled=True)
+    assert eng._tool_providers == []
+    assert "does not implement handlers()" in caplog.text
+
+
+@pytest.mark.unit
+def test_rejected_provider_never_advertises_its_schemas(engine_factory):
+    """The point of rejecting at registration: the model must not be offered a
+    capability the provider cannot perform."""
+    eng = engine_factory([content_chunk("hi. "), final_chunk("stop")],
+                         tool=HandlerlessProvider(), enabled=True)
+    drain(eng)
     assert "tools" not in eng.client.chat.completions.kwargs

@@ -82,16 +82,26 @@ Restart the app, then say something like:
 | `lights_list` | — | Reports rooms, lights, and scenes |
 
 ### Target resolution
-`target` accepts a room, a zone, or an individual bulb name. Resolution walks
-exact match → containment → fuzzy (with a similarity floor), and **searches
-rooms and zones before individual bulbs** so "the bedroom" doesn't lose to a
-bulb whose name happens to contain the word. An omitted target, or a phrase
-like "everything" / "all the lights", resolves to the Bridge's built-in
-all-lights group.
+`target` accepts a room, a zone, or an individual bulb name. Resolution uses the
+shared ladder in `jf_sebastian/modules/tool_provider.py`: exact match →
+containment → fuzzy (with a similarity floor), over **ordered tiers**. Hue
+supplies rooms and zones as the first tier and bulbs as the second, so "the
+bedroom" never loses to a bulb whose name contains the word — and when several
+rooms match an ambiguous word, the best room is chosen rather than falling
+through to the bulbs. An omitted target, or a phrase like "everything" / "all
+the lights", resolves to the Bridge's built-in all-lights group.
 
-Curly and straight apostrophes are handled, so a room stored as `Kid's Room`
-still matches a spoken `Kid's Room` regardless of which apostrophe the model
-emits.
+Names are folded for case, whitespace, and curly apostrophes on **both** sides,
+so a room stored as `Kid's Room` (U+2019, which the Hue app writes) matches a
+spoken `Kid's Room` with the straight apostrophe the model emits. The same
+folding applies to scene names.
+
+Containment is deliberately asymmetric. Naming *part* of a name works as a
+plain substring ("living" finds "Living Room"), but a stored name found inside
+a longer spoken phrase must match on word boundaries — otherwise a short room
+name like `Up` would answer "turn on the cupboard light". Rooms or bulbs with
+a blank name are skipped entirely, since an empty name is contained in every
+phrase and would otherwise answer everything.
 
 ### Colours
 Recognised names: red, orange, amber, yellow, lime, green, teal, cyan,

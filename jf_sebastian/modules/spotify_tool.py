@@ -22,11 +22,12 @@ Design notes (shaped by review):
 import logging
 import os
 import time
-from dataclasses import dataclass, field
-from difflib import SequenceMatcher
 from typing import Optional
 
 from jf_sebastian.config import settings
+from jf_sebastian.modules.tool_provider import (
+    ToolError, ToolProvider, ToolResult, resolve_by_name, tool_schema,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -39,29 +40,15 @@ _VOLUME_MAX = 70                # clamp: a stray "max volume" utterance shouldn'
 _SEARCH_TYPES = "track,artist,playlist,album"
 _NOW_PLAYING_TTL_S = 5          # brief cache to coalesce rapid back-to-back turns (kept short so "what's playing" stays current)
 
-
-@dataclass
-class ToolResult:
-    """Outcome of a tool call. `spoken_hint` is a short, neutral phrase the
-    caller can hand to the personality to voice in character (we never speak
-    raw API data or errors). `kind` is the error taxonomy for logging.
-    `suppress_followup` lets a tool declare 'this started music' so the caller
-    can go idle instead of listening over the music -- the tool owns that fact,
-    not the conversation engine."""
-    ok: bool
-    spoken_hint: str
-    kind: str = "ok"                       # ok | not-premium | device-offline | device-not-found
-                                           #   | auth-revoked | rate-limited | network | no-match | bad-args
-    suppress_followup: bool = False
-    data: dict = field(default_factory=dict)  # structured detail (NOT for logging at INFO)
-
-
-class SpotifyToolError(Exception):
-    def __init__(self, kind: str, spoken_hint: str, data: Optional[dict] = None):
-        super().__init__(spoken_hint)
-        self.kind = kind
-        self.spoken_hint = spoken_hint
-        self.data = data or {}
+# Error taxonomy -> the phrase the personality voices. Defined above SpotifyTool
+# because the class body reads it at import time.
+_SPOKEN = {
+    "not-premium": "the music needs a Premium account",
+    "device-offline": "I don't see any speakers awake right now",
+    "rate-limited": "the music is busy, try again in a moment",
+    "auth-revoked": "I've lost my connection to the music",
+    "network": "I can't reach the music right now",
+}
 
 
 def _parse_aliases(raw: Optional[str]) -> dict:
@@ -109,7 +96,12 @@ def build_spotify_client(cache_path: str, *, open_browser: bool = False,
                            retries=1, status_retries=1, backoff_factor=0.1)
 
 
-class SpotifyTool:
+class SpotifyTool(ToolProvider):
+    namespace = "music_"
+    unknown_tool_hint = "I can't do that with the music"
+    fallback_hint = "the music isn't responding"
+    error_hints = dict(_SPOKEN)   # copy: the module constant is shared
+
     def __init__(self) -> None:
         self.default_device = (settings.SPOTIFY_DEFAULT_DEVICE or "").strip() or None
         self.aliases = _parse_aliases(settings.SPOTIFY_DEVICE_ALIASES)
@@ -129,9 +121,9 @@ class SpotifyTool:
             # headless-safe (open_browser=False); auth is bootstrapped by the script.
             self._sp = build_spotify_client(self.token_cache, open_browser=False)
         except ImportError as e:
-            raise SpotifyToolError("network", "the music library is not installed") from e
+            raise ToolError("network", "the music library is not installed") from e
         except ValueError as e:
-            raise SpotifyToolError("auth-revoked", "the music is not set up yet") from e
+            raise ToolError("auth-revoked", "the music is not set up yet") from e
         return self._sp
 
     # ----- device resolution (the multi-speaker piece) ---------------------
@@ -139,14 +131,14 @@ class SpotifyTool:
     def _live_devices(self) -> list:
         devices = self._client().devices().get("devices", [])
         if not devices:
-            raise SpotifyToolError("device-offline", "I don't see any speakers awake right now")
+            raise ToolError("device-offline", "I don't see any speakers awake right now")
         return devices
 
     def _resolve_device(self, spoken: Optional[str]) -> tuple:
         """Map a spoken speaker/room name to (device_id, device_name). Falls back
         to the configured default, then the currently-active device."""
         devices = self._live_devices()
-        by_name = [(d["name"], d["id"]) for d in devices]
+        by_name = [(d["id"], d["name"]) for d in devices]
 
         target = (spoken or "").strip() or self.default_device
         if not target:
@@ -154,43 +146,26 @@ class SpotifyTool:
             return active["id"], active["name"]
 
         target = self.aliases.get(target.lower(), target)
-        tl = target.lower()
-
-        # exact (case-insensitive)
-        for name, did in by_name:
-            if name.lower() == tl:
-                return did, name
-        # containment either direction
-        contained = [(n, i) for n, i in by_name if tl in n.lower() or n.lower() in tl]
-        if len(contained) == 1:
-            name, did = contained[0]
+        match = resolve_by_name((("device", by_name),), target)
+        if match:
+            _, did, name = match
             return did, name
-        # Fuzzy match. Within multiple containment hits, rank among them; otherwise
-        # rank all devices but require a floor so we don't grab something unrelated.
-        pool = contained or by_name
-        best_name, best_id, best = None, None, 0.0
-        for name, did in pool:
-            score = SequenceMatcher(None, tl, name.lower()).ratio()
-            if score > best:
-                best_name, best_id, best = name, did, score
-        if contained or best >= 0.5:
-            return best_id, best_name
-        raise SpotifyToolError(
+        raise ToolError(
             "device-not-found",
             "I couldn't find a speaker called that",
-            data={"requested": spoken, "available": [n for n, _ in by_name]},
+            data={"requested": spoken, "available": [n for _, n in by_name]},
         )
 
     # ----- the tools -------------------------------------------------------
 
     def play(self, query: str, device: Optional[str] = None) -> ToolResult:
         if not (query or "").strip():
-            raise SpotifyToolError("bad-args", "what would you like me to play?")
+            raise ToolError("bad-args", "what would you like me to play?")
         sp = self._client()
         did, dname = self._resolve_device(device)
         uri, label = self._best_match(sp, query)
         if uri is None:
-            raise SpotifyToolError("no-match", "I couldn't find that one")
+            raise ToolError("no-match", "I couldn't find that one")
         if uri.startswith("spotify:track:"):
             sp.start_playback(device_id=did, uris=[uri])
         else:  # playlist / album / artist context
@@ -222,7 +197,7 @@ class SpotifyTool:
         try:
             pct = int(level)
         except (TypeError, ValueError):
-            raise SpotifyToolError("bad-args", "what volume would you like?")
+            raise ToolError("bad-args", "what volume would you like?")
         pct = max(0, min(_VOLUME_MAX, pct))
         did, _ = self._resolve_device(device)
         self._client().volume(pct, device_id=did)
@@ -328,16 +303,8 @@ class SpotifyTool:
 
     # ----- dispatch + schema (consumed by the conversation engine later) ---
 
-    _HANDLED_PREFIX = "music_"
-
-    def handles(self, name: str) -> bool:
-        """Claim this tool name for dispatch routing (the engine may hold several
-        tool providers; each claims its own namespace)."""
-        return (name or "").startswith(self._HANDLED_PREFIX)
-
-    def dispatch(self, name: str, args: dict) -> ToolResult:
-        """Execute a tool by name; convert every failure into a ToolResult."""
-        handlers = {
+    def handlers(self) -> dict:
+        return {
             "music_play": lambda a: self.play(a.get("query", ""), a.get("device")),
             "music_pause": lambda a: self.pause(a.get("device")),
             "music_resume": lambda a: self.resume(a.get("device")),
@@ -348,18 +315,9 @@ class SpotifyTool:
             "music_now_playing": lambda a: self.now_playing(a.get("device")),
             "music_list_devices": lambda a: self.list_devices(),
         }
-        handler = handlers.get(name)
-        if handler is None:
-            return ToolResult(False, "I can't do that with the music", kind="bad-args")
-        try:
-            return handler(args or {})
-        except SpotifyToolError as e:
-            logger.warning("Spotify tool %s failed (%s)", name, e.kind)
-            return ToolResult(False, e.spoken_hint, kind=e.kind, data=e.data)
-        except Exception as e:  # spotipy/HTTP errors -> typed, sanitized (no token leakage)
-            kind = _classify(e)
-            logger.warning("Spotify tool %s failed (%s)", name, kind)
-            return ToolResult(False, _SPOKEN.get(kind, "the music isn't responding"), kind=kind)
+
+    def classify(self, exc: Exception) -> str:
+        return _classify(exc)
 
 
 def _classify(exc: Exception) -> str:
@@ -378,43 +336,26 @@ def _classify(exc: Exception) -> str:
     return "network"
 
 
-_SPOKEN = {
-    "not-premium": "the music needs a Premium account",
-    "device-offline": "I don't see any speakers awake right now",
-    "rate-limited": "the music is busy, try again in a moment",
-    "auth-revoked": "I've lost my connection to the music",
-    "network": "I can't reach the music right now",
-}
-
-
 # OpenAI tool schemas (consumed by the conversation engine). Built with a small
 # helper so the repeated function envelope and the optional `device` property
 # aren't copy-pasted nine times.
 _DEVICE_PROP = {"device": {"type": "string", "description": "speaker/room (optional)"}}
 
 
-def _tool(name, description, properties=None, required=None):
-    fn = {"name": name, "description": description,
-          "parameters": {"type": "object", "properties": properties or {}}}
-    if required:
-        fn["parameters"]["required"] = required
-    return {"type": "function", "function": fn}
-
-
 OPENAI_TOOLS = [
-    _tool("music_play",
-          "Play music on Spotify. Use for 'play <song/artist/playlist/genre>'. "
+    tool_schema("music_play",
+                "Play music on Spotify. Use for 'play <song/artist/playlist/genre>'. "
           "Optionally on a specific speaker/room.",
           {"query": {"type": "string", "description": "what to play, e.g. 'tiki music' or 'Quiet Village'"},
            **_DEVICE_PROP}, required=["query"]),
-    _tool("music_pause", "Pause playback.", _DEVICE_PROP),
-    _tool("music_resume", "Resume paused playback.", _DEVICE_PROP),
-    _tool("music_skip", "Skip to the next track.", _DEVICE_PROP),
-    _tool("music_previous", "Go to the previous track.", _DEVICE_PROP),
-    _tool("music_set_volume", "Set the MUSIC volume (0-100), not the character's own voice.",
-          {"level": {"type": "integer", "description": "0-100"}, **_DEVICE_PROP}, required=["level"]),
-    _tool("music_transfer", "Move the current music to a different speaker/room.",
-          {"device": {"type": "string", "description": "destination speaker/room"}}, required=["device"]),
-    _tool("music_now_playing", "Ask what song is currently playing."),
-    _tool("music_list_devices", "List the available Spotify speakers/rooms."),
+    tool_schema("music_pause", "Pause playback.", _DEVICE_PROP),
+    tool_schema("music_resume", "Resume paused playback.", _DEVICE_PROP),
+    tool_schema("music_skip", "Skip to the next track.", _DEVICE_PROP),
+    tool_schema("music_previous", "Go to the previous track.", _DEVICE_PROP),
+    tool_schema("music_set_volume", "Set the MUSIC volume (0-100), not the character's own voice.",
+                {"level": {"type": "integer", "description": "0-100"}, **_DEVICE_PROP}, required=["level"]),
+    tool_schema("music_transfer", "Move the current music to a different speaker/room.",
+                {"device": {"type": "string", "description": "destination speaker/room"}}, required=["device"]),
+    tool_schema("music_now_playing", "Ask what song is currently playing."),
+    tool_schema("music_list_devices", "List the available Spotify speakers/rooms."),
 ]

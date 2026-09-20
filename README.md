@@ -842,7 +842,8 @@ Deploying on an NVIDIA Jetson Orin Nano? See [JETSON_DEPLOYMENT.md](docs/JETSON_
 12. **Proactive Scheduler**: Per-personality `scheduled_events.yaml` for proactive utterances (greetings, bedtime stories) — fires only when state is IDLE, never interrupts a conversation
 13. **Process Supervisor** (Optional): `scripts/supervisor.py` keeps the app alive across crashes with exponential-backoff restart, watchdog kill of hung children, and crash reports — for unattended deployments via launchd / systemd
 14. **Spotify Playback Tools** (Optional): `modules/spotify_tool.py` exposes music controls to the LLM via function calling. On a music request the engine emits a tool call, the app runs it against the Spotify Web API (`spotipy`, PKCE auth), and the character speaks a short confirmation. Targets a Spotify Connect speaker, not the animatronic's own output; on by default per personality (opt out with `spotify_enabled: false`)
-15. **Hue Light Tools** (Optional): `modules/hue_tool.py` exposes lighting controls to the LLM the same way. Talks to the Hue Bridge's local v1 API over the LAN (`requests`, no extra dependency, no cloud). Resolves rooms and zones before individual bulbs, handles bulbs with no colour channel gracefully, and degrades every failure into a neutral spoken hint. The conversation engine holds both tool providers as a list and routes each call by name, so adding a third is a module plus a constructor kwarg
+15. **Hue Light Tools** (Optional): `modules/hue_tool.py` exposes lighting controls to the LLM the same way. Talks to the Hue Bridge's local v1 API over the LAN (`requests`, no extra dependency, no cloud). Resolves rooms and zones before individual bulbs, handles bulbs with no colour channel gracefully, and degrades every failure into a neutral spoken hint
+16. **Shared Tool Scaffolding**: `modules/tool_provider.py` holds what every provider has in common — the result/error types, the OpenAI schema envelope, the name-resolution ladder, and a dispatch that turns any failure into a spoken hint rather than an exception in the turn. The conversation engine holds providers as a list and routes each call by namespace, so adding a third is a `ToolProvider` subclass plus a constructor kwarg
 
 ## Troubleshooting
 
@@ -947,6 +948,7 @@ jf-sebastian/
 │   │   ├── rvc_processor.py     # Optional RVC voice conversion
 │   │   ├── audio_output.py      # Stereo playback
 │   │   ├── scheduler.py         # Proactive scheduler (per-personality scheduled_events.yaml)
+│   │   ├── tool_provider.py     # Shared base for LLM tool providers (result types, resolver, dispatch)
 │   │   ├── spotify_tool.py      # Optional Spotify playback tools (LLM function calling)
 │   │   └── hue_tool.py          # Optional Philips Hue light tools (LLM function calling)
 │   └── utils/

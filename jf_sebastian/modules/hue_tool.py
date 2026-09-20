@@ -1,21 +1,24 @@
 """
 Philips Hue light control for J.F. Sebastian (optional, per-personality).
 
-A self-contained wrapper around the Hue Bridge local API that exposes a small
-set of lighting "tools" to the LLM, shaped exactly like modules/spotify_tool.py.
+A wrapper around the Hue Bridge local API that exposes a small set of lighting
+"tools" to the LLM. Built on modules/tool_provider.py, which owns the parts
+every provider shares: the result/error types, the OpenAI schema envelope, the
+name-resolution ladder, and the dispatch that turns any failure into a spoken
+hint rather than an exception in the conversation turn.
 
-Design notes:
+Design notes specific to Hue:
 - LOCAL ONLY: talks to the Bridge on the LAN over the v1 API. No cloud, no
   vendor account, no outbound dependency. Sub-100ms per call in practice.
-- HARDENED like spotify_tool.py: short request timeout, every call wrapped so
-  failures return a typed ToolResult instead of raising into the conversation
-  turn. Lazy credentials: nothing touches the network until the first call.
-- CAPABILITY-AWARE: Hue White bulbs (e.g. LWB014) have no colour channel. A
-  colour request that lands on one degrades to a neutral spoken hint rather
-  than a Bridge error, and a mixed group colours only the bulbs that can.
-- NAME RESOLUTION: rooms/zones are searched before individual bulbs, so "the
-  bedroom" beats a bulb that happens to contain the word. Same exact ->
-  containment -> fuzzy ladder the Spotify device resolver uses.
+- CAPABILITY-AWARE across three bulb tiers. Plain White bulbs (LWB*) have no
+  colour at all; White Ambiance (LTW*) have colour temperature but no hue
+  channel, so they keep their whites; full-colour bulbs take everything. A
+  request a bulb can't express degrades to a neutral hint, and a mixed room
+  applies to only the bulbs that can.
+- NAME RESOLUTION supplies rooms/zones as the first tier and bulbs as the
+  second, so "the bedroom" is never answered by a bulb containing the word.
+- SCENES are per-room state, so a scene is only ever applied to a group it is
+  actually stored for.
 """
 
 import json
@@ -23,13 +26,14 @@ import logging
 import os
 import re
 import time
-from dataclasses import dataclass, field
-from difflib import SequenceMatcher
 from typing import Optional
 
 import requests
 
 from jf_sebastian.config import settings
+from jf_sebastian.modules.tool_provider import (
+    ToolError, ToolProvider, ToolResult, fold, resolve_by_name, tool_schema,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -88,34 +92,6 @@ def _is_noise_scene(name: str) -> bool:
     return any(f.startswith(m) for m in _SCENE_NOISE_MARKERS for f in forms)
 
 
-def _normalize(text: str) -> str:
-    """Fold a spoken or stored name for comparison. The Hue app stores curly
-    apostrophes (U+2019) while the model emits straight ones, so a room called
-    "Kid's Room" would otherwise fail exact/containment and lose to a bulb."""
-    return (text or "").replace("’", "'").replace("‘", "'").strip().lower()
-
-
-@dataclass
-class ToolResult:
-    """Mirrors spotify_tool.ToolResult so the conversation engine stays
-    tool-agnostic. `spoken_hint` is a short neutral phrase the personality
-    voices in character; `kind` is the error taxonomy for logging."""
-    ok: bool
-    spoken_hint: str
-    kind: str = "ok"                       # ok | bridge-unreachable | not-paired | not-found
-                                           #   | no-color | bad-args | network
-    suppress_followup: bool = False
-    data: dict = field(default_factory=dict)
-
-
-class HueToolError(Exception):
-    def __init__(self, kind: str, spoken_hint: str, data: Optional[dict] = None):
-        super().__init__(spoken_hint)
-        self.kind = kind
-        self.spoken_hint = spoken_hint
-        self.data = data or {}
-
-
 def _clamp_brightness(pct: int) -> int:
     """0-100 spoken percentage -> Hue's 1-254 `bri`."""
     pct = max(0, min(100, pct))
@@ -144,7 +120,15 @@ def _adapt_fragment(light: dict, fragment: dict):
     return None
 
 
-class HueTool:
+class HueTool(ToolProvider):
+    namespace = "lights_"
+    unknown_tool_hint = "I can't do that with the lights"
+    # Every expected Hue failure is raised as a ToolError carrying its own
+    # phrase, so error_hints would be dead weight: it is consulted only on the
+    # unexpected-exception path, where the honest thing to say is that the
+    # Bridge didn't answer -- not that it replied with something confusing.
+    fallback_hint = "I can't reach the lights right now"
+
     def __init__(self) -> None:
         self.cache_path = os.path.expanduser(settings.HUE_TOKEN_CACHE)
         self._creds_cache: Optional[dict] = None
@@ -160,11 +144,11 @@ class HueTool:
             with open(self.cache_path) as f:
                 creds = json.load(f)
         except FileNotFoundError as e:
-            raise HueToolError("not-paired", "the lights are not set up yet") from e
+            raise ToolError("not-paired", "the lights are not set up yet") from e
         except (OSError, ValueError) as e:
-            raise HueToolError("not-paired", "I can't read the light settings") from e
+            raise ToolError("not-paired", "I can't read the light settings") from e
         if not creds.get("username"):
-            raise HueToolError("not-paired", "the lights are not set up yet")
+            raise ToolError("not-paired", "the lights are not set up yet")
         # An explicit HUE_BRIDGE_HOST wins over the paired-at address (DHCP moves).
         host = (settings.HUE_BRIDGE_HOST or "").strip()
         if host:
@@ -183,9 +167,9 @@ class HueTool:
             resp.raise_for_status()
             payload = resp.json()
         except requests.RequestException as e:
-            raise HueToolError("bridge-unreachable", "I can't reach the lights right now") from e
+            raise ToolError("bridge-unreachable", "I can't reach the lights right now") from e
         except ValueError as e:
-            raise HueToolError("network", "the lights gave me a confusing answer") from e
+            raise ToolError("network", "the lights gave me a confusing answer") from e
 
         # v1 returns a list of per-key {"success":…} / {"error":…} envelopes on writes.
         if isinstance(payload, list):
@@ -198,8 +182,8 @@ class HueTool:
                         # without bouncing the whole supervised process.
                         self._creds_cache = None
                         self._inv = None
-                        raise HueToolError("not-paired", "I've lost my connection to the lights")
-                    raise HueToolError("network", "the lights refused that",
+                        raise ToolError("not-paired", "I've lost my connection to the lights")
+                    raise ToolError("network", "the lights refused that",
                                        data={"description": err.get("description")})
         return payload
 
@@ -239,48 +223,22 @@ class HueTool:
         so 'the bedroom' doesn't lose to a bulb name. An empty target, or an
         'everything' cue, resolves to Hue's built-in all-lights group."""
         target = (spoken or "").strip()
-        if not target or _normalize(target) in self._ALL_CUES:
+        if not target or fold(target) in self._ALL_CUES:
             return ("group", _ALL_LIGHTS_GROUP, "all the lights")
 
         inv = self._inventory()
-        tl = _normalize(target)
+        # Rooms and zones form the first tier so "the bedroom" cannot be
+        # answered by a bulb whose name merely contains the word.
+        tiers = (
+            ("group", [(gid, g.get("name", "")) for gid, g in inv["groups"].items()
+                       if g.get("type") in ("Room", "Zone")]),
+            ("light", [(lid, l.get("name", "")) for lid, l in inv["lights"].items()]),
+        )
+        match = resolve_by_name(tiers, target)
+        if match:
+            return match
 
-        groups = [(gid, g.get("name", "")) for gid, g in inv["groups"].items()
-                  if g.get("type") in ("Room", "Zone")]
-        lights = [(lid, l.get("name", "")) for lid, l in inv["lights"].items()]
-        tiers = (("group", groups), ("light", lights))
-
-        # Rooms/zones first, then bulbs. Within each tier: exact, then containment.
-        for kind, pool in tiers:
-            for rid, name in pool:
-                if _normalize(name) == tl:
-                    return (kind, rid, name)
-
-        # Containment. When a tier yields several hits, rank WITHIN that tier
-        # rather than discarding it -- otherwise an ambiguous room name ("bedroom"
-        # in a house with three) would fall through and let a bulb win, breaking
-        # the rooms-before-bulbs invariant.
-        for kind, pool in tiers:
-            hits = [(rid, n) for rid, n in pool
-                    if tl in _normalize(n) or _normalize(n) in tl]
-            if len(hits) == 1:
-                return (kind, hits[0][0], hits[0][1])
-            if hits:
-                rid, name = max(hits, key=lambda h: SequenceMatcher(
-                    None, tl, _normalize(h[1])).ratio())
-                return (kind, rid, name)
-
-        # Fuzzy across everything, with a floor so we don't grab something unrelated.
-        best = (0.0, None, None, None)
-        for kind, pool in tiers:
-            for rid, name in pool:
-                score = SequenceMatcher(None, tl, _normalize(name)).ratio()
-                if score > best[0]:
-                    best = (score, kind, rid, name)
-        if best[0] >= 0.5:
-            return (best[1], best[2], best[3])
-
-        raise HueToolError(
+        raise ToolError(
             "not-found", f"I don't know a light called {target}",
             data={"requested": spoken,
                   "rooms": self._room_names(), "lights": self._light_names()},
@@ -318,7 +276,7 @@ class HueTool:
         try:
             pct = int(level)
         except (TypeError, ValueError):
-            raise HueToolError("bad-args", "how bright would you like it?")
+            raise ToolError("bad-args", "how bright would you like it?")
         kind, rid, name = self._resolve_target(target)
         if pct <= 0:
             self._apply(kind, rid, {"on": False})
@@ -334,7 +292,7 @@ class HueTool:
     def set_color(self, color: str, target: Optional[str] = None) -> ToolResult:
         key = (color or "").strip().lower()
         if not key:
-            raise HueToolError("bad-args", "what colour would you like?")
+            raise ToolError("bad-args", "what colour would you like?")
         fragment = _COLORS.get(key)
         if fragment is None:
             # Tolerate "bright red" / "a nice warm white", but match whole words
@@ -346,7 +304,7 @@ class HueTool:
                     fragment, key = _COLORS[name], name
                     break
         if fragment is None:
-            raise HueToolError("bad-args", f"I don't know the colour {color}",
+            raise ToolError("bad-args", f"I don't know the colour {color}",
                                data={"known": sorted(_COLORS)})
 
         kind, rid, name = self._resolve_target(target)
@@ -355,14 +313,14 @@ class HueTool:
         if not members:
             # An empty or stale group is NOT the same as "these bulbs are white-only";
             # saying so would tell the user their colour bulbs can't do colour.
-            raise HueToolError("not-found", f"there are no lights in {name}",
+            raise ToolError("not-found", f"there are no lights in {name}",
                                data={"target": name})
 
         adapted = {lid: frag for lid, frag in
                    ((lid, _adapt_fragment(inv["lights"][lid], fragment)) for lid in members)
                    if frag is not None}
         if not adapted:
-            raise HueToolError("no-color", f"{name} can't change colour",
+            raise ToolError("no-color", f"{name} can't change colour",
                                data={"target": name})
 
         # One group action when every member takes the identical write; otherwise
@@ -378,17 +336,17 @@ class HueTool:
                                 "partial": len(adapted) != len(members)})
 
     def activate_scene(self, scene: str, target: Optional[str] = None) -> ToolResult:
-        wanted = (scene or "").strip().lower()
+        wanted = fold(scene)
         if not wanted:
-            raise HueToolError("bad-args", "which scene would you like?")
+            raise ToolError("bad-args", "which scene would you like?")
         inv = self._inventory()
 
         candidates = [(sid, s) for sid, s in inv["scenes"].items()
                       if s.get("name", "").strip() and not _is_noise_scene(s["name"])]
-        exact = [(sid, s) for sid, s in candidates if _normalize(s["name"]) == wanted]
-        pool = exact or [(sid, s) for sid, s in candidates if wanted in _normalize(s["name"])]
+        exact = [(sid, s) for sid, s in candidates if fold(s["name"]) == wanted]
+        pool = exact or [(sid, s) for sid, s in candidates if wanted in fold(s["name"])]
         if not pool:
-            raise HueToolError("not-found", f"I don't know a scene called {scene}",
+            raise ToolError("not-found", f"I don't know a scene called {scene}",
                                data={"known": self._scene_names()})
 
         display = pool[0][1]["name"].strip()
@@ -404,7 +362,7 @@ class HueTool:
                 # A scene is a stored state for a whole room. Applying one because
                 # a single bulb was named would silently change every other light
                 # in that bulb's room while reporting only the bulb.
-                raise HueToolError(
+                raise ToolError(
                     "bad-args", f"{display} is a room scene, not something I can set on {name}",
                     data={"scene": display, "target": name})
             # Only a copy stored FOR this room is valid -- a scene id belonging to
@@ -412,12 +370,12 @@ class HueTool:
             # no-op or affect the wrong lights while reporting success.
             match = next(((sid, s) for sid, s in pool if s.get("group") == rid), None)
             if match is None:
-                raise HueToolError("not-found", f"there's no {display} scene set up for {name}",
+                raise ToolError("not-found", f"there's no {display} scene set up for {name}",
                                    data={"scene": display, "target": name})
             scene_id, group_id = match[0], rid
 
         if not group_id:
-            raise HueToolError("not-found", f"I can't apply the {display} scene here",
+            raise ToolError("not-found", f"I can't apply the {display} scene here",
                                data={"scene": display})
         self._request("PUT", f"groups/{group_id}/action", {"scene": scene_id})
         where = f" in {name}" if name else ""
@@ -444,14 +402,8 @@ class HueTool:
 
     # ----- dispatch + schema ----------------------------------------------
 
-    _HANDLED_PREFIX = "lights_"
-
-    def handles(self, name: str) -> bool:
-        return (name or "").startswith(self._HANDLED_PREFIX)
-
-    def dispatch(self, name: str, args: dict) -> ToolResult:
-        """Execute a tool by name; convert every failure into a ToolResult."""
-        handlers = {
+    def handlers(self) -> dict:
+        return {
             "lights_on": lambda a: self.turn_on(a.get("target")),
             "lights_off": lambda a: self.turn_off(a.get("target")),
             "lights_brightness": lambda a: self.set_brightness(a.get("level"), a.get("target")),
@@ -459,25 +411,6 @@ class HueTool:
             "lights_scene": lambda a: self.activate_scene(a.get("scene", ""), a.get("target")),
             "lights_list": lambda a: self.list_lights(),
         }
-        handler = handlers.get(name)
-        if handler is None:
-            return ToolResult(False, "I can't do that with the lights", kind="bad-args")
-        try:
-            return handler(args or {})
-        except HueToolError as e:
-            logger.warning("Hue tool %s failed (%s)", name, e.kind)
-            return ToolResult(False, e.spoken_hint, kind=e.kind, data=e.data)
-        except Exception:
-            logger.warning("Hue tool %s failed (network)", name)
-            return ToolResult(False, "I can't reach the lights right now", kind="network")
-
-
-def _tool(name, description, properties=None, required=None):
-    fn = {"name": name, "description": description,
-          "parameters": {"type": "object", "properties": properties or {}}}
-    if required:
-        fn["parameters"]["required"] = required
-    return {"type": "function", "function": fn}
 
 
 _TARGET_PROP = {"target": {
@@ -486,22 +419,22 @@ _TARGET_PROP = {"target": {
 
 
 OPENAI_TOOLS = [
-    _tool("lights_on", "Turn lights on. Omit target for every light in the house.",
-          _TARGET_PROP),
-    _tool("lights_off", "Turn lights off. Omit target for every light in the house.",
-          _TARGET_PROP),
-    _tool("lights_brightness",
-          "Set light brightness as a percentage (0-100). 0 turns them off.",
+    tool_schema("lights_on", "Turn lights on. Omit target for every light in the house.",
+                _TARGET_PROP),
+    tool_schema("lights_off", "Turn lights off. Omit target for every light in the house.",
+                _TARGET_PROP),
+    tool_schema("lights_brightness",
+                "Set light brightness as a percentage (0-100). 0 turns them off.",
           {"level": {"type": "integer", "description": "0-100"}, **_TARGET_PROP},
           required=["level"]),
-    _tool("lights_color",
-          "Set light colour by name, e.g. red, blue, warm white. Only some bulbs "
+    tool_schema("lights_color",
+                "Set light colour by name, e.g. red, blue, warm white. Only some bulbs "
           "support colour; the tool reports when one cannot.",
           {"color": {"type": "string", "description": "colour name, e.g. 'red'"},
            **_TARGET_PROP}, required=["color"]),
-    _tool("lights_scene",
-          "Activate a stored Hue scene such as Relax, Concentrate, Nightlight or Energize.",
+    tool_schema("lights_scene",
+                "Activate a stored Hue scene such as Relax, Concentrate, Nightlight or Energize.",
           {"scene": {"type": "string", "description": "scene name"}, **_TARGET_PROP},
           required=["scene"]),
-    _tool("lights_list", "List the available rooms, lights and scenes."),
+    tool_schema("lights_list", "List the available rooms, lights and scenes."),
 ]

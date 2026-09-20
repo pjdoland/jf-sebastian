@@ -21,6 +21,37 @@ from jf_sebastian.modules.sentence_chunker import SentenceChunker
 logger = logging.getLogger(__name__)
 
 
+def _provider_problem(provider, schemas) -> Optional[str]:
+    """Why this tool provider can't be registered, or None if it's usable.
+
+    Checked once at construction rather than mid-turn: a provider that fails
+    here would otherwise put its schemas in front of the model every turn and
+    fail each call, so the character would keep offering a capability it can
+    never perform. Inheriting from ToolProvider satisfies handles()/dispatch()
+    for free, so the checks that matter are whether the handler table actually
+    builds and whether the provider claims the very names it advertises -- a
+    forgotten `namespace` otherwise passes silently.
+    """
+    for method in ("handles", "dispatch", "handlers"):
+        if not callable(getattr(provider, method, None)):
+            return f"lacks {method}()"
+    try:
+        handlers = provider.handlers()
+    except NotImplementedError:
+        return "does not implement handlers()"
+    except Exception as e:
+        return f"handlers() raised {type(e).__name__}"
+    unclaimed = [s["function"]["name"] for s in schemas
+                 if not provider.handles(s["function"]["name"])]
+    if unclaimed:
+        return f"does not claim the tools it advertises ({', '.join(unclaimed[:3])})"
+    missing = [s["function"]["name"] for s in schemas
+               if s["function"]["name"] not in handlers]
+    if missing:
+        return f"advertises tools with no handler ({', '.join(missing[:3])})"
+    return None
+
+
 class ConversationEngine:
     """
     Manages conversation with the configured GPT model, including context and history.
@@ -67,9 +98,10 @@ class ConversationEngine:
                                   (hue_tool if hue_on else None, HUE_TOOLS)):
             if provider is None:
                 continue
-            if not all(callable(getattr(provider, m, None)) for m in ("handles", "dispatch")):
-                logger.error("Tool provider %s lacks handles()/dispatch(); not registering it",
-                             type(provider).__name__)
+            problem = _provider_problem(provider, schemas)
+            if problem:
+                logger.error("Tool provider %s %s; not registering it",
+                             type(provider).__name__, problem)
                 continue
             self._tool_providers.append(provider)
             self._tool_schemas.extend(schemas)

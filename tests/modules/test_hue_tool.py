@@ -12,9 +12,10 @@ import requests
 from jf_sebastian.modules import hue_tool as hue_mod
 
 from jf_sebastian.modules.hue_tool import (
-    HueTool, HueToolError, OPENAI_TOOLS, _COLORS, _ALL_LIGHTS_GROUP,
-    _clamp_brightness, _adapt_fragment, _is_noise_scene, _normalize,
+    HueTool, OPENAI_TOOLS, _COLORS, _ALL_LIGHTS_GROUP,
+    _clamp_brightness, _adapt_fragment, _is_noise_scene,
 )
+from jf_sebastian.modules.tool_provider import ToolError, fold
 
 
 # LWB014 is a White bulb: state has on/bri but no hue/sat.
@@ -141,7 +142,7 @@ def test_rooms_are_searched_before_bulbs(tool):
 
 @pytest.mark.unit
 def test_resolve_target_unknown_raises_not_found(tool):
-    with pytest.raises(HueToolError) as exc:
+    with pytest.raises(ToolError) as exc:
         tool._resolve_target("garage")
     assert exc.value.kind == "not-found"
     # The failure carries what IS available, for logging/debugging.
@@ -592,6 +593,33 @@ def test_revoked_credential_drops_caches_so_repair_takes_effect(tool, monkeypatc
 
 
 @pytest.mark.unit
-def test_normalize_folds_apostrophes_and_case():
-    assert _normalize("Kid’s Room") == _normalize("KID'S ROOM") == "kid's room"
-    assert _normalize(None) == ""
+def test_fold_normalizes_apostrophes_and_case():
+    assert fold("Kid’s Room") == fold("KID'S ROOM") == "kid's room"
+    assert fold(None) == ""
+
+
+@pytest.mark.unit
+def test_scene_name_matching_folds_both_sides(tool):
+    """Regression: the stored side went through fold() while the spoken side was
+    only strip/lower, so collapsed whitespace and apostrophes matched one way."""
+    SCENES["s9"] = {"name": "Movie  Night", "group": "1"}
+    try:
+        tool._inv = None
+        r = tool.dispatch("lights_scene", {"scene": "Movie  Night", "target": "Living Room"})
+        assert r.ok, r.spoken_hint
+        r2 = tool.dispatch("lights_scene", {"scene": "  MOVIE NIGHT  ", "target": "Living Room"})
+        assert r2.ok, r2.spoken_hint
+    finally:
+        del SCENES["s9"]
+        tool._inv = None
+
+
+@pytest.mark.unit
+def test_unexpected_exception_says_the_bridge_did_not_answer(tool, monkeypatch):
+    """Regression: an error_hints entry for "network" hijacked the generic
+    exception path and claimed the Bridge had replied with something odd."""
+    monkeypatch.setattr(tool, "_inventory", lambda: (_ for _ in ()).throw(RuntimeError("boom")))
+    r = tool.dispatch("lights_on", {"target": "Living Room"})
+    assert not r.ok
+    assert r.spoken_hint == "I can't reach the lights right now"
+    assert "boom" not in r.spoken_hint
