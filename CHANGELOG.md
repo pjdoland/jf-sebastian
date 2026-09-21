@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Philips Hue light control** (optional, off by default). A personality can
   turn lights on and off, set brightness and colour, and activate stored scenes
   by voice. Talks to the Hue Bridge's local v1 API over the LAN via `requests`
-  — no cloud account, no new dependency — so Alexa and the Hue app keep working
+  (no cloud account, no new dependency), so Alexa and the Hue app keep working
   alongside it. Six `lights_*` tools; see `docs/HUE_SETUP.md`.
 - `scripts/hue_pair.py` for one-time Bridge pairing. Discovers the Bridge,
   handles the link-button handshake, caches the credential `0600` outside the
@@ -32,20 +32,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   hardcoded Spotify tool. Each contributes its own schemas and claims a
   tool-name namespace; dispatch routes by name. Adding a provider is a
   `ToolProvider` subclass plus one constructor keyword argument.
-- Spotify and Hue share one name resolver, which takes ordered tiers — Spotify
+- Spotify and Hue share one name resolver, which takes ordered tiers: Spotify
   passes one (Connect speakers), Hue passes two (rooms and zones, then bulbs).
   Spotify keeps its alias map, configured default and active-device fallback
-  layered around it. `hue_tool.py` lost 213 lines and `spotify_tool.py` 153.
+  layered around it. `hue_tool.py` shrank by a net 67 lines and
+  `spotify_tool.py` by 59.
 - `.gitignore` now guards `hue.json`, matching the existing Spotify token guard,
   in case `HUE_TOKEN_CACHE` is pointed into the repo.
 
 ### Fixed
+Reverse-substring matching, empty-name candidates and schema aliasing were
+present in the Spotify tool as released in 2.7.0. The other items were caught
+while the Hue provider was being built and never shipped in a release.
 - A tool provider missing a contract method raised inside the streaming loop and
   aborted the **entire** conversation response rather than losing just its own
   tool call. The contract is validated once at construction, and a provider that
   fails validation never advertises its schemas.
 - Name resolution matched a stored name inside a longer spoken phrase as a raw
-  substring, so a short name swallowed unrelated requests — a zone called "Up"
+  substring, so a short name swallowed unrelated requests: a zone called "Up"
   answered "the cupboard light". Reverse matching now requires word boundaries.
 - A room or device whose name normalized to empty was contained in every target
   and answered every non-exact request.
@@ -90,9 +94,15 @@ credential cannot block unrelated work such as filler generation.
 - `GPT_REASONING_EFFORT` knob for the GPT-5 family.
 
 ### Changed
-- Default conversation model is now `gpt-5.4-mini`. The engine handles GPT-5
-  request semantics (`max_completion_tokens`, no `temperature`) and falls back
-  cleanly to `gpt-4o-mini` for accounts without GPT-5 access.
+- Recommended conversation model is now `gpt-5.4-mini`, the value shipped in
+  `.env.example`. The code-level default when `GPT_MODEL` is unset stays
+  `gpt-4o-mini` as the always-available safety net (there is no automatic
+  runtime fallback between models). GPT-5 request semantics
+  (`max_completion_tokens`, no `temperature`) were already handled since 2.3.0.
+- The per-device `.env` overlay moved from
+  `device_overrides/{OUTPUT_DEVICE_TYPE}/.env` to
+  `jf_sebastian/devices/{OUTPUT_DEVICE_TYPE}/.env`, inside the device bundle.
+  The old path is no longer read.
 - Johnny and Teddy Ruxpin use `shimmer` as their RVC input voice; their distinct
   character comes from voice conversion.
 - Sentence chunking extracted into `SentenceChunker`, now abbreviation-aware
@@ -173,7 +183,7 @@ Spotify support installs from `requirements-spotify.txt` (`spotipy`).
   hallucinates on noise or lowering it if valid speech is rejected.
 - New dependency `silero-vad`, replacing `webrtcvad`.
 
-## [2.5.0] - 2026-05-10
+## [2.5.0] - 2026-05-11
 
 ### Added
 - **Pluggable news headlines provider**, mirroring the 2.4.0 weather pattern, so
@@ -209,8 +219,8 @@ Spotify support installs from `requirements-spotify.txt` (`spotipy`).
 ```
 News is **on by default**. Existing installs will begin fetching NPR headlines
 at next restart; add `NEWS_PROVIDER=none` to opt out. For child-facing
-personalities, consider `none` or a kid-safe feed — NPR Top News may include
-violence or politics. New dependency: `feedparser>=6.0.10`.
+personalities, consider `none` or a kid-safe feed, since NPR Top News may
+include violence or politics. New dependency: `feedparser>=6.0.10`.
 
 ## [2.4.1] - 2026-05-10
 
@@ -231,7 +241,7 @@ No configuration changes.
 
 ### Added
 - **Pluggable weather provider**: the hardwired wttr.in fetch becomes a
-  `WeatherProvider` interface with three adapters — wttr.in (default, no API
+  `WeatherProvider` interface with three adapters: wttr.in (default, no API
   key), Home Assistant (local, no third-party egress) and manual (offline).
   Auto-selects when `WEATHER_PROVIDER` is unset; existing `ZIPCODE`-only setups
   keep working. `WEATHER_PROVIDER=none` disables weather entirely.
@@ -240,7 +250,7 @@ No configuration changes.
   staleness, enriched crash reports, and permanent-failure detection after N
   consecutive crashes. Ships launchd plist and systemd unit templates.
 - **Proactive scheduler / ambient mode**: personalities define utterances in
-  `personalities/<name>/scheduled_events.yaml` — morning greetings, bedtime
+  `personalities/<name>/scheduled_events.yaml`: morning greetings, bedtime
   stories, holiday surprises. Schedule syntax `HH:MM`, `HH:MM weekdays`,
   `HH:MM YYYY-MM-DD`; each event uses `say:` (verbatim TTS) or `prompt:` (LLM in
   character). Events fire only when IDLE, never interrupting a conversation.
@@ -272,8 +282,9 @@ No configuration changes.
   the entire weather pipeline, including the auto-fallback to wttr.
 - The `_refresh_in_flight` flag leaked `True` when the weather provider became
   unconfigured mid-refresh, suppressing all future refreshes.
-- A Whisper weather cold-miss caused "I can't check the weather" on the first
-  conversation.
+- A weather cold-miss caused "I can't check the weather" on the first
+  conversation. The first fetch is now synchronous, with a retried pre-warm at
+  startup.
 - numpy int16 overflow `RuntimeWarning` in RMS amplitude calculation.
 - A race in the scheduled-event callback could re-init PyAudio after
   `audio_player.cleanup()` during shutdown.
@@ -318,10 +329,9 @@ All new variables optional with sensible defaults: `WEATHER_PROVIDER`,
 
 ### Fixed
 - A race in the audio recorder when `stop_recording` was called from the
-  callback thread, and a second race in continuous mode.
+  callback thread.
 - An RVC crash when `vc_single` returned a tuple containing `None` audio.
 - RVC audio playing too fast, by propagating the actual sample rate.
-- Echo suppression getting stuck when the LISTENING state was skipped.
 
 ## [2.2.0] - 2026-01-16
 
@@ -333,28 +343,30 @@ All new variables optional with sensible defaults: `WEATHER_PROVIDER`,
 ### Changed
 - macOS audio stream delay reduced from 2.0s to 0.5s, saving 1.5 seconds between
   filler and response playback.
-- RVC tuned for 30-40% faster conversion (`filter_radius: 0`,
-  `rms_mix_rate: 0.1`, `protect: 0.2`), applied to K.I.T.T. and Teddy Ruxpin.
-  Combined with the above, roughly 3.8 seconds saved per interaction.
+- RVC tuning aimed at 30-40% faster conversion (`rvc_filter_radius: 0`,
+  `rvc_rms_mix_rate: 0.1`, `rvc_protect: 0.2`) added to the K.I.T.T. and Teddy
+  Ruxpin YAML. The loader did not read these three keys until the 2.7.0 fix, so
+  the tuning only took effect from that release.
 - The RVC optimization script moved to `scripts/benchmark_rvc.py`; redundant
   per-personality READMEs removed.
 
 ## [2.1.1] - 2026-01-02
 
-### Changed
-- **Peak RMS silence detection** replaces average RMS, using 100 ms sliding
-  windows with 50% overlap and taking the maximum. Silence no longer drags down
-  the amplitude measurement, so speech surrounded by quiet audio is still
-  detected.
-- `MIN_AUDIO_RMS` default changed from 800 to 60, appropriate for peak rather
-  than average measurements. Hard-coded RMS values were removed in favour of the
-  setting.
-- RMS logging now shows both the peak value and the active threshold, to make
+### Added
+- **RMS amplitude silence filter** ahead of Whisper, so silence and very quiet
+  audio are not transcribed. It measures **peak** RMS, using 100 ms sliding
+  windows with 50% overlap and taking the maximum, so silence does not drag down
+  the measurement and speech surrounded by quiet audio is still detected.
+  Configured with the new `MIN_AUDIO_RMS` (default 60). An average-RMS version
+  with a default of 800 existed only between 2.1.0 and this release.
+- RMS logging shows both the peak value and the active threshold, to make
   tuning possible.
 
 ### Fixed
-- Added "bye" to the meaningless-transcription filter, reducing false wake-ups
-  from background noise.
+- Added "bye" to the meaningless-transcription filter, reducing false responses
+  to background noise.
+- A roughly 2-second delay before the wake-word detector resumed on returning to
+  IDLE.
 
 ## [2.1.0] - 2026-01-02
 
@@ -449,7 +461,7 @@ First stable release.
   conflicts.
 - Debug logging and audio capture, pytest coverage, and setup automation.
 
-Requires Python 3.9+, macOS (tested on Apple Silicon), an OpenAI API key, and
+Requires Python 3.10+, macOS (tested on Apple Silicon), an OpenAI API key, and
 optionally a Bluetooth cassette adapter.
 
 [2.8.0]: https://github.com/pjdoland/jf-sebastian/compare/v2.7.0...v2.8.0

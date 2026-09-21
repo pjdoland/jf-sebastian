@@ -105,8 +105,9 @@ tts_voice: onyx
 # Adjust to match character energy: slower for dignified, faster for manic
 tts_speed: 1.0
 
-# TTS style instruction (optional, for gpt-4o-mini-tts model)
+# TTS style instruction (optional)
 # Controls tone, emotional range, and speaking style
+# Only sent when TTS_MODEL in .env is a gpt-4o model (e.g. gpt-4o-mini-tts)
 tts_style: "Speak warmly and conversationally"
 
 # Wake word model filename (in this same directory)
@@ -116,9 +117,9 @@ wake_word_model: hey_yourname.onnx
 # rvc_enabled: true
 # rvc_model: yourname_voice.pth
 # rvc_index_file: yourname_voice.index  # Optional
-# rvc_pitch_shift: 0  # Semitones, -12 to 12
+# rvc_pitch_shift: 0  # Whole semitones, -12 to 12
 # rvc_index_rate: 0.75  # Index influence, 0.0 to 1.0
-# rvc_f0_method: rmvpe  # Pitch detection method
+# rvc_f0_method: pm  # Pitch detection: pm, harvest, crepe, dio, rmvpe
 
 # System prompt defining the character
 system_prompt: |
@@ -139,14 +140,19 @@ filler_phrases:
 ### Step 3: Train Custom Wake Word
 - Follow the guide in `docs/TRAIN_WAKE_WORDS.md`
 - Train an OpenWakeWord model for your wake phrase (e.g., "Hey YourName")
-- Save the `.onnx` model file as `hey_yourname.onnx`
+- Save the `.onnx` model file as `hey_yourname.onnx` (any filename works as long as it matches `wake_word_model` in your YAML)
 - Place it in your personality's directory: `personalities/yourname/hey_yourname.onnx`
 
 ### Step 4: Generate Filler Audio
 
 ```bash
 python scripts/generate_fillers.py --personality yourname
+
+# Optional: only one output device type
+python scripts/generate_fillers.py --personality yourname --device teddy_ruxpin
 ```
+
+Re-run this whenever you change the filler phrases or any voice setting (`tts_voice`, `tts_speed`, `tts_style`, RVC). The audio is pre-rendered, so YAML changes do not reach the fillers until you regenerate.
 
 ### Step 5: Activate Your Personality
 
@@ -164,7 +170,9 @@ Each personality is fully self-contained in its own directory:
 yourname/
 ├── personality.yaml               # Personality definition (YAML - easy to edit!)
 ├── hey_yourname.onnx              # Wake word model
-├── scheduled_events.yaml          # Optional — proactive greetings/reminders
+├── scheduled_events.yaml          # Optional: proactive greetings/reminders
+├── yourname.pth, yourname.index   # Optional: RVC voice model (not distributed, gitignored)
+├── .env                           # Optional: settings overrides for this personality (gitignored)
 └── filler_audio/                  # Device-specific pre-generated filler audio
     ├── teddy_ruxpin/              # Filler audio with PPM control signals
     │   ├── filler_01.wav
@@ -188,9 +196,19 @@ yourname/
 
 The only external configuration needed is setting `PERSONALITY=yourname` in `.env`.
 
+### Per-Personality `.env` Overrides
+
+A personality folder may contain its own `.env`. When that personality is selected, the file is layered on top of the base configuration, so a character can carry its own tuning (for example a looser `WAKE_WORD_THRESHOLD` or a higher `VOICE_GAIN`). Precedence, highest first:
+
+1. `personalities/{PERSONALITY}/.env`
+2. `jf_sebastian/devices/{OUTPUT_DEVICE_TYPE}/.env`
+3. `.env`
+
+Overlays that were loaded are logged at startup (`Loaded env overlay: ...`). Do not set `PERSONALITY` or `OUTPUT_DEVICE_TYPE` inside an overlay: they are the keys used to pick the overlays, and are read from the base `.env` or the process environment.
+
 ## Available TTS Voices
 
-OpenAI provides these voices:
+OpenAI provides these voices (the value is passed to the API as-is, so any other voice your `TTS_MODEL` supports also works):
 - **onyx**: Male, casual (used by Leopold and K.I.T.T.)
 - **echo**: Male, dignified (used by Mr. Lincoln and Fred)
 - **fable**: Male, expressive (used by Jarvis)
@@ -206,16 +224,18 @@ Filler phrases play immediately after speech detection while the real response i
 - Reflect the character's activities and personality
 - Give enough time for API processing (Whisper + GPT + TTS)
 
-**Note:** When you run `python scripts/generate_fillers.py`, the system automatically generates device-specific versions of each filler phrase for all supported output devices (Teddy Ruxpin with PPM signals, Headless/Squawkers McCaw with simple stereo, etc.). The appropriate version is loaded based on your `OUTPUT_DEVICE_TYPE` setting.
+**Note:** When you run `python scripts/generate_fillers.py`, the system automatically generates device-specific versions of each filler phrase for all registered output devices (Teddy Ruxpin with PPM signals, Headless/Squawkers McCaw with simple stereo, etc.). Without `--personality` it processes every personality; `--device <type>` limits it to one device type. The appropriate version is loaded based on your `OUTPUT_DEVICE_TYPE` setting.
+
+Files are named `filler_NN.wav`, where `NN` is the phrase's position in the `filler_phrases` list. At runtime one file is chosen at random per turn and its phrase text is passed to the LLM, so the real response can continue from where the filler left off. The generator overwrites files but never deletes them: if you shorten or reorder the list, delete the `filler_audio/` folder before regenerating. Set `ENABLE_FILLER_AUDIO=false` in `.env` to turn filler playback off entirely.
 
 ## Scheduled Events (optional)
 
 Drop a `scheduled_events.yaml` in any personality folder to make the
-character speak proactively at specific times — morning greetings, bedtime
+character speak proactively at specific times: morning greetings, bedtime
 stories, holiday surprises. Events only fire when the device is IDLE, so
 they never interrupt an in-progress conversation.
 
-Schedule syntax (intentionally tiny — see `personalities/johnny/scheduled_events.yaml`
+Schedule syntax (intentionally tiny; see `personalities/johnny/scheduled_events.yaml`
 for a working example):
 ```yaml
 quiet_hours:
@@ -226,16 +246,56 @@ events:
     when: "08:30"            # daily
     say: "Mornin'!"
   - name: weekday_reminder
-    when: "17:00 weekdays"   # mon–fri (also: "weekends", or "mon,wed,fri")
-    prompt: "Remind me to wrap up work in one short sentence — stay in character."
+    when: "17:00 weekdays"   # mon-fri (also: "weekends", or "mon,wed,fri")
+    prompt: "Remind me to wrap up work in one short sentence. Stay in character."
   - name: christmas_morning
     when: "08:00 2026-12-25" # one-shot date
     say: "Merry Christmas!"
 ```
 
-Each event uses either `say:` (verbatim TTS, fastest) or `prompt:` (fed to
-the LLM in character, varies each time). Set `SCHEDULER_ENABLED=false` in
-`.env` to globally disable. **Edits require a process restart.**
+Each event needs a `name`, a `when`, and exactly one of `say:` (verbatim TTS,
+fastest) or `prompt:` (fed to the LLM as if the user said it, so the wording
+varies each time). An event with both, neither, or an unparseable `when` is
+skipped with a warning in the log; the rest of the file still loads. Set
+`SCHEDULER_ENABLED=false` in `.env` to globally disable. **Edits require a
+process restart.**
+
+```mermaid
+flowchart TD
+    T["Scheduler tick (every 30 s)"] --> Q{"Inside quiet hours?"}
+    Q -->|"yes"| X["Nothing fires"]
+    Q -->|"no"| M{"Event's HH:MM is this minute,<br/>day/date matches,<br/>not already fired this minute?"}
+    M -->|"no"| X
+    M -->|"yes"| I{"State is IDLE?"}
+    I -->|"no"| S["Skipped (no retry, no catch-up)"]
+    I -->|"yes"| K{"say or prompt?"}
+    K -->|"say"| V["Use the text verbatim"]
+    K -->|"prompt"| L["LLM generates a reply in character"]
+    V --> A["TTS, optional RVC, device output"]
+    L --> A
+    A --> C{"try_transition<br/>IDLE to SPEAKING"}
+    C -->|"lost the race to the wake word"| S
+    C -->|"ok"| P["Play audio, then back to IDLE"]
+```
+
+**Quiet hours.** The optional `quiet_hours` block suppresses events whose time
+falls inside the window. The window is half-open (`start` is quiet, `end` is
+not), may wrap midnight (`22:00` to `07:00`), and is disabled when `start`
+equals `end`. An event scheduled inside the window never fires; the loader
+warns about it at startup. Setting `QUIET_HOURS_START` and/or `QUIET_HOURS_END`
+in `.env` replaces the YAML block as a pair: if either env var is set, both
+values come from the environment and the YAML `quiet_hours` is ignored (so set
+both, otherwise quiet hours end up disabled).
+
+**Good to know:**
+- Times are naive local time, matched to the minute. There is no catch-up: an
+  event that is skipped (not IDLE, quiet hours, machine asleep, app not running)
+  is simply missed until its next occurrence.
+- A one-shot date in the past is loaded but will never fire (warned at startup).
+- `prompt:` events go through the conversation engine and are added to the
+  conversation history alongside user turns.
+- After a scheduled utterance the device returns to IDLE; it does not open the
+  microphone for a reply.
 
 ## Technical Details
 
@@ -244,26 +304,30 @@ the LLM in character, varies each time). Set `SCHEDULER_ENABLED=false` in
 Personalities are defined in `personality.yaml` files with these fields:
 
 **Required fields:**
-- **`name`**: Character name shown to users
-- **`tts_voice`**: OpenAI TTS voice ID (onyx, echo, fable, nova, shimmer, or alloy)
-- **`wake_word_model`**: Filename of the .onnx wake word model
+- **`name`**: Character display name (used in the startup log, e.g. "Personality: Johnny")
+- **`tts_voice`**: OpenAI TTS voice ID (onyx, echo, fable, nova, shimmer, or alloy). Not validated at load time; it is passed straight to the TTS API.
+- **`wake_word_model`**: Filename of the .onnx wake word model, relative to the personality's folder
 - **`system_prompt`**: Multi-line text defining the character's personality
 - **`filler_phrases`**: List of 8-10 second phrases for low-latency response
 
-**Optional TTS settings (for gpt-4o-mini-tts model):**
+**Optional TTS settings:**
 - **`tts_speed`**: Speech speed from 0.25 to 4.0 (default: 1.0). Adjust to match character energy - slower for dignified characters (0.9), faster for manic ones (1.1)
-- **`tts_style`**: Style instruction to control tone, emotional range, intonation, and speaking style (e.g., "Speak warmly and casually" or "Use a dignified, authoritative tone")
+- **`tts_style`**: Style instruction to control tone, emotional range, intonation, and speaking style (e.g., "Speak warmly and casually" or "Use a dignified, authoritative tone"). Only sent to the API when `TTS_MODEL` in `.env` is a gpt-4o model such as `gpt-4o-mini-tts`; with `tts-1`/`tts-1-hd` it is ignored.
+
+Any other top-level key (for example the `full_name` line in `jarvis`, `kitt`, and `teddy_ruxpin`) is ignored by the loader.
 
 **Optional RVC (voice conversion) settings:**
 - **`rvc_enabled`**: Tri-state. `true` = on, `false` = off (authoritative, even if a model file is present), **omitted** = auto (on only if a model file resolves). So a personality whose folder contains a matching `.pth` turns RVC on by itself.
-- **`rvc_model`**: RVC model filename (.pth). Optional: if omitted, the loader looks for `<foldername>.pth` in the personality directory (e.g. `fred/fred.pth`). An explicit value is used as-is. If nothing resolves, RVC is skipped and the raw TTS audio is used.
-- **`rvc_index_file`**: Optional index file for improved quality. Same convention: if omitted, looks for `<foldername>.index`.
-- **`rvc_pitch_shift`**: Pitch adjustment in semitones, -12 to +12 (default: 0)
+- **`rvc_model`**: RVC model filename (.pth). Optional: if omitted, the loader looks for `<foldername>.pth` in the personality directory (e.g. `fred/fred.pth`). An explicit value is looked up in the personality directory first, then in the global `RVC_MODEL_DIR` (default `./rvc_models/`). If nothing resolves, RVC is skipped and the raw TTS audio is used.
+- **`rvc_index_file`**: Optional index file for improved quality. Same convention: if omitted, looks for `<foldername>.index`. Index files are only looked up in the personality directory.
+- **`rvc_pitch_shift`**: Pitch adjustment in whole semitones (must be an integer), -12 to +12 (default: 0)
 - **`rvc_index_rate`**: Index influence, 0.0 to 1.0 (default: 0.5)
 - **`rvc_f0_method`**: Pitch detection method - pm, harvest, crepe, dio, or rmvpe (default: harvest; use pm on macOS, rmvpe on Linux/Windows for best quality)
 - **`rvc_filter_radius`**: Median filtering radius, 0-7 (default: 3)
 - **`rvc_rms_mix_rate`**: Volume envelope mixing, 0.0-1.0 (default: 0.25)
 - **`rvc_protect`**: Protect voiceless consonants, 0.0-0.5 (default: 0.33)
+
+`rvc_pitch_shift`, `rvc_index_rate`, and `rvc_f0_method` are validated only when RVC is active for the personality; the ranges on the last three fields are guidance and are not enforced. `RVC_ENABLED=false` in `.env` turns RVC off for every personality regardless of these settings.
 
 **Note:** RVC transforms TTS output with custom trained voice models for unique character voices beyond OpenAI TTS alone. See [docs/CREATING_PERSONALITIES.md](../docs/CREATING_PERSONALITIES.md) for detailed RVC setup guide.
 
@@ -275,12 +339,32 @@ Personalities are defined in `personality.yaml` files with these fields:
 
 ### Auto-Discovery
 
-The system automatically scans `personalities/` for subdirectories containing `personality.yaml` files. No manual registration needed!
+The system automatically scans `personalities/` for subdirectories containing `personality.yaml` files. No manual registration needed! The lowercased folder name is the personality's key (the value for `PERSONALITY`, matched case-insensitively). Folders whose names start with `_` or `.` are skipped. Only the selected personality is loaded and validated; a broken YAML in another folder does not affect startup.
+
+### How a Personality Is Used at Runtime
+
+```mermaid
+flowchart LR
+    ENV["PERSONALITY=yourname<br/>(.env)"] --> GP["get_personality()"]
+    GP --> Y["personalities/yourname/<br/>personality.yaml"]
+    Y --> P["Personality object<br/>(validated)"]
+    P -->|"wake_word_model"| WW["WakeWordDetector"]
+    P -->|"system_prompt,<br/>spotify_enabled, hue_enabled"| LLM["ConversationEngine"]
+    P -->|"tts_voice, tts_speed, tts_style"| TTS["TextToSpeech"]
+    P -->|"rvc_* settings"| DEV["Output device<br/>(RVC conversion)"]
+    P -->|"filler_phrases +<br/>filler_audio/DEVICE_TYPE/"| FIL["FillerPhraseManager"]
+    P -->|"scheduled_events.yaml"| SCH["ProactiveScheduler"]
+```
 
 ### Validation
 
 When a personality loads, the system validates:
-- All required fields are present
-- `filler_phrases` is a list
-- Wake word model file exists
 - YAML syntax is correct
+- All required fields are present (`missing required fields: ...`)
+- `filler_phrases` is a list
+- `tts_speed` is between 0.25 and 4.0
+- When RVC is active: `rvc_pitch_shift` is an integer from -12 to 12, `rvc_index_rate` is between 0.0 and 1.0, and `rvc_f0_method` is one of harvest, crepe, pm, dio, rmvpe
+
+Any failure is reported at startup as `Failed to load personality '<name>': <reason>`.
+
+Not checked by the loader: whether the wake word model file exists (a missing file fails when the wake word detector starts), whether `tts_voice` is a real voice (fails at the first TTS call), and whether filler audio has been generated (the app logs a warning and runs without fillers).

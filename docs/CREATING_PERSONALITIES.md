@@ -11,9 +11,16 @@ This guide will walk you through creating a custom personality for your animatro
 5. [Writing System Prompts](#writing-system-prompts)
 6. [Creating Filler Phrases](#creating-filler-phrases)
 7. [Training Wake Words](#training-wake-words)
-8. [Testing Your Personality](#testing-your-personality)
-9. [Examples and Ideas](#examples-and-ideas)
-10. [Troubleshooting](#troubleshooting)
+8. [Voice Selection](#voice-selection)
+9. [Testing Your Personality](#testing-your-personality)
+10. [Examples and Ideas](#examples-and-ideas)
+11. [Troubleshooting](#troubleshooting)
+12. [Advanced: RVC Voice Conversion](#advanced-rvc-voice-conversion)
+13. [Advanced: Voice-Controlled Music (Spotify)](#advanced-voice-controlled-music-spotify)
+14. [Advanced: Voice-Controlled Lights (Philips Hue)](#advanced-voice-controlled-lights-philips-hue)
+15. [Advanced: Per-Personality Settings Overrides](#advanced-per-personality-settings-overrides)
+16. [Best Practices](#best-practices)
+17. [Sharing Your Personality](#sharing-your-personality)
 
 ---
 
@@ -24,7 +31,7 @@ A personality is a complete character package that includes:
 - **Wake word** - Unique phrase to activate them
 - **Voice** - Which OpenAI TTS voice to use
 - **Filler phrases** - Pre-recorded responses for low latency
-- **Filler audio** - Generated audio files with motor control
+- **Filler audio** - Generated audio files, one set per output device (with motor control signals for Teddy Ruxpin)
 
 Everything lives in a single folder that you can drop in, share, or remove at will.
 
@@ -38,6 +45,21 @@ Everything lives in a single folder that you can drop in, share, or remove at wi
 3. Train a wake word model (10-15 minutes)
 4. Generate filler audio (5 minutes)
 5. Test and refine (varies)
+
+```mermaid
+flowchart TD
+    A["Copy a personality folder<br/>personalities/your_name/"] --> B["Edit personality.yaml<br/>(name, voice, prompt, filler phrases)"]
+    B --> C["Train wake word<br/>hey_yourname.onnx into the folder"]
+    C --> D{"Custom voice?"}
+    D -->|"yes"| E["Drop in your_name.pth<br/>(and optional your_name.index)"]
+    D -->|"no"| F["python scripts/generate_fillers.py<br/>--personality your_name"]
+    E --> F
+    F --> G["Set PERSONALITY=your_name in .env"]
+    G --> H["python -m jf_sebastian.main"]
+    H --> I{"Happy with it?"}
+    I -->|"no: edit YAML,<br/>regenerate fillers"| B
+    I -->|"yes"| J["Done"]
+```
 
 Let's get started!
 
@@ -55,8 +77,13 @@ your_personality/
 ├── hey_your_name.onnx       # Wake word model (trained separately)
 ├── scheduled_events.yaml    # Optional: proactive utterances on a schedule
 ├── *.pth, *.index           # Optional: RVC voice conversion models
+├── .env                     # Optional: settings overrides for this personality only
 └── filler_audio/            # Device-specific generated audio files (auto-created)
     ├── teddy_ruxpin/        # Filler audio with PPM control signals
+    │   ├── filler_01.wav
+    │   ├── filler_02.wav
+    │   └── ...
+    ├── headless/            # Filler audio for computer playback (simple stereo)
     │   ├── filler_01.wav
     │   ├── filler_02.wav
     │   └── ...
@@ -66,9 +93,11 @@ your_personality/
         └── ...
 ```
 
-**Note:** The filler audio is generated per output device type, so each personality automatically gets device-specific versions based on the registered output devices in the system.
+**Note:** The filler audio is generated per output device type, so each personality automatically gets device-specific versions based on the registered output devices in the system. At runtime only the subfolder matching your `OUTPUT_DEVICE_TYPE` is read.
 
-**Optional `scheduled_events.yaml`** — drop one in your personality folder to make the character speak proactively at specific times (morning greetings, bedtime stories, holiday surprises). Events only fire when the device is IDLE, never interrupting an in-progress conversation. See [personalities/README.md → Scheduled Events](../personalities/README.md#scheduled-events-optional) and the working sample at `personalities/johnny/scheduled_events.yaml`.
+**Folder name = personality key.** The folder name (lowercased) is what you put in `PERSONALITY=`. Folders whose names start with `_` or `.` are skipped by auto-discovery.
+
+**Optional `scheduled_events.yaml`:** drop one in your personality folder to make the character speak proactively at specific times (morning greetings, bedtime stories, holiday surprises). Events only fire when the device is IDLE, never interrupting an in-progress conversation. See [Scheduled Events in personalities/README.md](../personalities/README.md#scheduled-events-optional) and the working sample at `personalities/johnny/scheduled_events.yaml`.
 
 ### The personality.yaml File
 
@@ -87,7 +116,7 @@ filler_phrases:
   - "Filler phrase 2..."
 ```
 
-That's it! No code, just configuration.
+That's it! No code, just configuration. The five required fields are `name`, `tts_voice`, `wake_word_model`, `system_prompt`, and `filler_phrases`; everything else is optional. Keys the loader does not know (for example the `full_name` line in some bundled personalities) are ignored. The full field reference is in [personalities/README.md](../personalities/README.md#yaml-format).
 
 ---
 
@@ -127,7 +156,7 @@ Open `personalities/your_name/personality.yaml` in a text editor.
 #### Set Basic Info
 
 ```yaml
-# The display name users see
+# The display name (shown in the startup log)
 name: Captain Morgan
 
 # Choose a voice (see Voice Selection below)
@@ -137,8 +166,10 @@ tts_voice: onyx
 # Slower for dignified characters (0.9), faster for energetic ones (1.1)
 tts_speed: 1.0
 
-# TTS style instruction (optional, for gpt-4o-mini-tts model)
+# TTS style instruction (optional)
 # Controls tone, emotional range, and speaking style
+# Only sent when TTS_MODEL in .env is a gpt-4o model (e.g. gpt-4o-mini-tts);
+# ignored with tts-1 / tts-1-hd
 tts_style: "Speak gruffly like a weathered sea captain"
 
 # Wake word filename (you'll create this later)
@@ -149,9 +180,9 @@ wake_word_model: hey_captain.onnx
 # rvc_enabled: true
 # rvc_model: captain_voice.pth
 # rvc_index_file: captain_voice.index  # Optional - improves quality
-# rvc_pitch_shift: 0  # Semitones, -12 to 12
-# rvc_index_rate: 0.75  # Index influence, 0.0 to 1.0
-# rvc_f0_method: pm  # Pitch detection: pm, harvest, crepe, rmvpe (macOS: use pm)
+# rvc_pitch_shift: 0  # Whole semitones, -12 to 12
+# rvc_index_rate: 0.75  # Index influence, 0.0 to 1.0 (default 0.5)
+# rvc_f0_method: pm  # Pitch detection: pm, harvest, crepe, dio, rmvpe (default harvest; macOS: use pm)
 ```
 
 #### Write the System Prompt
@@ -197,13 +228,13 @@ You'll need to train an OpenWakeWord model for your wake phrase.
 See the detailed guide: [docs/TRAIN_WAKE_WORDS.md](TRAIN_WAKE_WORDS.md)
 
 **Quick summary:**
-1. Install training tools: `pip install openwakeword[training]`
-2. Record yourself saying the wake phrase 50-100 times
-3. Record negative samples (similar but different phrases)
-4. Train the model using OpenWakeWord tools
-5. Save as `hey_yourname.onnx` in your personality directory
+1. Open OpenWakeWord's training notebook (the hosted Google Colab one is the easiest)
+2. Enter your wake phrase; the notebook generates synthetic speech samples for you (no need to record yourself)
+3. Optionally list similar-sounding phrases as custom negatives
+4. Run the training and download the resulting `.onnx` model
+5. Save it as `hey_yourname.onnx` in your personality directory (the filename must match `wake_word_model` in your YAML)
 
-**Temporary option:** Use a pre-trained model from OpenWakeWord for testing, then train your custom one later.
+**Temporary option:** Copy a pre-trained OpenWakeWord model (e.g. `hey_jarvis_v0.1.onnx`) into your personality folder for testing, then train your custom one later. See [Using Pre-trained Models](TRAIN_WAKE_WORDS.md#using-pre-trained-models).
 
 ### Step 5: Generate Filler Audio
 
@@ -213,13 +244,41 @@ Once your YAML is ready, generate the audio files:
 python scripts/generate_fillers.py --personality your_name
 ```
 
-This creates 30 WAV files with:
-- Your character's voice (using the TTS voice you selected)
-- Lip sync data (syllable-based mouth movements)
-- Eye control (sentiment-based eye positions)
-- PPM control signals (for animatronic motors)
+This creates one WAV file per filler phrase, for **every registered output device type** (`teddy_ruxpin`, `headless`, `squawkers_mccaw`, plus any drop-in devices you have installed). Each file contains:
+- Your character's voice (using the TTS voice, speed, and style you selected, passed through RVC if the personality uses it)
+- For Teddy Ruxpin only, a PPM control track on the right channel: lip sync (syllable-based mouth movements) and eye control (sentiment-based eye positions)
+- For the other devices, plain stereo voice audio
 
-Takes about 5-10 minutes depending on your internet speed and OpenAI API.
+```mermaid
+flowchart TD
+    Y["personality.yaml<br/>filler_phrases"] --> L["For each registered device type,<br/>for each phrase"]
+    L --> T["OpenAI TTS<br/>(tts_voice, tts_speed, tts_style)"]
+    T --> P["MP3 to PCM (FFmpeg)"]
+    P --> R{"RVC active?"}
+    R -->|"yes"| V["RVC voice conversion"]
+    R -->|"no"| D{"Device type"}
+    V --> D
+    D -->|"teddy_ruxpin"| TR["LEFT = voice<br/>RIGHT = PPM (lip sync + eyes)"]
+    D -->|"headless / squawkers_mccaw"| HS["Voice on both channels"]
+    TR --> W["filler_audio/DEVICE_TYPE/filler_NN.wav"]
+    HS --> W
+```
+
+Useful flags:
+
+```bash
+# Only one device type (much faster if you only own one device)
+python scripts/generate_fillers.py --personality your_name --device teddy_ruxpin
+
+# Every personality (the default when --personality is omitted; --all does the same)
+python scripts/generate_fillers.py
+```
+
+The script needs a valid `.env` (it runs the same configuration check as the main app, so `OPENAI_API_KEY` must be set). TTS is called once per phrase per device type, so 30 phrases across three device types is 90 TTS requests.
+
+Takes about 5-10 minutes depending on your internet speed and OpenAI API (longer with RVC).
+
+**Files are numbered by phrase order** (`filler_01.wav` is the first phrase in the list), and the script overwrites existing files but never deletes any. If you remove or reorder phrases, delete `personalities/your_name/filler_audio/` first and regenerate, so no stale audio is left behind.
 
 ### Step 6: Activate Your Personality
 
@@ -246,7 +305,7 @@ Test your personality:
 Refine as needed:
 - Adjust the system prompt if responses don't match your vision
 - Rewrite filler phrases that don't fit
-- Re-generate audio after changes
+- Re-generate audio after changes (filler audio is baked: changing `filler_phrases`, `tts_voice`, `tts_speed`, `tts_style`, or any RVC setting has no effect on fillers until you regenerate)
 
 ---
 
@@ -332,6 +391,8 @@ Ask yourself:
 ## Creating Filler Phrases
 
 Filler phrases play immediately when the user finishes speaking, giving the AI time to think. They're crucial for making conversations feel responsive.
+
+One filler is picked at random each turn, and its text is handed to the LLM as context so the real answer can pick up where the filler left off (without repeating the "Now..." or "So..."). That is why a clean transition word at the end matters. Filler playback can be turned off globally with `ENABLE_FILLER_AUDIO=false` in `.env`.
 
 ### What Makes a Good Filler Phrase?
 
@@ -441,14 +502,14 @@ Your personality needs a unique wake word phrase to activate it.
 See the full guide: [TRAIN_WAKE_WORDS.md](TRAIN_WAKE_WORDS.md)
 
 **Summary:**
-1. Record 50-100 samples of your wake phrase
-2. Record negative samples (similar phrases)
-3. Train model using OpenWakeWord tools
-4. Test detection accuracy
+1. Enter your wake phrase in OpenWakeWord's training notebook (it generates synthetic speech samples; you don't record anything)
+2. Add similar-sounding phrases as custom negatives if needed
+3. Train and download the `.onnx` model
+4. Test detection accuracy with your real microphone
 5. Iterate if needed
 
 **Temporary solution:**
-Use an existing pre-trained OpenWakeWord model for initial testing, then train your custom one later.
+Copy an existing pre-trained OpenWakeWord `.onnx` model into your personality folder for initial testing, then train your custom one later.
 
 ---
 
@@ -466,6 +527,8 @@ Choose from OpenAI's TTS voices:
 | **shimmer** | Female, soft, calm | Gentle characters, soothing personalities |
 
 **Test voices at:** https://platform.openai.com/docs/guides/text-to-speech
+
+The `tts_voice` value is passed straight to the OpenAI API without validation, so any voice your `TTS_MODEL` supports will work (OpenAI has added voices beyond the six above). A misspelled or unsupported voice is not caught when the personality loads; it fails later, when speech is synthesized.
 
 ### Choosing the Right Voice
 
@@ -489,7 +552,7 @@ Consider:
 2. **Check startup:**
    - Does it load without errors?
    - Is the personality name displayed?
-   - Is the wake word shown?
+   - Is the wake word shown? (The log prints "Hey" plus the `name` field; the phrase that actually triggers is whatever your `.onnx` model was trained on.)
 
 3. **Test wake word:**
    - Say the wake phrase
@@ -533,7 +596,7 @@ Consider:
 **Fix:** Rewrite phrases to match character's actual activities and knowledge
 
 **Problem:** Wake word doesn't detect well
-**Fix:** Retrain with more samples, speak more clearly, adjust detection threshold
+**Fix:** Retrain with more samples, speak more clearly, adjust the detection threshold (`WAKE_WORD_THRESHOLD` in `.env`, default 0.99)
 
 ---
 
@@ -580,7 +643,12 @@ Mix traits for unique characters:
 
 ### YAML Validation Errors
 
-**Error:** "Missing required field: name"
+Load errors appear at startup as `Failed to load personality '<name>': ...` followed by one of the messages below.
+
+**Error:** "Unknown personality 'your_name'. Available: ..."
+**Fix:** `PERSONALITY` must match a folder name under `personalities/` that contains a `personality.yaml`.
+
+**Error:** "personality.yaml in ... is missing required fields: name"
 **Fix:** Ensure all required fields are present:
 - `name`
 - `tts_voice`
@@ -588,13 +656,21 @@ Mix traits for unique characters:
 - `system_prompt`
 - `filler_phrases`
 
-**Error:** "filler_phrases must be a list"
+**Error:** "'filler_phrases' must be a list"
 **Fix:** Ensure proper YAML list format:
 ```yaml
 filler_phrases:
   - "Phrase 1..."
   - "Phrase 2..."
 ```
+
+**Error:** "'tts_speed' must be between 0.25 and 4.0"
+**Fix:** Use a number in that range (1.0 is normal speed).
+
+**Error:** "'rvc_pitch_shift' must be an integer between -12 and 12", "'rvc_index_rate' must be between 0.0 and 1.0", or "'rvc_f0_method' must be one of ['harvest', 'crepe', 'pm', 'dio', 'rmvpe']"
+**Fix:** Correct the value. These three are only checked when RVC is active for the personality. Note that `rvc_pitch_shift` must be a whole number (`-2`, not `-2.0`).
+
+**Not validated at load time:** the `tts_voice` name and the existence of the wake word file. A bad voice fails when speech is synthesized; a missing `.onnx` file fails when the wake word detector starts.
 
 ### Generation Issues
 
@@ -678,33 +754,38 @@ rvc_enabled: true
 rvc_model: captain_voice.pth
 
 # Optional: Index file (omit to use <foldername>.index by convention)
+# Looked up in the personality directory only
 rvc_index_file: captain_voice.index
 
-# Pitch shift in semitones (-12 to +12)
+# Pitch shift in whole semitones (-12 to +12, default 0)
 # Negative = lower pitch, Positive = higher pitch
 rvc_pitch_shift: -2
 
-# Index influence (0.0 to 1.0)
+# Index influence (0.0 to 1.0, default 0.5)
 # Higher = more faithful to trained voice, may introduce artifacts
 # Lower = cleaner but less accurate to trained voice
 rvc_index_rate: 0.75
 
-# Pitch detection method (pm, harvest, crepe, rmvpe)
+# Pitch detection method (pm, harvest, crepe, dio, rmvpe; default harvest)
 # pm: Good quality, fastest (recommended for macOS)
 # harvest: Good quality, fast
 # crepe: Better quality, medium speed
 # rmvpe: Best quality, slow (Linux/Windows only - crashes on macOS)
 rvc_f0_method: pm
 
-# Optional: Additional RVC parameters
+# Optional: Additional RVC parameters (defaults shown)
 rvc_filter_radius: 3  # Median filtering (0-7, higher = smoother)
 rvc_rms_mix_rate: 0.25  # Volume envelope mixing (0.0-1.0)
 rvc_protect: 0.33  # Protect voiceless consonants (0.0-0.5)
 ```
 
+The loader checks `rvc_pitch_shift`, `rvc_index_rate`, and `rvc_f0_method` (only when RVC is active). The ranges on the last three parameters are guidance; they are passed to RVC as written.
+
+RVC can also be switched off for every personality at once with `RVC_ENABLED=false` in `.env`, which is handy for comparing against the raw TTS voice.
+
 ### RVC Pitch Detection Methods
 
-RVC supports multiple pitch detection methods via `rvc_f0_method`. Choose based on your platform and quality requirements:
+RVC supports multiple pitch detection methods via `rvc_f0_method`. Choose based on your platform and quality requirements (`dio` is also accepted by the loader):
 
 | Method | Quality | Speed | Requirements | macOS Compatible |
 |--------|---------|-------|--------------|------------------|
@@ -772,12 +853,13 @@ personalities/your_name/
 └── hey_captain.onnx
 ```
 
-**Global directory:**
+**Global directory** (models only, and only for an explicit `rvc_model:` value):
 ```
 rvc_models/
-├── captain_voice.pth
-└── captain_voice.index
+└── captain_voice.pth
 ```
+
+An explicit `rvc_model` is looked up in the personality directory first, then in the global directory (`RVC_MODEL_DIR` in `.env`, default `./rvc_models/`). The `<foldername>.pth` convention and all `.index` files are only looked up in the personality directory, so keep index files next to `personality.yaml`.
 
 ### RVC System Requirements
 
@@ -787,7 +869,7 @@ rvc_models/
 
 Set in `.env`:
 ```bash
-RVC_DEVICE=mps  # or cpu, cuda
+RVC_DEVICE=auto  # default: picks the best available GPU; or force cpu, mps, cuda
 ```
 
 ### Testing RVC
@@ -818,10 +900,10 @@ RVC_DEVICE=mps  # or cpu, cuda
 **Fix:**
 - Use `RVC_DEVICE=mps` or `cuda` instead of `cpu`
 - Lower `rvc_filter_radius`
-- Use faster f0_method (crepe or pm)
+- Use a faster `rvc_f0_method` (`pm` is the fastest)
 
 **Problem:** Model file not found
-**Fix:** Verify file path and filename exactly match personality.yaml
+**Fix:** Verify file path and filename exactly match personality.yaml. A missing model is not an error: the log shows "No RVC model for ..." and the raw TTS voice is used.
 
 ---
 
@@ -873,14 +955,43 @@ doing anything, and pairing later takes effect without a restart. When
 `HUE_ENABLED` is off, no personality is offered the tools at all, so the feature
 is simply absent.
 
-Control is entirely local (LAN → Hue Bridge), so light commands come back much
-faster than music ones — under 100 ms. Full setup is in
+Control is entirely local (LAN to Hue Bridge), so light commands come back much
+faster than music ones: typically under 100 ms. Full setup is in
 [HUE_SETUP.md](HUE_SETUP.md).
 
 A character with a strong visual personality is worth leaning into here: a
 showman might narrate a colour change theatrically, while a butler would just
-confirm it crisply. The spoken confirmation is templated from the tool result,
-but the personality's system prompt still shapes how it's delivered.
+acknowledge it crisply. Be aware of where that character comes from. The spoken
+confirmation itself is a fixed, neutral sentence templated from the tool result
+(there is no second LLM call to rephrase it), so the system prompt does not
+reword it. What the personality shapes is anything the model says alongside the
+tool call, plus the delivery: the confirmation is spoken in the character's TTS
+voice, style, and RVC voice like everything else.
+
+---
+
+## Advanced: Per-Personality Settings Overrides
+
+Any setting that normally lives in `.env` can be overridden for one personality by
+dropping a `.env` file into its folder: `personalities/your_name/.env`. It is loaded
+automatically when `PERSONALITY=your_name` is selected.
+
+```bash
+# personalities/your_name/.env
+WAKE_WORD_THRESHOLD=0.95   # this character's wake word model needs a looser threshold
+VOICE_GAIN=1.4             # this character's RVC model is quiet
+```
+
+Precedence, highest first: `personalities/{PERSONALITY}/.env`, then
+`jf_sebastian/devices/{OUTPUT_DEVICE_TYPE}/.env`, then the base `.env`. Loaded
+overlays are listed in the startup log (`Loaded env overlay: ...`).
+
+Two rules:
+- Do not put `PERSONALITY` or `OUTPUT_DEVICE_TYPE` in an overlay. They are the keys
+  that select which overlays load, and are read from the base `.env` (or the process
+  environment) only.
+- Overlay files are covered by the repo's `.env` gitignore rule, so they are not
+  committed. Leave them out when you share a personality if they contain anything private.
 
 ---
 
@@ -929,7 +1040,7 @@ Want to share your creation?
    - Share the zip directly
    - Submit a pull request to add to the main repo
 
-**Note:** Filler audio files can be large (60MB+). Consider sharing without them and having users generate their own.
+**Note:** Filler audio files are large (roughly 150 MB per device type for 30 phrases). Consider sharing without them and having users generate their own. RVC models (`.pth`/`.index`), generated audio, and `.env` overlays are gitignored, so a pull request only carries the YAML, the wake word model, and any `scheduled_events.yaml`.
 
 ---
 
